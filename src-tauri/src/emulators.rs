@@ -716,7 +716,29 @@ fn extract_archive(archive: &Path, destination: &Path) -> Result<(), String> {
     ))
 }
 
+fn validate_zip(archive: &Path) -> Result<(), String> {
+    let file = fs::File::open(archive).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    for index in 0..zip.len() {
+        let entry = zip.by_index(index).map_err(|e| e.to_string())?;
+        if entry.enclosed_name().is_none() {
+            return Err(format!("Unsafe path in archive: {}", entry.name()));
+        }
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err(format!(
+                "Symbolic links are not allowed in archives: {}",
+                entry.name()
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn extract_zip(archive: &Path, destination: &Path) -> Result<(), String> {
+    validate_zip(archive)?;
     #[cfg(target_os = "macos")]
     {
         let status = Command::new("/usr/bin/ditto")
@@ -739,9 +761,9 @@ fn extract_zip(archive: &Path, destination: &Path) -> Result<(), String> {
         let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
         for index in 0..zip.len() {
             let mut entry = zip.by_index(index).map_err(|e| e.to_string())?;
-            let Some(relative) = entry.enclosed_name() else {
-                continue;
-            };
+            let relative = entry
+                .enclosed_name()
+                .ok_or_else(|| format!("Unsafe path in archive: {}", entry.name()))?;
             let target = destination.join(relative);
             if entry.is_dir() {
                 fs::create_dir_all(&target).map_err(|e| e.to_string())?;
@@ -868,6 +890,26 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn zip_archives_with_parent_paths_are_rejected() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../localTmp")
+            .join(format!("pyrocade-archive-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        let archive_path = root.join("escape.zip");
+        let mut archive = zip::ZipWriter::new(std::fs::File::create(&archive_path).unwrap());
+        archive
+            .start_file("../outside", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        std::io::Write::write_all(&mut archive, b"outside").unwrap();
+        archive.finish().unwrap();
+
+        let result = super::extract_archive(&archive_path, &root.join("unpacked"));
+
+        let _ = std::fs::remove_dir_all(&root);
+        assert!(result.is_err(), "parent paths must not be extracted");
     }
 }
 

@@ -118,6 +118,20 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<Ga
     Ok(games)
 }
 
+fn wait_for_child(
+    child: std::process::Child,
+    window: Option<tauri::WebviewWindow>,
+) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        let mut child = child;
+        let _ = child.wait();
+        if let Some(window) = window {
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+    })
+}
+
 #[tauri::command]
 pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<bool, String> {
     let game = state
@@ -204,21 +218,16 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     let child = command.spawn().map_err(|e| format!("Launch failed: {e}"))?;
-    if config
+    let window = config
         .get("hideWhilePlaying")
         .and_then(Value::as_bool)
         .unwrap_or(false)
-    {
-        if let Some(window) = app.get_webview_window("main") {
-            window.minimize().map_err(|e| e.to_string())?;
-            std::thread::spawn(move || {
-                let mut child = child;
-                let _ = child.wait();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            });
-        }
+        .then(|| app.get_webview_window("main"))
+        .flatten();
+    if let Some(window) = window.as_ref() {
+        let _ = window.minimize();
     }
+    wait_for_child(child, window);
     Ok(true)
 }
 
@@ -1002,5 +1011,28 @@ mod library_tests {
             display_title("Legend of Zelda, The - Ocarina (USA)"),
             "The Legend of Zelda - Ocarina"
         );
+    }
+
+    #[test]
+    fn child_monitor_waits_for_process_exit() {
+        // childDelaySeconds keeps the child alive long enough to distinguish waiting from dropping.
+        const CHILD_DELAY_SECONDS: u64 = 1;
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../localTmp")
+            .join(format!("pyrocade-child-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&root).unwrap();
+        let marker = root.join("exited");
+        let command = format!("sleep {CHILD_DELAY_SECONDS}; printf done > \"$1\"");
+        let child = Command::new("sh")
+            .args(["-c", &command, "sh"])
+            .arg(&marker)
+            .spawn()
+            .unwrap();
+
+        super::wait_for_child(child, None).join().unwrap();
+
+        let result = fs::read_to_string(&marker);
+        let _ = fs::remove_dir_all(&root);
+        assert_eq!(result.unwrap(), "done");
     }
 }
