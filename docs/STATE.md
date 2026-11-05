@@ -2,15 +2,15 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), and P3 / S03 (`d96b133`) are complete; the next slice is P4.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), and P4 / S04 (`ff2ff8f`) are complete; the next slice is P5.
 
-**The next action is P4 / S04.**
+**The next action is P5 / S05.**
 
 ## Next action
 
-P4 — Port emulator install and game launch workflows. Port GitHub release checks, downloads, safe archive extraction, manifests, updates, uninstall/open-folder/file-pick/custom-emulator flows, argument parsing, process launch, and hide/restore behavior; retain progress/error contracts.
+P5 — Port artwork download and import service. Port Libretro and Switch artwork lookup, cached indexes, image validation/conversion, safe non-overwriting downloads, import replacement, library media updates, cancellation, status snapshots, and progress events.
 
-**The Do-Not list is `docs/donot.md`** — 1 entry, append-only. Never dropped, never trimmed.
+**The Do-Not list is `docs/donot.md`** — 3 entries, append-only. Never dropped, never trimmed.
 
 ## Task queue
 
@@ -35,13 +35,18 @@ P4 — Port emulator install and game launch workflows. Port GitHub release chec
   - `npm start` and macOS runtime behavior were not exercised. The boundary guide was absent; a diff-scoped review found no new linkage to `preload.js` or `artwork.js`, and managed bundle paths stay under the emulator data directory.
   - Post-commit guard: NEAR at 220,515/225,000 tokens (98%); session cost $0.20465935/$0.70, within the cost stop threshold. The Do-Not count remains 1; no withdrawn numbers or applicable Do-Not entries were reported.
 
+- **P4 / S04 — Port emulator install and game launch workflows.** Source committed as `ff2ff8f` (`fix: harden emulator launch and ZIP extraction`). The Tauri emulator service covers GitHub release checks, downloads/progress, manifests and updates, uninstall/folder/file/custom-emulator flows, argument parsing, launch, and hide/restore. This slice rejects unsafe ZIP member paths before extraction and reaps launched emulator children when the window remains visible.
+  - Close condition: S04's stated contract is complete. Rust gates passed: format check, 14 tests, and cargo check; the existing `merge_object` dead-code warning remains.
+  - `npm start` built and launched `target/debug/pyrocade`, then reached the 90-second tool timeout; the process was no longer present afterward. Interactive emulator workflows and visual WebView behavior were not verified.
+  - Boundary linkage check found no new references to `main.js`, `preload.js`, or `artwork.js`; the slice changed only `src-tauri/src/backend.rs` and `src-tauri/src/emulators.rs`. The boundary note was absent.
+  - Post-commit guard: WITHIN at 166,913/225,000 tokens (74%); session cost $0.13497802/$0.70. Do-Not count increased from 1 to 3; entries #2 and #3 record child reaping and unsafe ZIP-path rejection.
+
 ### In progress
 
-- **P4 / S04 — Port emulator install and game launch workflows.** Port GitHub release checks, downloads, safe archive extraction, manifests, updates, uninstall/open-folder/file-pick/custom-emulator flows, argument parsing, process launch, and hide/restore behavior; retain progress/error contracts.
+- **P5 / S05 — Port artwork download and import service.** Port Libretro and Switch artwork lookup, cached indexes, image validation/conversion, safe non-overwriting downloads, import replacement, library media updates, cancellation, status snapshots, and progress events.
 
 ### Queued
 
-- **P5 — Port artwork download and import service.** Preserve Libretro/GameTDB sources, caching, import conversion, cancellation, and progress.
 - **P6 — Package macOS and Linux ARM64 builds.** Configure Tauri bundles, icons, dependencies, artifact names, and build commands.
 - **P7 — Port app update and release behavior.** Add release discovery and signed Tauri updater behavior where configured, with a manual fallback.
 - **P8 — Port validation and release automation.** Adapt checks, add ARM64 release jobs, and verify target behavior.
