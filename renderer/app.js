@@ -105,7 +105,7 @@ function setSystem(id) {
   const k = keep ? S.list.indexOf(keep) : -1;
   S.sel = k >= 0 ? k : Math.min(S.sel, Math.max(0, S.list.length - 1));
   $('#empty').textContent = q ? `No games match “${S.query}”.` : (() => { const s = S.config.systems.find(x => x.id === S.system);
-      return s?.romDir ? `No games yet — add them to ${s.romDir}` : 'No games for this system yet.'; })();
+      return s?.romDir ? `No games found in ${s.romDir.split('|').map(d => d.trim()).filter(Boolean).join(' or ')}` : 'No games for this system yet.'; })();
   $('#empty').classList.toggle('hidden', S.list.length > 0);
   layout(); showInfo();
 }
@@ -269,7 +269,7 @@ function layout() {
   $('#shelfProgress').style.width = `${S.list.length ? (S.sel+1)/S.list.length*100 : 0}%`;
   $('#shelfPrev').disabled = !S.list.length || S.sel === 0;
   $('#shelfNext').disabled = !S.list.length || S.sel === S.list.length-1;
-  $('#shelfLabel').textContent = (S.system === 'all' ? 'Your collection' : sysOf(S.system).name)+' / '+Appearance.layouts[Appearance.mode()].name;
+  $('#shelfLabel').textContent = (S.system === 'all' ? 'All games' : sysOf(S.system).name)+' / '+Appearance.layouts[Appearance.mode()].name;
   if (S.list.length) $('#carousel').setAttribute('aria-activedescendant',`shelf-game-${S.sel}`);
   else $('#carousel').removeAttribute('aria-activedescendant');
   if (!S.list.length) $('#mediaType').textContent = '';
@@ -577,7 +577,7 @@ function renderSettings() {
     const tr = el('tr', '', `
       <td class="name"><i style="background:${s.color}"></i>${esc(s.name)}</td>
       <td><input data-k="romDir" value="${esc(s.romDir)}" placeholder="Not set" id="rom${i}"/></td>
-      <td><button data-browse="rom${i}">Browse…</button></td>
+      <td><button data-browse="rom${i}">Browse…</button> <button data-browse="rom${i}" data-add="1" title="Add another ROM folder">+ Add</button></td>
       <td><select data-k="emulator">${emuOpts(s.emulator)}</select></td>
       <td><input data-k="extensions" value="${esc(s.extensions.join(' '))}"/></td>
       <td><input data-k="args" value="${esc(s.args || '')}" placeholder="emulator default"/></td>`);
@@ -586,7 +586,13 @@ function renderSettings() {
 }
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-browse]');
-  if (b) { const p = await api.pickFolder('Choose folder'); if (p) $('#' + b.dataset.browse).value = p; }
+  if (b) {
+    const p = await api.pickFolder('Choose folder');
+    if (p) {
+      const input = $('#' + b.dataset.browse), cur = input.value.trim();
+      input.value = b.dataset.add && cur ? `${cur} | ${p}` : p;
+    }
+  }
   const g = e.target.closest('[data-goto]');
   if (g) { e.preventDefault(); showView(g.dataset.goto); }
 });

@@ -1,7 +1,7 @@
 const Appearance=(()=>{
   const $=s=>document.querySelector(s);
   const themes={ember:{name:'Ember',accent:'#ff752e',light:'#ffc074'},glacier:{name:'Glacier',accent:'#37bfe6',light:'#9defff'},violet:{name:'Violet',accent:'#a685ff',light:'#ebafff'},mint:{name:'Mint',accent:'#4dc59c',light:'#c3f59f'},rose:{name:'Rose',accent:'#f46e9b',light:'#ffc2a5'}};
-  const layouts={carousel:{name:'Carousel',note:'Your 3D collection'},vertical:{name:'Vertical stack',note:'A top-to-bottom filmstrip'},flipbook:{name:'Flipbook',note:'Turn through your collection'},swatches:{name:'Colour cards',note:'An artwork-coloured grid'}};
+  const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Page through'},swatches:{name:'Colour cards',note:'Colour grid'}};
   let theme='ember',mode='carousel',context,saves=Promise.resolve(),volumeTimer;
   function persist(){
     const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.uiSound=AudioUI.settings();

@@ -42,7 +42,7 @@ const DEFAULT_SYSTEMS = [
   { id: 'psp', name: 'PSP', caseType: 'umd', media: 'disc', color: '#111111', extensions: ['.iso', '.cso', '.chd'], emulator: 'ppsspp', libretro: 'Sony - PlayStation Portable' },
   // Nintendo
   { id: 'switch', name: 'Nintendo Switch', caseType: 'switch', media: 'cart', color: '#e60012', extensions: ['.nsp', '.xci', '.nsz'], emulator: '', artworkProvider: 'gametdb-switch' },
-  { id: 'switch2', name: 'Nintendo Switch 2', caseType: 'switch', media: 'cart', color: '#d0021b', extensions: ['.nsp', '.xci', '.nsz', '.xcz'], emulator: '' },
+  { id: 'switch2', name: 'Nintendo Switch 2', caseType: 'switch', media: 'cart', color: '#d0021b', extensions: ['.nsp', '.xci', '.nsz', '.xcz'], emulator: '', artworkProvider: 'gametdb-switch' },
   { id: 'wiiu', name: 'Wii U', caseType: 'dvd', media: 'disc', color: '#1a9ad6', extensions: ['.wua', '.wud', '.wux', '.rpx'], emulator: 'cemu', libretro: 'Nintendo - Wii U' },
   { id: 'wii', name: 'Wii', caseType: 'dvd', media: 'disc', color: '#e9eef2', extensions: ['.rvz', '.wbfs', '.iso'], emulator: '', libretro: 'Nintendo - Wii' },
   { id: 'gc', name: 'GameCube', caseType: 'gc', media: 'disc', color: '#5a4a9c', extensions: ['.rvz', '.iso', '.gcm', '.ciso'], emulator: '', libretro: 'Nintendo - GameCube' },
@@ -247,13 +247,20 @@ function copyScore(f) {
   return s + Math.min(f.size / 1e10, 0.9); // tie-break: bigger file (base game rather than patch)
 }
 
+const romDirsOf = sys => String(sys.romDir || '').split('|').map(d => d.trim()).filter(Boolean);
 let libraryGames = [];
 async function scanLibrary() {
   const games = [];
   for (const sys of config.systems) {
-    if (!sys.romDir || !fs.existsSync(sys.romDir)) continue;
+    // A system can have several ROM folders (e.g. games split across two SD cards), separated by "|".
+    // Folders that are missing - an SD card that isn't inserted - are skipped.
+    const dirs = romDirsOf(sys).filter(d => fs.existsSync(d));
+    if (!dirs.length) continue;
     const exts = sys.extensions.map(e => e.toLowerCase());
-    const files = (await walkRoms(sys.romDir, exts)).filter(f => !/\(track \d+\)/i.test(f.name));
+    const files = [];
+    for (const [ri, dir] of dirs.entries()) {
+      for (const f of await walkRoms(dir, exts)) if (!/\(track \d+\)/i.test(f.name)) files.push({ ...f, root: dir, rootIndex: ri });
+    }
     // Prefer .m3u playlists over their individual discs.
     const m3u = new Set(files.filter(f => /\.m3u$/i.test(f.name)).map(f => looseKey(stem(f.name))));
     const best = new Map();
@@ -264,15 +271,16 @@ async function scanLibrary() {
       f.score = copyScore(f);
       if (!best.has(key) || best.get(key).score < f.score) best.set(key, f);
     }
-    const roots = [config.mediaRoot && path.join(config.mediaRoot, sys.id), path.join(sys.romDir, 'media'), sys.romDir, path.join(DATA, 'media', sys.id)].filter(Boolean);
+    const roots = [config.mediaRoot && path.join(config.mediaRoot, sys.id), ...dirs.flatMap(d => [path.join(d, 'media'), d]), path.join(DATA, 'media', sys.id)].filter(Boolean);
     const indexes = await Promise.all(roots.map(indexMediaRoot));
-    const gamelist = await readGamelist(sys.romDir);
+    const gamelist = new Map();
+    for (const d of dirs) for (const [k, v] of await readGamelist(d)) if (!gamelist.has(k)) gamelist.set(k, v);
     for (const f of best.values()) {
       const base = path.basename(f.name, path.extname(f.name));
       const { media, info } = await findMedia(indexes, base);
       const meta = { ...(gamelist.get(base.toLowerCase()) || {}), ...(info || {}) };
       games.push({
-        id: `${sys.id}:${path.relative(sys.romDir, f.path)}`,
+        id: `${sys.id}:${f.rootIndex ? f.rootIndex + ':' : ''}${path.relative(f.root, f.path)}`,
         system: sys.id,
         romPath: f.path,
         base,

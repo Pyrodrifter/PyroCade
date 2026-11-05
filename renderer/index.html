@@ -20,13 +20,13 @@
       <button data-view="settings">Settings</button>
     </nav>
     <button id="btnAppearance" aria-haspopup="dialog" aria-controls="appearancePicker" aria-expanded="false" title="Change layout, theme and sound"><span aria-hidden="true">◈</span>View &amp; theme</button>
-    <div class="header-status"><span id="inputBadge">Keyboard &amp; mouse</span><div id="clock"></div></div>
+    <div class="header-status"><span id="inputBadge" class="hidden">Keyboard &amp; mouse</span><div id="clock"></div></div>
   </header>
 
   <!-- LIBRARY -->
   <main id="view-library" class="view active">
     <div class="toolbar">
-      <button id="btnSystemPicker" class="system-browser" aria-haspopup="dialog" aria-expanded="false" aria-controls="systemPicker" title="Browse all systems (Ctrl+K)"><span class="system-browser-icon" aria-hidden="true"></span><span><strong>All systems</strong><small id="systemTotal">Your collection</small></span><span class="system-browser-chevron" aria-hidden="true">⌄</span></button>
+      <button id="btnSystemPicker" class="system-browser" aria-haspopup="dialog" aria-expanded="false" aria-controls="systemPicker" title="Browse all systems (Ctrl+K)"><span class="system-browser-icon" aria-hidden="true"></span><span><strong>All systems</strong><small id="systemTotal"></small></span><span class="system-browser-chevron" aria-hidden="true">⌄</span></button>
       <div class="system-rail-shell">
         <button id="systemsPrev" class="rail-arrow" aria-label="Scroll systems left" title="Previous systems">‹</button>
         <nav id="systems" class="chips" aria-label="Game systems"></nav>
@@ -43,14 +43,13 @@
     </div>
     <div id="demoBanner" class="banner hidden">Demo shelf — point a system at your ROM folder in <a href="#" data-goto="settings">Settings</a> to load your own games.</div>
     <div id="stage">
-      <div class="shelf-heading"><span id="shelfLabel">Your collection</span><span id="mediaType"></span></div>
-      <div class="shelf-spotlight" aria-hidden="true"></div>
-      <div id="floor"></div>
+      <div class="shelf-heading"><span id="shelfLabel"></span><span id="mediaType"></span></div>
+            <div id="floor"></div>
       <div id="carousel" role="listbox" aria-label="Game collection" tabindex="0"></div>
       <div id="empty" class="hidden">No games for this system yet.</div>
       <button id="shelfPrev" class="shelf-arrow previous" aria-label="Previous game" title="Previous game"></button>
       <button id="shelfNext" class="shelf-arrow next" aria-label="Next game" title="Next game"></button>
-      <div class="shelf-position"><span id="shelfPosition"></span><div class="shelf-progress" aria-hidden="true"><i id="shelfProgress"></i></div><span class="shelf-instruction">Select to preview · open case to explore</span></div>
+      <div class="shelf-position"><span id="shelfPosition"></span><div class="shelf-progress" aria-hidden="true"><i id="shelfProgress"></i></div></div>
     </div>
     <div id="selectionStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <section id="info">
@@ -72,18 +71,18 @@
   </main>
 
   <dialog id="systemPicker" aria-labelledby="systemPickerTitle">
-    <div class="system-picker-heading"><div><div class="eyebrow">Your collection, connected</div><h2 id="systemPickerTitle">Choose a system</h2></div><button id="closeSystemPicker" aria-label="Close system browser">×</button></div>
+    <div class="system-picker-heading"><div><h2 id="systemPickerTitle">Choose a system</h2></div><button id="closeSystemPicker" aria-label="Close system browser">×</button></div>
     <label class="system-picker-search"><span class="search-icon" aria-hidden="true"></span><input id="systemSearch" aria-label="Find a system" placeholder="Find a system…" spellcheck="false" /><kbd aria-hidden="true">Esc</kbd></label>
     <div id="systemPickerGrid" aria-label="Available systems"></div>
     <p id="systemPickerEmpty" class="hidden">No systems match your search.</p>
     <div class="system-picker-footer"><span id="systemPickerSummary"></span><span>Arrow keys to browse · Enter to choose</span><button id="systemPickerAppearance">View &amp; theme</button></div>
   </dialog>
   <dialog id="appearancePicker" aria-labelledby="appearanceTitle">
-    <div class="system-picker-heading"><div><div class="eyebrow">Set the mood</div><h2 id="appearanceTitle">Make it yours</h2></div><button id="closeAppearance" aria-label="Close appearance controls">×</button></div>
+    <div class="system-picker-heading"><div><h2 id="appearanceTitle">View &amp; theme</h2></div><button id="closeAppearance" aria-label="Close appearance controls">×</button></div>
     <div class="appearance-label">Browse your games</div><div id="layoutOptions" class="layout-options"></div>
     <div class="appearance-label">Colour theme</div><div id="themeOptions" class="theme-options"></div>
     <div class="appearance-label">Interface sound</div><div class="sound-controls"><button id="soundToggle" aria-pressed="true">Sound on</button><input id="soundVolume" aria-label="Interface sound volume" type="range" min="0" max="100" step="1" value="25" /><output id="soundVolumeValue">25%</output><button id="soundPreview" title="Preview sound">Test</button></div>
-    <p class="appearance-note">Changes preview instantly and save automatically. Press the controller’s Menu / Start button to browse all systems.</p>
+    
   </dialog>
 
   <!-- CASE VIEWER -->
@@ -104,7 +103,7 @@
   <!-- EMULATORS -->
   <main id="view-emus" class="view">
     <div class="view-head">
-      <div><h1>Emulators</h1><p class="sub">Downloads come straight from each project's official GitHub releases. Updates install on top, so your emulator settings are kept.</p></div>
+      <div><h1>Emulators</h1><p class="sub">Downloaded from each project's official GitHub releases. Updates keep your settings.</p></div>
       <div class="actions">
         <button id="btnCheckAll" class="primary">Check all for updates</button>
         <button id="btnAddCustom">+ Add your own emulator</button>
@@ -123,12 +122,12 @@
   <!-- ARTWORK -->
   <main id="view-artwork" class="view">
     <div class="view-head">
-      <div><div class="eyebrow">Make it yours</div><h1>Artwork</h1><p class="sub">Bring your collection to life with covers, screenshots and title screens. Downloads appear in your library as they arrive.</p></div>
+      <div><h1>Artwork</h1><p class="sub">Download covers, screenshots and title screens, or use your own images.</p></div>
       <button id="artOpenFolder">Open artwork folder</button>
     </div>
     <div class="artwork-layout">
       <section class="panel art-options" aria-labelledby="artOptionsTitle">
-        <h2 id="artOptionsTitle">Choose your collection</h2>
+        <h2 id="artOptionsTitle">Download artwork</h2>
         <label class="art-field" for="artScope">Download for</label>
         <select id="artScope"><option value="game">Selected game</option><option value="system">One system</option><option value="library">Entire library</option></select>
         <label class="art-field" for="artSystem" id="artSystemLabel">System</label>
@@ -142,14 +141,14 @@
           <label><input type="checkbox" value="back" /> <span>Back covers<small>Switch packaging for the case viewer</small></span></label>
         </fieldset>
         <label class="art-retry"><input id="artRetry" type="checkbox" /> Refresh matches and retry missing artwork</label>
-        <p class="art-preserve">Existing artwork is kept. Run the download again to fill remaining gaps.</p>
+        
         <div class="actions"><button id="artStart" class="primary">Download artwork</button><button id="artCancel" class="hidden">Cancel download</button></div>
         <p id="artError" class="art-error hidden" role="alert"></p>
       </section>
       <div>
         <section class="panel art-progress-panel" aria-labelledby="artJobTitle">
-          <div class="art-status-heading"><h2 id="artJobTitle">Ready when you are</h2><span id="artJobState" class="art-state">Ready</span></div>
-          <p id="artCurrent" class="sub" role="status" aria-live="polite">Choose a game, a system, or your entire library to get started.</p>
+          <div class="art-status-heading"><h2 id="artJobTitle">Progress</h2><span id="artJobState" class="art-state">Ready</span></div>
+          <p id="artCurrent" class="sub" role="status" aria-live="polite">Choose a game, system or your whole library.</p>
           <progress id="artProgress" value="0" max="1" aria-label="Artwork download progress"></progress>
           <div class="art-progress-caption"><span id="artCount">No download running</span><span id="artPercent"></span></div>
           <div class="art-stats">
@@ -159,8 +158,8 @@
           <p id="artUnsupported" class="sub hidden"></p>
           <ul id="artActivity" class="art-activity" aria-label="Recent artwork results"></ul>
         </section>
-        <section class="panel art-source" aria-labelledby="artImportTitle"><span class="eyebrow">Your choice</span><h2 id="artImportTitle">Use your own image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="fanart">Background</option></select><button id="artImport">Choose image…</button></div><p>Use a PNG, JPG or WebP image. Only the chosen artwork type is replaced. To change another game, select it in Library and click its Artwork button.</p><p id="artImportStatus" role="status" aria-live="polite"></p></section>
-        <section class="panel art-source"><span class="eyebrow" id="artSourceLabel">Sources · Libretro &amp; GameTDB</span><h2>No account needed</h2><p id="artSourceDetails">Libretro provides covers, gameplay screenshots and title screens. GameTDB supplies Switch covers, back covers and cartridge labels. Availability varies by game.</p><p>Spines, manuals and other unmatched images can be added from your own files.</p></section>
+        <section class="panel art-source" aria-labelledby="artImportTitle"><h2 id="artImportTitle">Use your own image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="fanart">Background</option></select><button id="artImport">Choose image…</button></div><p>PNG, JPG or WebP. Only the chosen type is replaced.</p><p id="artImportStatus" role="status" aria-live="polite"></p></section>
+        <section class="panel art-source"><span id="artSourceLabel" class="hidden"></span><h2>Sources</h2><p id="artSourceDetails">Libretro: covers, screenshots, title screens. GameTDB: Switch covers, back covers, cartridge labels. No account needed; availability varies by game.</p></section>
       </div>
     </div>
   </main>
@@ -168,7 +167,7 @@
   <!-- SETTINGS -->
   <main id="view-settings" class="view">
     <div class="view-head">
-      <div><h1>Settings</h1><p class="sub">Point each system at a ROM folder. Artwork is found automatically — see “Artwork folders” below.</p></div>
+      <div><h1>Settings</h1><p class="sub">Set a ROM folder for each system. To use several folders (e.g. two SD cards), click “+ Add” or separate paths with <code>|</code>.</p></div>
       <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
     </div>
     <div class="panel">
