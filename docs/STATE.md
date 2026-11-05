@@ -2,15 +2,15 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 is complete and its source is committed as `b9ce85e`; the next slice is P2 / S02.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`) and P2 / S02 (`bd4eb4f`) are complete; the next slice is P3.
 
-**The next action is P2 / S02.**
+**The next action is P3 / S03.**
 
 ## Next action
 
-P2 — Port settings and ROM library service. Complete settings load/migration/atomic save, preserve existing PyroCade data locations, scan configured ROM roots, parse gamelist.xml, select duplicate ROM copies, index local artwork/manuals, and return the existing game payload shape.
+P3 — Make the emulator catalog platform and architecture aware. Replace the Windows-versus-Linux assumption with explicit OS/CPU selection, prevent x86_64 assets from being offered to ARM64, preserve custom/manual linking, and return accurate managed/installed status for macOS ARM64 and Linux ARM64.
 
-**The Do-Not list is `docs/donot.md`** — 0 entries, append-only. Never dropped, never trimmed.
+**The Do-Not list is `docs/donot.md`** — 1 entry, append-only. Never dropped, never trimmed.
 
 ## Task queue
 
@@ -24,13 +24,17 @@ P2 — Port settings and ROM library service. Complete settings load/migration/a
   - Boundary: `package.json:24` retains an `electron .` route resolving to `main.js` via `package.json:6`; this is intentionally left for the later Electron-removal slice, not a Do-Not fault.
   - Post-commit guard: NEAR at 202,421/225,000 tokens (90%); measured session cost $0.15114795/$0.70, within the cost stop threshold. The P1 brief reported no withdrawn numbers and no applicable Do-Not entries (count 0).
 
+- **P2 / S02 — Port settings and ROM library service.** Source committed as `bd4eb4f` (`fix(tauri): preserve ROM media compatibility`). The settings migration/save path and data-directory mapping were already implemented; the slice restored the manual-path payload contract, legacy local-media aliases/formats, title normalization, and duplicate-ROM selection behavior.
+  - Close condition: settings load/migration/atomic save; existing PyroCade data locations; configured ROM scanning; `gamelist.xml` parsing; duplicate selection; local artwork/manual indexing; and the existing game payload shape. Rust gates passed: format check, 7 tests, and cargo check (existing `merge_object` dead-code warning).
+  - `npm start` was not run; it is configured as `runCommand`, not in `gateCommands`. Boundary linkage and path checks found no references into `main.js`, `preload.js`, or `artwork.js`.
+  - Post-commit guard: WITHIN at 145,692/225,000 tokens (65%); session cost $0.090936/$0.70. Do-Not count increased from 0 to 1; new entry #1 records the manual-path/file-URL mismatch.
+
 ### In progress
 
-- **P2 / S02 — Port settings and ROM library service.** Complete settings load/migration/atomic save, preserve existing PyroCade data locations, scan configured ROM roots, parse gamelist.xml, select duplicate ROM copies, index local artwork/manuals, and return the existing game payload shape.
+- **P3 / S03 — Make the emulator catalog platform and architecture aware.** Replace the Windows-versus-Linux assumption with explicit OS/CPU selection, prevent x86_64 assets from being offered to ARM64, preserve custom/manual linking, and return accurate managed/installed status for macOS ARM64 and Linux ARM64.
 
 ### Queued
 
-- **P3 — Make the emulator catalog platform and architecture aware.** Add OS/CPU selection and prohibit x86_64 downloads on ARM64.
 - **P4 — Port emulator install and game launch workflows.** Preserve release checks, downloads, extraction, manual linking, process launch, and progress events.
 - **P5 — Port artwork download and import service.** Preserve Libretro/GameTDB sources, caching, import conversion, cancellation, and progress.
 - **P6 — Package macOS and Linux ARM64 builds.** Configure Tauri bundles, icons, dependencies, artifact names, and build commands.
