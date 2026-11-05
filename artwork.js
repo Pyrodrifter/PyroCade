@@ -300,6 +300,9 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
       for(const k of ['downloaded','upgraded','existing','missing'])result[k]+=r[k]||0;
       Object.assign(result.media,r.media);if(r.error)result.errors.push(r.error);
     }
+    // An upgraded image has a new file (and often a new extension): the window must swap it in,
+    // not keep the old address, which now points at a deleted file.
+    if(result.upgraded)result.replace=true;
     return result;
   }
   const snapshot=()=>job ? structuredClone(job):null;

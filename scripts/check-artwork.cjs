@@ -73,7 +73,30 @@ async function until(test){for(let i=0;i<300;i++){if(test())return;await pause(1
     assert(switchCalls.some(u=>u.includes('/label/EN/AABPA.png')),'Switch label must be available for the cartridge');
     assert(!switchCalls.some(u=>u.includes('Named_Snaps')),'Switch must not query Libretro');
     assert.equal(switchCalls.filter(u=>u.includes('switchtdb.txt')).length,1,'Switch types must share the metadata request');
-    console.log('Passed: missing screenshots with cached covers, custom-art preservation, exact-region matching, independent title art, refreshed matches, invalid-image handling, path validation, shared requests, cancellation, resume, unsupported systems and progress updates.');
+    // Upgrades: a sharper copy replaces PyroCade's own small cover (even when the format changes),
+    // the window is told to swap it in, and images the user picked themselves are left alone.
+    {
+      const wide=Buffer.from(png);wide.writeUInt32BE(1000,16);wide.writeUInt32BE(1000,20);
+      const updir=path.join(dir,'upgrade');
+      const launchbox={find:async()=>['https://lb.test/sharp.png'],available:()=>true,platforms:{snes:'Super Nintendo Entertainment System'}};
+      const up=createArtworkService({dataDir:updir,getSystems:()=>systems,getGames:()=>[],normalize,launchbox,
+        fetchImpl:async()=>new Response(wide,{headers:{'content-type':'image/png'}}),encodeImage:async bytes=>({bytes,ext:'jpg'})});
+      const covers=path.join(updir,'media','snes','covers');await fs.mkdir(covers,{recursive:true});
+      const small=path.join(covers,'Upgrade Me (USA).png');await fs.writeFile(small,png);
+      const owned=make('Upgrade Me (USA)');owned.media.front=require('node:url').pathToFileURL(small).href;
+      const r=await up.downloadGame(owned,['front'],{upgrade:true});
+      assert.equal(r.upgraded,1,'small cover was not upgraded');
+      assert.equal(r.replace,true,'upgrade must tell the window to replace the old image');
+      assert.match(r.media.front,/Upgrade%20Me%20\(USA\)\.jpg\?v=\d+$/,'upgraded cover should point at the new file');
+      await assert.rejects(fs.stat(small),'the old small file should be removed');
+      const mine=path.join(updir,'media','snes','Mine (USA)');await fs.mkdir(mine,{recursive:true});
+      const chosen=path.join(mine,'front.png');await fs.writeFile(chosen,png);
+      const user=make('Mine (USA)');user.media.front=require('node:url').pathToFileURL(chosen).href;
+      const kept=await up.downloadGame(user,['front'],{upgrade:true});
+      assert.equal(kept.upgraded,0,'an image the user chose must never be replaced');
+      assert.equal(await fs.readFile(chosen,'base64'),png.toString('base64'));
+    }
+    console.log('Passed: sharper-cover upgrades (window refresh, user images kept), missing screenshots with cached covers, custom-art preservation, exact-region matching, independent title art, refreshed matches, invalid-image handling, path validation, shared requests, cancellation, resume, unsupported systems and progress updates.');
   } finally {
     // Only remove the unique test directory inside the OS temp directory.
     assert.equal(path.dirname(path.resolve(dir)),path.resolve(os.tmpdir()));
