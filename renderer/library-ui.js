@@ -28,7 +28,7 @@ const LibraryUI=(()=>{
   function element(tag,cls,text){const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n}
   const smooth=()=>document.documentElement.dataset.motion==='reduced'?'instant':'smooth';
   function button(entry,cls){
-    const b=element('button',cls);b.type='button';b.dataset.id=entry.id;b.style.setProperty('--system-color',entry.color||'#ff954e');
+    const b=element('button',cls);b.type='button';b.dataset.id=entry.id;b.style.setProperty('--system-color',entry.color||'#ff954e');if(!entry.count)b.dataset.empty='';
     b.setAttribute('aria-pressed',String(entry.id===context.getState().system));
     b.setAttribute('aria-label',`${entry.name}, ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`);
     b.title=`${entry.name} · ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`;

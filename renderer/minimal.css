@@ -1,0 +1,84 @@
+/* Single top bar: brand, page tabs, systems and search on one calm line.
+   Selected items get a soft pill with a short accent underline; everything else is plain text. */
+
+:root { --bar-h:56px; --bar-text:#a7afbf; --bar-dim:#6c7484; --bar-pill:#ffffff14; --bar-hover:#ffffff0a; }
+
+header { height:var(--bar-h); padding:0 32px; gap:18px; background:linear-gradient(#0b0e14cc,#0b0e1400); backdrop-filter:none; }
+header::after { left:32px; right:32px; background:#ffffff10; }
+.view { top:var(--bar-h); }
+
+.brand { font-size:13px; letter-spacing:.3em; gap:8px; flex-shrink:0; }
+.brand b { background:none; -webkit-background-clip:initial; color:var(--text); font-weight:600; }
+.flame { width:18px; height:20px; margin-right:2px; filter:none; }
+
+/* Shared pill look for page tabs and systems */
+#tabs button, .chips .system-tile { position:relative; border:0; border-radius:7px; background:none; box-shadow:none; backdrop-filter:none; color:var(--bar-text); transition:background .15s, color .15s; }
+#tabs button:hover, .chips .system-tile:hover { background:var(--bar-hover); color:var(--text); transform:none; }
+#tabs button.active, .chips .system-tile.active { background:var(--bar-pill); color:#fff; box-shadow:none; }
+#tabs button.active::after, .chips .system-tile.active::after { content:''; position:absolute; left:12px; right:12px; bottom:3px; height:2px; border-radius:2px; background:var(--accent); box-shadow:none; }
+
+#tabs { gap:2px; padding:0; background:none; border:0; border-radius:0; backdrop-filter:none; flex-shrink:0; }
+#tabs button { padding:8px 12px; gap:0; font-size:12px; letter-spacing:.02em; }
+#tabs svg { display:none; }
+#tabs button.active { font-weight:600; }
+
+/* Systems row now lives inside the header */
+header .toolbar { flex:1; min-width:0; display:grid; grid-template-columns:auto minmax(0,1fr) 180px; align-items:center; gap:10px; padding:0 0 0 18px; border-left:1px solid #ffffff14; }
+html[data-view]:not([data-view=library]) header .toolbar { visibility:hidden; }
+
+.system-browser { min-height:0; padding:8px 10px; gap:7px; border:0; border-radius:7px; background:none; box-shadow:none; backdrop-filter:none; color:var(--bar-text); }
+.system-browser:hover { background:var(--bar-hover); color:#fff; border-color:transparent; }
+.system-browser strong { font-size:11px; font-weight:500; }
+.system-browser small { display:none; }
+.system-browser-icon { color:var(--bar-dim); }
+.system-browser-icon svg { width:14px; height:14px; }
+.system-browser-chevron { font-size:11px; line-height:1; margin-left:0; transform:translateY(-2px); color:var(--bar-dim); }
+
+.system-rail-shell { grid-template-columns:18px minmax(0,1fr) 18px; gap:2px; }
+.rail-arrow { width:18px; height:28px; font-size:17px; color:var(--bar-dim); }
+.rail-arrow:hover { background:none; color:var(--text); }
+.rail-arrow:disabled { opacity:0; }
+
+.chips { gap:2px; padding:0 2px; }
+.chips .system-tile { min-width:0; max-width:none; min-height:0; padding:8px 11px; gap:6px; }
+.chips .system-glyph { display:none; }
+.chips .system-name { font-size:11px; font-weight:400; letter-spacing:.02em; }
+.chips .system-tile.active .system-name { font-weight:600; }
+.chips button .n { padding:0; background:none; font-size:9px; color:var(--bar-dim); }
+.chips .active .n { background:none; color:var(--accent2); }
+.chips .system-tile[data-empty] { color:var(--bar-dim); }
+.chips .system-tile[data-empty] .n { display:none; }
+.chips .system-tile.active::after { left:11px; right:11px; }
+
+.search { min-height:30px; padding:0 10px; border:1px solid #ffffff12; border-radius:7px; background:#ffffff06; backdrop-filter:none; }
+.search:focus-within { border-color:var(--accent); box-shadow:none; }
+.search-icon { width:14px; height:14px; color:var(--bar-dim); }
+.search-shortcut { background:none; border-color:#ffffff12; color:var(--bar-dim); }
+
+#btnAppearance { padding:8px 10px; border:0; border-radius:7px; background:none; font-size:11px; color:var(--bar-text); flex-shrink:0; }
+#btnAppearance:hover { background:var(--bar-hover); color:var(--text); }
+#btnAppearance svg { width:13px; height:13px; color:currentColor; }
+.header-status { gap:14px; flex-shrink:0; }
+#clock { font-size:13px; color:var(--bar-text); }
+#inputBadge { display:none; }
+
+/* Shelf starts right under the bar now that the systems row moved up. */
+#stage { top:22px; }
+
+@media(max-width:1500px) { #clock { display:none; } }
+@media(max-width:1250px) {
+  header { padding:0 20px; gap:12px; }
+  header::after { left:20px; right:20px; }
+  .brand { font-size:0; letter-spacing:0; gap:0; }
+  .brand b { font-size:0; }
+  #tabs button { padding:8px 9px; }
+  #tabs button.active::after { left:9px; right:9px; }
+  header .toolbar { grid-template-columns:auto minmax(0,1fr) 140px; padding-left:12px; gap:6px; }
+  .system-browser strong { display:none; }
+  .system-browser { padding:8px 6px; }
+  .chips .system-tile { padding:8px 8px; }
+  .chips .system-tile.active::after { left:8px; right:8px; }
+  #btnAppearance { font-size:0; gap:0; padding:8px; }
+  #btnAppearance > span { font-size:13px; }
+}
+@media(max-height:740px) { #stage { top:16px; } }

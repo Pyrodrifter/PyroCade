@@ -322,7 +322,18 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 .view-head h1 { margin: 0; font-size: 34px; }
 .sub { color: var(--muted); margin: 6px 0 0; max-width: 760px; }
 .panel { background: var(--glass); border: 1px solid var(--line); border-radius: 16px; padding: 16px 20px; backdrop-filter: blur(14px); margin-bottom: 16px; }
-#customForm { display: flex; gap: 10px; flex-wrap: wrap; }
+#customForm { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.emu-form-note { flex-basis: 100%; margin: 0; font-size: 11px; color: var(--muted); }
+.emu-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.emu .fork { font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent2); }
+.emu-source { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: #ffffff08; border: 1px solid var(--line); }
+.emu-source label { display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
+.emu-source label.emu-check { display: flex; }
+.emu-source input:not([type=checkbox]) { background: #ffffff0a; border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 7px 9px; font: inherit; font-size: 12px; }
+.emu-source details summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+.emu-source details[open] { display: grid; gap: 8px; }
+.emu-source .result { font-size: 11px; color: var(--muted); min-height: 1em; }
+.emu-source .result.bad { color: #ff8a8a; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
 .emu { background: var(--glass); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; backdrop-filter: blur(14px); display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; }
 .emu h3 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
@@ -376,6 +387,16 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 .art-activity li > span { min-width: 0; overflow-wrap: anywhere; }
 .art-activity small { flex-shrink: 0; max-width: 55%; text-align: right; color: var(--muted); font-size: 10px; }
 .art-source { padding: 25px; }.art-source .eyebrow { font-size: 10px; letter-spacing: .15em; }
+.art-source-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; }
+.art-source-list li { display: grid; gap: 2px; font-size: 12px; }
+.art-source-list span { color: var(--muted); }
+.art-source-list small { color: var(--accent2); font-size: 11px; }
+.art-login { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.art-login summary { cursor: pointer; font-size: 12px; color: #c9d1e0; }
+.art-login-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.art-login-grid label { display: grid; gap: 5px; font-size: 11px; color: var(--muted); }
+.art-login-grid input { background: #ffffff0a; border: 1px solid var(--line); border-radius: 7px; color: var(--text); padding: 8px 10px; font: inherit; font-size: 12px; }
+.art-login-grid input:focus { outline: none; border-color: var(--accent); }
 .art-source h2 { margin: 10px 0; }.art-source p { color: var(--muted); font-size: 12px; line-height: 1.7; }
 .art-error, .art-activity .art-error { color: #ffaaa0; font-size: 12px; line-height: 1.5; }.art-error-detail { display: block; font-size: 10px; overflow-wrap: anywhere; }
 @media(max-width:1200px) { .artwork-layout { gap: 16px; }.art-stats { gap: 8px; }header { gap: 20px; }#inputBadge { display: none; } }

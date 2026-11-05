@@ -1,5 +1,5 @@
 // PyroCade — main process: config, library scanning, launching, emulator downloads.
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, safeStorage } = require('electron');
 app.setName('PyroCade');
 if(process.platform==='win32')app.setAppUserModelId('com.pyrodrifter.pyrocade');
 const path = require('path');
@@ -11,6 +11,8 @@ const { pipeline } = require('stream/promises');
 const { Readable } = require('stream');
 const { pathToFileURL } = require('url');
 const {createArtworkService} = require('./artwork');
+const {createLaunchBox} = require('./launchbox');
+const {createScreenScraper} = require('./screenscraper');
 
 const ROOT = __dirname;
 // Where settings, installed emulators and artwork live:
@@ -296,12 +298,87 @@ async function scanLibrary() {
 }
 
 // ---------- Artwork download ----------
+// WebP (common in newer LaunchBox uploads, often named .jpg) is not readable by nativeImage,
+// so it is decoded by Chromium in a hidden sandboxed window and handed back as PNG.
+let webpWindow=null,webpQueue=Promise.resolve(),webpIdle=null;
+const closeWebpWindow=()=>{clearTimeout(webpIdle);if(webpWindow&&!webpWindow.isDestroyed())webpWindow.destroy();webpWindow=null};
+const isWebp=b=>b.length>12&&b.toString('latin1',0,4)==='RIFF'&&b.toString('latin1',8,12)==='WEBP';
+function webpToPng(bytes) {
+  const run=webpQueue.then(async()=>{
+    if(!webpWindow||webpWindow.isDestroyed()) {
+      webpWindow=new BrowserWindow({show:false,width:64,height:64,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,javascript:true}});
+      await webpWindow.loadURL('about:blank');
+    }
+    const script=`(async()=>{const b=Uint8Array.from(atob("${bytes.toString('base64')}"),c=>c.charCodeAt(0));
+      const bmp=await createImageBitmap(new Blob([b],{type:'image/webp'}));
+      if(bmp.width>16384||bmp.height>16384||bmp.width*bmp.height>40e6)throw new Error('too large');
+      const c=new OffscreenCanvas(bmp.width,bmp.height);c.getContext('2d').drawImage(bmp,0,0);
+      const out=new Uint8Array(await (await c.convertToBlob({type:'image/png'})).arrayBuffer());
+      let s='';for(let i=0;i<out.length;i+=32768)s+=String.fromCharCode(...out.subarray(i,i+32768));return btoa(s)})()`;
+    return Buffer.from(await webpWindow.webContents.executeJavaScript(script),'base64');
+  });
+  webpQueue=run.catch(()=>{});
+  // Close the helper once it has been idle for a while, so it never keeps the app running.
+  webpQueue.then(()=>{clearTimeout(webpIdle);webpIdle=setTimeout(closeWebpWindow,15000)});
+  return run.catch(()=>{throw new Error('Could not read this WebP image.')});
+}
 function artworkPng(bytes) {
+  if(isWebp(bytes))return webpToPng(bytes);
   const image=nativeImage.createFromBuffer(bytes),size=image.getSize();
   if(image.isEmpty()||size.width>16384||size.height>16384||size.width*size.height>40e6)throw new Error('Choose a valid image smaller than 40 megapixels.');
   return image.toPNG();
 }
+// Cartridge photos (LaunchBox, ScreenScraper) show the whole plastic shell, but PyroCade draws its own
+// shell and only needs the sticker. Trim the transparent margin, then cut out the label area,
+// measured on real scans (percent of the cartridge: left, top, width, height).
+const CART_LABELS = { gb:[12.5,28,75,59], gbc:[14,33,73,57], gba:[13.5,22.5,73,65.5] };
+function cartridgeLabel(bytes, systemId) {
+  const area = CART_LABELS[systemId];
+  if (!area) return null; // no measured label for this cartridge yet: keep the generated label
+  const image = nativeImage.createFromBuffer(bytes), {width, height} = image.getSize();
+  if (image.isEmpty() || width < 64 || height < 64) return null;
+  const px = image.toBitmap(); // BGRA
+  let left = width, right = -1, top = height, bottom = -1;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    if (px[(y * width + x) * 4 + 3] > 40) { if (x < left) left = x; if (x > right) right = x; if (y < top) top = y; if (y > bottom) bottom = y; }
+  }
+  if (right < left || bottom < top) return null;
+  const w = right - left + 1, h = bottom - top + 1;
+  const rect = { x: Math.round(left + w * area[0] / 100), y: Math.round(top + h * area[1] / 100), width: Math.round(w * area[2] / 100), height: Math.round(h * area[3] / 100) };
+  if (rect.width < 32 || rect.height < 32) return null;
+  return image.crop(rect).toPNG();
+}
+
+// ScreenScraper login. Passwords are encrypted with the operating system's key store when it is available.
+const sealed = text => {
+  if (!text) return '';
+  return safeStorage.isEncryptionAvailable() ? 'enc:' + safeStorage.encryptString(text).toString('base64') : 'raw:' + Buffer.from(text).toString('base64');
+};
+const unsealed = value => {
+  try {
+    if (typeof value !== 'string' || !value) return '';
+    if (value.startsWith('enc:')) return safeStorage.decryptString(Buffer.from(value.slice(4), 'base64'));
+    if (value.startsWith('raw:')) return Buffer.from(value.slice(4), 'base64').toString();
+  } catch {}
+  return '';
+};
+let scraperCredentials = null;
+function screenScraperCredentials() {
+  if (scraperCredentials) return scraperCredentials;
+  const c = config.screenscraper || {};
+  return scraperCredentials = { user: c.user || '', devId: c.devId || '', password: unsealed(c.password), devPassword: unsealed(c.devPassword) };
+}
+const screenscraper = createScreenScraper({ getCredentials: screenScraperCredentials });
+const launchbox = createLaunchBox({
+  dataDir: DATA,
+  normalize: looseKey,
+  download: (url, file) => artwork.download(url, file),
+  onStatus: message => artwork.note(message),
+});
 const artwork = createArtworkService({
+  launchbox,
+  screenscraper,
+  cartridgeLabel,
   dataDir: DATA,
   getSystems: () => config.systems,
   getGames: () => libraryGames,
@@ -324,10 +401,88 @@ function emuDef(id) {
       ? { ...catalog, asset: catalog.linux.asset, exe: catalog.linux.exe, source: { ...catalog.source, repo: catalog.linux.repo || catalog.source.repo } }
       : { ...catalog, source: undefined };
   }
-  // For catalog emulators `exe` is a filename regex used after installing; a program the user
+  // A fork (or any other repository) chosen by the user replaces the official download source.
+  // Its own file patterns are optional: without them PyroCade guesses the right download and program.
+  let source = platform.source, asset = platform.asset, exe = platform.exe;
+  if (override.repo) {
+    const forked = override.repo !== platform.source?.repo;
+    source = { type: 'github', repo: override.repo, prerelease: !!override.prerelease };
+    asset = override.assetPattern || (forked ? '' : platform.asset);
+    exe = override.exePattern || (forked ? '' : platform.exe);
+  }
+  // For downloaded emulators `exe` is a filename regex used after installing; a program the user
   // linked with "Use existing .exe…" is kept separately as exePath so the two never mix.
-  return { ...platform, ...override, exe: platform.exe, source: platform.source, asset: platform.asset,
-    exePath: override.exe || (catalog ? null : base.exe), custom: !catalog };
+  return { ...platform, ...override, exe, source, asset,
+    exePath: override.exe || (catalog || base.source ? null : base.exe), custom: !catalog,
+    officialRepo: catalog?.source?.repo || null, forked: !!(catalog && override.repo && override.repo !== catalog.source?.repo) };
+}
+
+// "owner/repo" or a github.com link -> "owner/repo".
+function parseRepo(input) {
+  const text = String(input || '').trim().replace(/\.git$/i, '').replace(/\/+$/, '');
+  const m = text.match(/^(?:https?:\/\/(?:www\.)?github\.com\/)?([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]{1,100})(?:\/.*)?$/);
+  if (!m || m[2] === '.' || m[2] === '..') throw new Error('Enter a GitHub repository as owner/name, e.g. eden-emulator/Releases');
+  return `${m[1]}/${m[2]}`;
+}
+function checkPattern(pattern, what) {
+  if (!pattern) return '';
+  const text = String(pattern).trim().slice(0, 200);
+  try { new RegExp(text, 'i'); } catch { throw new Error(`The ${what} pattern is not a valid regular expression.`); }
+  return text;
+}
+// Picks the download for this computer when the repository gives no pattern.
+function guessAsset(assets) {
+  const win = process.platform === 'win32';
+  const score = a => {
+    const n = a.name.toLowerCase();
+    if (/source|src\b|symbols|pdb|debug|[-_.]dbg[-_.]|libretro|\.sha\d*|\.sig$|\.asc$|\.txt$|\.json$/.test(n)) return -1;
+    if (/arm64|aarch64|armv7|x86(?!_64)|i686|32bit|win32(?!-x64)/.test(n)) return -1;
+    let v = 0;
+    if (win) {
+      if (!/\.(zip|7z|exe)$/.test(n)) return -1;
+      if (/(macos|mac|osx|darwin|linux|android|ios|appimage|flatpak)/.test(n)) return -1;
+      if (/win|windows|msvc|mingw/.test(n)) v += 4;
+      if (/x64|x86_64|amd64|win64/.test(n)) v += 2;
+      if (/\.zip$|\.7z$/.test(n)) v += 2; // portable archives over installers
+      if (/setup|install/.test(n)) v -= 3;
+      if (/msvc|clang|mingw|llvm/.test(n)) v -= .5; // when a plain build sits next to compiler variants, take the plain one
+    } else {
+      if (/(windows|win64|\.exe$|macos|osx|darwin|android)/.test(n)) return -1;
+      if (/\.appimage$/.test(n)) v += 6;
+      else if (/linux/.test(n) && /\.(tar\.(gz|xz|zst)|zip|7z)$/.test(n)) v += 3;
+      else return -1;
+      if (/x86_64|amd64|x64/.test(n)) v += 2;
+    }
+    return v;
+  };
+  return assets.map(a => [score(a), a]).filter(([v]) => v >= 0).sort((x, y) => y[0] - x[0])[0]?.[1] || null;
+}
+// Picks the emulator program among unpacked files when the repository gives no pattern.
+function guessProgram(dir, repo) {
+  const files = [], stack = [dir];
+  while (stack.length) {
+    const d = stack.shift();
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) stack.push(p); else files.push(p);
+    }
+  }
+  const win = process.platform === 'win32';
+  const hint = String(repo || '').split('/').pop().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const candidates = files.filter(f => {
+    const n = path.basename(f).toLowerCase();
+    if (/unins|uninstall|update|crash|redist|vc_?redist|setup|installer|helper|elevate|dxwebsetup/.test(n)) return false;
+    return win ? n.endsWith('.exe') : (n.endsWith('.appimage') || !path.extname(n));
+  });
+  const rank = f => {
+    const n = path.basename(f).toLowerCase().replace(/[^a-z0-9]/g, '');
+    let v = fs.statSync(f).size / 1e9; // larger programs first, as a tiebreak
+    if (hint && (n.includes(hint) || hint.includes(n.replace(/exe$|appimage$/, '')))) v += 10;
+    if (/qt|gui/.test(n)) v += 1;
+    if (/cli|cmd|test|bench/.test(n)) v -= 2;
+    return v;
+  };
+  return candidates.sort((a, b) => rank(b) - rank(a))[0] || null;
 }
 function manifestPath(id) { return path.join(EMU_DIR, id, '.pyrocade.json'); }
 function readManifest(id) { try { return JSON.parse(fs.readFileSync(manifestPath(id), 'utf8')); } catch { return null; } }
@@ -347,8 +502,9 @@ function emuStatus(id) {
   return {
     id, name: def.name, systems: def.systems || [], repo: def.source?.repo, custom: def.custom,
     prerelease: !!def.source?.prerelease || !!config.emulators[id]?.prerelease,
-    args: def.args, exe: resolveExe(id), installed: man ? { version: man.tag, name: man.releaseName, date: man.publishedAt } : null,
-    managed: !!def.source,
+    args: def.args, exe: resolveExe(id), installed: man ? { version: man.tag, name: man.releaseName, date: man.publishedAt, repo: man.repo || null } : null,
+    managed: !!def.source, officialRepo: def.officialRepo, forked: def.forked,
+    assetPattern: config.emulators[id]?.assetPattern || (def.custom ? def.asset || '' : ''), exePattern: config.emulators[id]?.exePattern || (def.custom && def.source ? def.exe || '' : ''),
   };
 }
 
@@ -361,20 +517,28 @@ async function ghJson(url) {
 async function latestRelease(id) {
   const def = emuDef(id);
   if (!def?.source) throw new Error('This emulator is not managed by the downloader.');
-  const re = new RegExp(def.asset, 'i');
-  const pre = def.source.prerelease || config.emulators[id]?.prerelease;
-  const list = pre
-    ? await ghJson(`https://api.github.com/repos/${def.source.repo}/releases?per_page=15`)
-    : [await ghJson(`https://api.github.com/repos/${def.source.repo}/releases/latest`)];
+  return findRelease(def.source.repo, { asset: def.asset, prerelease: def.source.prerelease || config.emulators[id]?.prerelease });
+}
+async function findRelease(repo, { asset: pattern, prerelease }) {
+  const re = pattern ? new RegExp(pattern, 'i') : null;
+  let list;
+  if (prerelease) list = await ghJson(`https://api.github.com/repos/${repo}/releases?per_page=15`);
+  else {
+    // Forks often only publish pre-releases, which /releases/latest skips.
+    try { list = [await ghJson(`https://api.github.com/repos/${repo}/releases/latest`)]; }
+    catch (e) { if (!/GitHub 404/.test(e.message)) throw e; list = (await ghJson(`https://api.github.com/repos/${repo}/releases?per_page=15`)).filter(r => !r.draft); }
+    if (!list.length) throw new Error(`${repo} has no releases to download.`);
+  }
   for (const rel of list) {
     if (rel.draft) continue;
-    const asset = rel.assets.find(a => re.test(a.name));
+    const asset = re ? rel.assets.find(a => re.test(a.name)) : guessAsset(rel.assets);
     if (asset) return {
       tag: rel.tag_name, releaseName: rel.name || rel.tag_name, publishedAt: asset.updated_at || rel.published_at,
       assetId: asset.id, assetName: asset.name, size: asset.size, url: asset.browser_download_url, notes: rel.body || '',
     };
   }
-  throw new Error(`No Windows download matching /${def.asset}/ found in recent releases.`);
+  const platformName = process.platform === 'win32' ? 'Windows' : 'Linux';
+  throw new Error(re ? `No ${platformName} download matching /${pattern}/ found in recent releases of ${repo}.` : `No ${platformName} download found in recent releases of ${repo}. Set a download pattern under Source.`);
 }
 
 async function checkUpdate(id) {
@@ -464,8 +628,8 @@ async function installEmu(id, send) {
     if (top.length === 1 && top[0].isDirectory()) src = path.join(stage, top[0].name);
 
     // Look for the program in the new files only, so an old version left in the folder is never picked.
-    const found = findFile(src, new RegExp(def.exe, 'i'));
-    if (!found) throw new Error(`Downloaded, but couldn't find the program (/${def.exe}/) in it.`);
+    const found = def.exe ? findFile(src, new RegExp(def.exe, 'i')) : guessProgram(src, def.source.repo);
+    if (!found) throw new Error(def.exe ? `Downloaded, but couldn't find the program (/${def.exe}/) in it.` : `Downloaded, but couldn't tell which file is the emulator. Set a program pattern under Source.`);
     const exeRel = path.relative(src, found);
     const dest = path.join(EMU_DIR, id);
     await fsp.mkdir(dest, { recursive: true });
@@ -476,7 +640,7 @@ async function installEmu(id, send) {
     // Versioned single-file programs (pcsx2-v2.8.2-….AppImage) would otherwise pile up.
     const old = readManifest(id)?.exe;
     if (old && old !== exeRel && !/[\\/]/.test(old) && /\.appimage$/i.test(old)) await fsp.rm(path.join(dest, old), { force: true });
-    const man = { ...rel, exe: exeRel, installedAt: new Date().toISOString() };
+    const man = { ...rel, exe: exeRel, repo: def.source.repo, installedAt: new Date().toISOString() };
     delete man.notes;
     fs.writeFileSync(manifestPath(id), JSON.stringify(man, null, 2));
     send({ id, stage: 'Done', pct: 1, done: true });
@@ -675,12 +839,12 @@ const handle = (ch, fn) => ipcMain.handle(ch, async (_e, ...a) => {
   try { return { ok: true, value: await fn(...a) }; } catch (err) { return { ok: false, error: err.message }; }
 });
 
-handle('config:get', () => config);
+handle('config:get', () => ({ ...config, screenscraper: undefined }));
 // Emulator links and custom emulators are owned by the main process (emu:* handlers), so a
 // renderer holding an older copy of the config can never overwrite them.
 handle('config:set', cfg => {
   if (!cfg || !Array.isArray(cfg.systems)) throw new Error('Invalid settings');
-  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators };
+  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper };
   saveConfig(config);
   return config;
 });
@@ -704,6 +868,31 @@ handle('art:fetch', (sysId, base, options) => artwork.fetchArt(sysId, base, opti
 handle('art:start', options => artwork.start(options));
 handle('art:status', () => artwork.status());
 handle('art:cancel', () => artwork.cancel());
+// Artwork sources: which ones are ready, and the ScreenScraper login (passwords never go back to the window).
+function artSources() {
+  const c = screenScraperCredentials();
+  let built = 0;
+  try { built = fs.statSync(path.join(DATA, 'media', '_index', 'launchbox-index.json')).mtimeMs; } catch {}
+  return { launchbox: { built }, screenscraper: { user: c.user, devId: c.devId, hasPassword: !!c.password, hasDevPassword: !!c.devPassword, ready: screenscraper.configured() } };
+}
+handle('art:sources', () => artSources());
+handle('art:setScreenScraper', input => {
+  if (!input || typeof input !== 'object') throw new Error('Invalid ScreenScraper details');
+  const text = (v, max = 200) => typeof v === 'string' ? v.trim().slice(0, max) : undefined;
+  const old = config.screenscraper || {};
+  const next = { user: text(input.user) ?? old.user ?? '', devId: text(input.devId) ?? old.devId ?? '', password: old.password || '', devPassword: old.devPassword || '' };
+  // An empty password field keeps the saved one; "clear" removes everything.
+  if (input.clear) Object.assign(next, { user: '', devId: '', password: '', devPassword: '' });
+  else {
+    if (text(input.password)) next.password = sealed(text(input.password));
+    if (text(input.devPassword)) next.devPassword = sealed(text(input.devPassword));
+  }
+  config = { ...config, screenscraper: next };
+  saveConfig(config);
+  scraperCredentials = null;
+  screenscraper.reset();
+  return artSources();
+});
 handle('art:openFolder', () => { fs.mkdirSync(path.join(DATA,'media'),{recursive:true});return shell.openPath(path.join(DATA,'media')); });
 handle('art:import', async ({gameId,kind}) => {
   const game=libraryGames.find(g=>g.id===gameId);
@@ -714,7 +903,7 @@ handle('art:import', async ({gameId,kind}) => {
   if(picked.canceled)return null;
   const source=picked.filePaths[0];
   if((await fsp.stat(source)).size>20*1024*1024)throw new Error('Choose an image smaller than 20 MB.');
-  const png=artworkPng(await fsp.readFile(source));
+  const png=await artworkPng(await fsp.readFile(source));
   const sys=config.systems.find(s=>s.id===game.system);
   const root=config.mediaRoot?path.join(config.mediaRoot,sys.id):path.join(DATA,'media',sys.id);
   const folder=path.join(root,game.base);await fsp.mkdir(folder,{recursive:true});
@@ -743,6 +932,50 @@ handle('emu:addCustom', async ({ name, systems, args }) => {
   saveConfig(config);
   return emuStatus(id);
 });
+// Download source for an emulator: a fork of a catalog emulator, or the repository of a custom one.
+handle('emu:setSource', ({ id, repo, prerelease, assetPattern, exePattern }) => {
+  const def = emuDef(id);
+  if (!def) throw new Error('Unknown emulator');
+  const custom = config.customEmulators.find(e => e.id === id);
+  const next = { ...(config.emulators[id] || {}) };
+  if (!repo && def.officialRepo) { delete next.repo; delete next.assetPattern; delete next.exePattern; delete next.prerelease; } // back to official
+  else {
+    next.repo = parseRepo(repo || custom?.source?.repo);
+    next.prerelease = !!prerelease;
+    next.assetPattern = checkPattern(assetPattern, 'download');
+    next.exePattern = checkPattern(exePattern, 'program');
+    if (!next.assetPattern) delete next.assetPattern;
+    if (!next.exePattern) delete next.exePattern;
+  }
+  config.emulators[id] = next;
+  saveConfig(config);
+  return emuStatus(id);
+});
+// Looks a repository up without saving anything, so the form can show what would be installed.
+handle('emu:testSource', async ({ repo, prerelease, assetPattern }) => {
+  const rel = await findRelease(parseRepo(repo), { asset: checkPattern(assetPattern, 'download'), prerelease: !!prerelease });
+  return { releaseName: rel.releaseName, assetName: rel.assetName, size: rel.size };
+});
+handle('emu:addRepo', ({ name, repo, systems, args, prerelease, assetPattern, exePattern }) => {
+  const label = String(name || '').trim().slice(0, 60);
+  if (!label) throw new Error('Give the emulator a name');
+  const id = 'custom-' + label.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const entry = { id, name: label, args: args || '{rom}', systems: (systems || []).map(String).slice(0, 40),
+    source: { type: 'github', repo: parseRepo(repo), prerelease: !!prerelease },
+    asset: checkPattern(assetPattern, 'download'), exe: checkPattern(exePattern, 'program') };
+  config.customEmulators = config.customEmulators.filter(e => e.id !== id);
+  config.customEmulators.push(entry);
+  delete config.emulators[id];
+  saveConfig(config);
+  return emuStatus(id);
+});
+handle('emu:remove', id => {
+  if (!config.customEmulators.some(e => e.id === id)) throw new Error('Only emulators you added can be removed');
+  config.customEmulators = config.customEmulators.filter(e => e.id !== id);
+  delete config.emulators[id];
+  saveConfig(config);
+  return true;
+});
 handle('dialog:folder', async title => {
   const r = await dialog.showOpenDialog(win, { title, properties: ['openDirectory'] });
   return r.canceled ? null : r.filePaths[0];
@@ -754,6 +987,7 @@ handle('manual:open', p => {
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());
+app.on('browser-window-created', (_e, created) => { if (created !== webpWindow) created.on('closed', () => { if (BrowserWindow.getAllWindows().every(w => w === webpWindow)) closeWebpWindow(); }); });
 
 // Dev helper: PYROCADE_SNAP=<file.png> captures the window after load and quits.
 if (process.env.PYROCADE_SNAP) app.whenReady().then(async () => {

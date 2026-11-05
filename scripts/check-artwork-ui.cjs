@@ -50,15 +50,15 @@ app.whenReady().then(async()=>{
     await run(`
       S.config.systems.find(s=>s.id==='switch').artworkProvider='gametdb-switch';
       select(3);ArtworkUI.open('game');
-      assert(document.querySelector('#artSourceLabel').textContent.includes('GameTDB'),'Switch source was not shown');
+      assert(document.querySelector('#artSourceLabel').textContent.includes('GameTDB')&&document.querySelector('#artSourceLabel').textContent.includes('LaunchBox'),'Switch sources were not shown');
       assert(!document.querySelector('#artStart').disabled,'Switch download must be enabled');
-      assert(document.querySelector('#artTypes input[value=screenshot]').disabled,'Unsupported Switch screenshot option should be disabled');
+      assert(!document.querySelector('#artTypes input[value=screenshot]').disabled,'LaunchBox Switch screenshots should be available');
       assert(!document.querySelector('#artTypes input[value=disc]').disabled,'Switch cartridge labels should be enabled');
       const before=S.games[3].media.front;
       await document.querySelector('#artImport').onclick();
       assert(S.games[3].media.front!==before&&S.games[3].media.front.includes('import-test'),'Image import did not replace the selected artwork');
       assert(document.querySelector('#artImportStatus').textContent.includes('applied'),'Image import feedback missing');
-      document.querySelector('#artTypes input[value=front]').checked=false;document.querySelector('#artTypes').dispatchEvent(new Event('change'));
+      for(const input of document.querySelectorAll('#artTypes input'))input.checked=false;document.querySelector('#artTypes').dispatchEvent(new Event('change'));
       assert(document.querySelector('#artStart').disabled,'Switch with no chosen type should be disabled');
     `);
     await run(`await artworkTest.cleanup();`);
