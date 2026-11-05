@@ -51,6 +51,11 @@ function art(game) {
 }
 
 // ---------- boot ----------
+// The header spells out PYROCADE when the app opens, then folds down to "PC" (hover to spell it out again).
+function foldBrand() {
+  const brand = $('.brand'); if (!brand) return;
+  setTimeout(() => brand.classList.add('folded'), document.documentElement.dataset.motion === 'reduced' ? 0 : 2600);
+}
 async function boot() {
   S.config = await api.getConfig();
   LibraryUI.init({getState:()=>S,select:setSystem});
@@ -60,6 +65,7 @@ async function boot() {
   eShopStyle=S.config.eShopStyle==='original'?'original':'enhanced';
   promptPreference = validPromptPreference(S.config.promptFamily);
   applyMotion(S.config.motion || 'auto');
+  foldBrand();
   renderPrompts();
   api.onToast(toast);
   api.onProgress(onProgress);

@@ -2,6 +2,11 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
+## [Unreleased]
+
+### Changed
+- The header spells out PYROCADE when the app opens, then folds down to **PC**. Hover over it to see the full name again.
+
 ## [0.4.0] - 2026-11-05
 
 ### Added

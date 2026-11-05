@@ -201,3 +201,14 @@ select option, select optgroup { background-color: #151a22; color: #e8ebf2; }
 
 /* Bookshelf and Spinner rack: the disc/cartridge stays in its case (it would cover the neighbours). */
 html:is([data-layout=bookshelf],[data-layout=spinner]) .item.sel.media-revealed .physical-media { visibility: hidden; transform: none; }
+
+/* ---- PYROCADE folds to PC after start-up; hovering spells it out again ---- */
+.brand-word { white-space: nowrap; transition: letter-spacing .8s cubic-bezier(.6,0,.2,1); }
+.brand.folded .brand-word { letter-spacing: .04em; }
+.brand.folded:hover .brand-word { letter-spacing: inherit; }
+.brand-word b { margin-left: 0; }
+.brand-fold { display: inline-block; max-width: 3.2em; overflow: hidden; vertical-align: bottom; white-space: nowrap;
+  transition: max-width .8s cubic-bezier(.6,0,.2,1), opacity .5s ease; }
+.brand.folded .brand-fold { max-width: 0; opacity: 0; }
+.brand.folded:hover .brand-fold { max-width: 3.2em; opacity: 1; }
+html[data-motion=reduced] .brand-fold { transition: none; }
