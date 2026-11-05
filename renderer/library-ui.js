@@ -86,7 +86,7 @@ const LibraryUI=(()=>{
   function init(options){
     context=options;
     $('.system-browser-icon').innerHTML=icon('grid');$('.search .search-icon').innerHTML=icon('search');$('.system-picker-search .search-icon').innerHTML=icon('search');
-    $('.flame').innerHTML='<svg viewBox="0 0 28 32" fill="currentColor" aria-hidden="true"><path d="M16 1c2 7-2 9-2 13 3-1 5-4 5-6 5 4 8 10 6 16-2 7-12 10-18 5C0 24 3 16 8 11c-1 4-1 7 2 8C8 12 17 9 16 1Z"/><path d="M14 20c1 4 5 5 3 9-5 2-9-3-3-9Z" fill="#ffe0a5"/></svg>';
+    $('.flame').innerHTML=PyroCadeBrand.mark;
     const names={library:'library',emus:'download',artwork:'art',settings:'settings'};
     for(const b of document.querySelectorAll('#tabs button')){const text=b.textContent;b.innerHTML=icon(names[b.dataset.view]);b.append(element('span','',text));if(b.classList.contains('active'))b.setAttribute('aria-current','page')}
     $('#btnSystemPicker').onclick=openPicker;$('#closeSystemPicker').onclick=()=>$('#systemPicker').close();

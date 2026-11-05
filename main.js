@@ -1,5 +1,7 @@
 // PyroCade — main process: config, library scanning, launching, emulator downloads.
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage } = require('electron');
+app.setName('PyroCade');
+if(process.platform==='win32')app.setAppUserModelId('com.pyrodrifter.pyrocade');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -14,7 +16,8 @@ const EMU_DIR = path.join(DATA, 'emulators');
 const CONFIG_PATH = path.join(DATA, 'config.json');
 const CATALOG = JSON.parse(fs.readFileSync(path.join(ROOT, 'emulators.json'), 'utf8'));
 const UA = { 'User-Agent': 'PyroCade-Frontend', Accept: 'application/vnd.github+json' };
-if (process.env.PYROCADE_SNAP) {
+const previewMode=!!(process.env.PYROCADE_SNAP||process.env.PYROCADE_RECORD);
+if (previewMode) {
   const previewCache = path.join(os.tmpdir(),`PyroCade-preview-${process.pid}`);
   fs.mkdirSync(previewCache,{recursive:true});
   app.setPath('sessionData',previewCache);
@@ -439,9 +442,10 @@ function launchGame(gameId, romPath) {
 function createWindow() {
   win = new BrowserWindow({
     width: 1600, height: 900, minWidth: 1100, minHeight: 650,
-    show: !process.env.PYROCADE_SNAP,
+    show: !previewMode,
     backgroundColor: '#07080c', autoHideMenuBar: true, title: 'PyroCade',
-    webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, sandbox: false, autoplayPolicy:'no-user-gesture-required',offscreen: !!process.env.PYROCADE_SNAP, backgroundThrottling: !process.env.PYROCADE_SNAP },
+    icon:path.join(ROOT,'renderer/assets/brand/pyrocade-icon-256.png'),
+    webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, sandbox: false, autoplayPolicy:'no-user-gesture-required',offscreen: previewMode, backgroundThrottling: !previewMode },
   });
   win.loadFile(path.join(ROOT, 'renderer', 'index.html'));
   win.webContents.on('before-input-event', (_, input) => {

@@ -3,7 +3,7 @@
 header { height:66px; padding:11px 32px; gap:22px; background:linear-gradient(#131b2580,#1018221a); backdrop-filter:blur(20px) saturate(1.2); }
 header::after { content:''; position:absolute; bottom:0; left:36px; right:36px; height:1px; background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 45%,transparent),#ffffff0b 25%,transparent 80%); }
 .brand { display:flex; align-items:center; gap:9px; font-size:18px; letter-spacing:.21em; white-space:nowrap; }
-.brand b { margin-left:-8px; }.flame { width:21px; height:26px; display:inline-flex; margin-right:5px; filter:drop-shadow(0 0 5px var(--accent)); }.flame svg { width:100%; height:100%; }
+.brand b { margin-left:-8px; }.flame { width:26px; height:29px; display:inline-flex; margin-right:4px; filter:drop-shadow(0 0 5px color-mix(in srgb,var(--accent) 45%,transparent)); }.flame svg { width:100%; height:100%; }
 #tabs { border-radius:12px; gap:3px; background:linear-gradient(#ffffff06,#ffffff01); border-color:#ffffff0d; padding:3px; }
 #tabs button { display:flex; align-items:center; gap:7px; border-radius:8px; font-size:12px; padding:8px 12px; color:#aab3c6; position:relative; }
 #tabs svg { width:16px; height:16px; opacity:.75; }

@@ -1,9 +1,19 @@
 # PyroCade
 
-A 3D carousel front-end for emulators, with a built-in emulator downloader and updater.
+![PyroCade — Your collection. A little more alive.](renderer/assets/brand/pyrocade-banner.png)
+
+A glass-styled emulator front end with a 3D library, animated physical media, four browsing layouts and a built-in emulator downloader and updater.
+
+[![Watch the PyroCade demo](docs/media/pyrocade-demo.jpg)](docs/media/pyrocade-demo.mp4)
+
+**[Watch the 35-second demo](docs/media/pyrocade-demo.mp4)** · [Appearance & sound](#library-appearance-and-sound) · [Controller support](#button-prompts)
 
 ## Run
+    npm ci
     npm start
+
+## Brand assets
+The flame and play-button mark, glass app icon, wordmark and banner are in `renderer/assets/brand/`. The set includes SVG masters, PNG icons from 16 to 1024px, a transparent wordmark and a multi-resolution Windows `.ico`. The header mark follows the selected colour theme. Rebuild the complete set with `npm run brand:build`.
 
 ## Use
 - **Settings**: set a ROM folder for each system, pick its emulator, then click *Save & rescan*.
@@ -53,7 +63,7 @@ For any game without a match, open its **Artwork** button and use **Use your own
 
 GameTDB's red eShop placeholders get an art-first sleeve with larger game artwork, readable titles and a matching cartridge preview. Higher-resolution artwork is cached separately in `data/media/switch/cover-hq`; original downloads stay intact. Choose **Settings → eShop covers → Original downloaded cover** to restore the source presentation. The same sleeve appears in the carousel and case viewer. Run `npm run eshop:check` to verify detection, display, settings and preservation of the originals.
 
-The local Switch 2 library includes official Nintendo covers for **Donkey Kong Bananza** and **Pokémon Pokopia**, installed in `data/media/switch2/covers`. Square product photos are fitted to the case by trimming their white side margins in the display. Switch 2 does not yet have an automatic download provider; add future covers through **Use your own image**.
+Switch 2 covers can be supplied through **Use your own image**. Square product photos are fitted to the case by trimming their white side margins in the display. Switch 2 does not yet have an automatic download provider. Game artwork is cached locally and is not included in the repository.
 
 Run `npm run artwork:check` to verify the download service and the integrated UI without modifying your ROMs, emulator settings or real artwork.
 
