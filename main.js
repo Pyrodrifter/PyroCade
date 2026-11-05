@@ -45,7 +45,7 @@ const DEFAULT_SYSTEMS = [
   { id: 'psp', name: 'PSP', caseType: 'umd', media: 'disc', color: '#111111', extensions: ['.iso', '.cso', '.chd'], emulator: 'ppsspp', libretro: 'Sony - PlayStation Portable' },
   // Nintendo
   { id: 'switch', name: 'Nintendo Switch', caseType: 'switch', media: 'cart', color: '#e60012', extensions: ['.nsp', '.xci', '.nsz'], emulator: '', artworkProvider: 'gametdb-switch' },
-  { id: 'switch2', name: 'Nintendo Switch 2', caseType: 'switch', media: 'cart', color: '#d0021b', extensions: ['.nsp', '.xci', '.nsz', '.xcz'], emulator: '', artworkProvider: 'gametdb-switch' },
+  { id: 'switch2', name: 'Nintendo Switch 2', caseType: 'switch', media: 'cart', color: '#d0021b', extensions: ['.nsp', '.xci', '.nsz', '.xcz', '.nup'], emulator: '', artworkProvider: 'gametdb-switch' },
   { id: 'wiiu', name: 'Wii U', caseType: 'dvd', media: 'disc', color: '#1a9ad6', extensions: ['.wua', '.wud', '.wux', '.rpx'], emulator: 'cemu', libretro: 'Nintendo - Wii U' },
   { id: 'wii', name: 'Wii', caseType: 'dvd', media: 'disc', color: '#e9eef2', extensions: ['.rvz', '.wbfs', '.iso'], emulator: '', libretro: 'Nintendo - Wii' },
   { id: 'gc', name: 'GameCube', caseType: 'gc', media: 'disc', color: '#5a4a9c', extensions: ['.rvz', '.iso', '.gcm', '.ciso'], emulator: '', libretro: 'Nintendo - GameCube' },
@@ -103,6 +103,16 @@ function loadConfig() {
     for (const s of def.systems) if (!ids.has(s.id)) saved.systems.push(s);
     // Fill in fields added in newer versions (libretro name, case shape…).
     saved.systems = saved.systems.map(s => ({ ...(def.systems.find(d => d.id === s.id) || {}), ...s }));
+    // File types added to a built-in system after release reach existing settings once; a type the
+    // user removes afterwards stays removed.
+    const done = new Set(saved.migrations || []);
+    for (const [key, sysId, ext] of [['ext-switch2-nup', 'switch2', '.nup']]) {
+      if (done.has(key)) continue;
+      const sys = saved.systems.find(s => s.id === sysId);
+      if (sys && Array.isArray(sys.extensions) && !sys.extensions.includes(ext)) sys.extensions = [...sys.extensions, ext];
+      done.add(key);
+    }
+    saved.migrations = [...done];
     return { ...def, ...saved };
   } catch (e) {
     // Keep the damaged file instead of letting the next save overwrite it with defaults.
@@ -313,6 +323,8 @@ async function scanLibrary() {
       const base = path.basename(f.name, path.extname(f.name));
       const { media, info } = await findMedia(indexes, base);
       const meta = { ...(gamelist.get(base.toLowerCase()) || {}), ...(info || {}), ...(f.title ? { title: f.title } : {}) };
+      let shell = null;
+      if (media.disc) try { shell = JSON.parse(await fsp.readFile(media.disc.replace(/\.[^.\\/]+$/, '.json'), 'utf8')).shell || null; } catch {}
       games.push({
         id: `${sys.id}:${f.rootIndex ? f.rootIndex + ':' : ''}${path.relative(f.root, f.path)}`,
         system: sys.id,
@@ -320,11 +332,13 @@ async function scanLibrary() {
         base,
         title: meta.title || displayTitle(base),
         ...(f.added ? { added: f.added } : {}),
+        ...(shell && /^#[0-9a-f]{6}$/i.test(shell) ? { shell } : {}),
         info: meta,
         media: Object.fromEntries(Object.entries(media).map(([k, v]) => [k, k === 'manual' ? v : fileUrl(v)])),
       });
     }
   }
+  for (const g of games) if (config.shellColors?.[g.id]) g.shellCustom = config.shellColors[g.id];
   games.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   libraryGames = games;
   return games;
@@ -403,7 +417,19 @@ function cartridgeLabel(bytes, systemId) {
   const w = right - left + 1, h = bottom - top + 1;
   const rect = { x: Math.round(left + w * area[0] / 100), y: Math.round(top + h * area[1] / 100), width: Math.round(w * area[2] / 100), height: Math.round(h * area[3] / 100) };
   if (rect.width < 32 || rect.height < 32) return null;
-  return image.crop(rect).toPNG();
+  // The plastic colour: median of the shell pixels around the label (skipping the label itself).
+  const r = [], g = [], b = [];
+  const step = Math.max(1, Math.floor(Math.sqrt(w * h / 20000)));
+  for (let y = top; y <= bottom; y += step) for (let x = left; x <= right; x += step) {
+    if (x >= rect.x - 4 && x <= rect.x + rect.width + 4 && y >= rect.y - 4 && y <= rect.y + rect.height + 4) continue;
+    const i = (y * width + x) * 4;
+    if (px[i + 3] < 200) continue;
+    b.push(px[i]); g.push(px[i + 1]); r.push(px[i + 2]);
+  }
+  const median = list => list.sort((p, q) => p - q)[list.length >> 1] || 0;
+  const label = image.crop(rect).toPNG();
+  if (r.length > 50) label.shellColor = '#' + [median(r), median(g), median(b)].map(v => v.toString(16).padStart(2, '0')).join('');
+  return label;
 }
 
 // ScreenScraper login. Passwords are encrypted with the operating system's key store when it is available.
@@ -973,7 +999,7 @@ handle('config:get', () => ({ ...config, screenscraper: undefined }));
 // renderer holding an older copy of the config can never overwrite them.
 handle('config:set', cfg => {
   if (!cfg || !Array.isArray(cfg.systems)) throw new Error('Invalid settings');
-  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames };
+  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames, shellColors: config.shellColors };
   saveConfig(config);
   return config;
 });
@@ -1054,6 +1080,17 @@ handle('game:remove', id => {
   config.extraGames = config.extraGames.filter(x => x.id !== id);
   saveConfig(config);
   return true;
+});
+// A cartridge colour chosen by hand for one game ("#rrggbb"), or null to go back to automatic.
+handle('game:setShell', ({ gameId, color }) => {
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game) throw new Error('Select a game in your library first.');
+  if (color != null && !/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Choose a colour.');
+  config.shellColors = { ...(config.shellColors || {}) };
+  if (color) config.shellColors[gameId] = color; else delete config.shellColors[gameId];
+  saveConfig(config);
+  game.shellCustom = color || undefined;
+  return { gameId, media: {}, shellCustom: color || null };
 });
 handle('game:list', () => config.extraGames.map(x => ({ ...x, missing: !fs.existsSync(x.path) })));
 handle('art:fetch', (sysId, base, options) => artwork.fetchArt(sysId, base, options));

@@ -133,6 +133,7 @@ function createMedia(game, a) {
   media.setAttribute('aria-hidden','true');
   if (cart) {
     const label=Cartridges.build(media,a.sys.id,a.W);label.style.backgroundImage = `url("${a.disc}")`;
+    const shell=Cartridges.shellColor(game,a.sys.id);if(shell)media.style.setProperty('--shell-color',shell);
     if(a.digital&&!game.media.disc)label.append(EshopCovers.sleeve(game,a.digital,true));
     else if(a.packshot&&!game.media.disc)EshopCovers.background(label,a.front,a.packshot);
   } else {
@@ -248,6 +249,8 @@ function updateArtwork(result) {
   const previous=game.media.front;
   const previousHQ=game.media.frontHQ;
   for(const [kind,url]of Object.entries(result.media))if(url&&(result.replace||!game.media[kind]))game.media[kind]=url;
+  if(result.shell)game.shell=result.shell;
+  if('shellCustom' in result)game.shellCustom=result.shellCustom||undefined;
   if(game.media.front!==previous||game.media.frontHQ!==previousHQ){delete game._aspect;delete game._measuring;delete game._eShop;delete game._packshot;}
   measure(game);refreshGame(game);
 }

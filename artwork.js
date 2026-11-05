@@ -296,6 +296,7 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     const task=(async()=>{
       const bytes=await remoteImage(game,sys,type,{signal,retryMissing,refreshed,failures,background});
       if(!bytes){unavailable.add(key);return {missing:1,media:{}}}
+      const shell=bytes.shellColor||null; // cartridge photos: the real plastic colour
       const saved=await encode(bytes,type);
       aborted(signal);
       const file=path.join(dataDir,'media',sys.id,TYPES[type].folder,base+'.'+saved.ext);
@@ -308,7 +309,8 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
       } catch(e) {if(e.code==='EEXIST')return {existing:1,media:{[type]:pathToFileURL(file).href}};throw e}
       finally {await handle?.close()}
       unavailable.delete(key);
-      return {downloaded:1,media:{[type]:pathToFileURL(file).href}};
+      if(shell)await fs.promises.writeFile(file.replace(/\.[^.\\/]+$/,'.json'),JSON.stringify({shell})).catch(()=>{});
+      return {downloaded:1,media:{[type]:pathToFileURL(file).href},...(shell?{shell}:{})};
     })();
     inflight.set(key,task);
     try{return await task}finally{if(inflight.get(key)===task)inflight.delete(key)}
@@ -323,7 +325,7 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     }));
     for(const r of outcomes) {
       for(const k of ['downloaded','upgraded','existing','missing'])result[k]+=r[k]||0;
-      Object.assign(result.media,r.media);if(r.error)result.errors.push(r.error);
+      Object.assign(result.media,r.media);if(r.error)result.errors.push(r.error);if(r.shell)result.shell=r.shell;
     }
     // An upgraded image has a new file (and often a new extension): the window must swap it in,
     // not keep the old address, which now points at a deleted file.

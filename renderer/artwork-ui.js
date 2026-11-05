@@ -34,6 +34,11 @@ const ArtworkUI = (()=>{
     q('#artVersions').disabled=importPending||!selected||selected.demo||q('#artImportKind').value==='manual';
     q('#artImport').textContent=importPending?'Applying…':q('#artImportKind').value==='manual'?'Choose PDF…':'Your own image…';
     q('#artFindManuals').disabled=importPending;
+    // Cartridge colour for the selected game (cartridge systems only).
+    const sys=selected&&systems.find(s=>s.id===selected.system),isCart=!!selected&&!selected.demo&&sys?.media==='cart';
+    q('#artShell').disabled=!isCart||importPending;q('#artShellAuto').disabled=!isCart||importPending||!selected?.shellCustom;
+    if(isCart&&document.activeElement!==q('#artShell'))q('#artShell').value=Cartridges.shellColor(selected,sys.id)||Cartridges.profiles[sys.id]?.color||'#9a9c93';
+    q('#artShellNote').textContent=!isCart?'Choose a cartridge game in Library to change its colour.':selected.shellCustom?'Your colour is used for this game.':selected.shell?'Colour taken from a photo of the real cartridge.':Cartridges.shellColor(selected,sys.id)?'This game shipped on a coloured cartridge.':'Real cartridge photos and famous coloured cartridges are used automatically.';
     q('#artSourceLabel').textContent='Sources · LaunchBox, ScreenScraper, GameTDB, Libretro';
     q('#artSourceDetails').textContent='Each image comes from the first source that has it, in this order. Availability varies by game.';
     q('#artScopeSummary').textContent=(scope==='game'?(selected&&!selected.demo?selected.title:'Select a game in your library first.'):`${games.length.toLocaleString()} games`)+(unavailable?` · ${unavailable.toLocaleString()} skipped: no artwork source for ${[...new Set(games.filter(g=>!supports(systems.find(s=>s.id===g.system))).map(g=>systems.find(s=>s.id===g.system)?.name||g.system))].join(', ')}. Use “Use your own image” instead.`:'');
@@ -123,6 +128,11 @@ const ArtworkUI = (()=>{
     q('#artCancel').onclick=async()=>{try{accept(await api.artCancel())}catch(e){error(e.message)}};
     q('#artOpenFolder').onclick=async()=>{try{const message=await api.artOpenFolder();if(message)error(message)}catch(e){error(e.message)}};
     q('#artImportKind').addEventListener('change',()=>{q('#artVersionGrid').classList.add('hidden');q('#artVersionGrid').replaceChildren();options()});
+    const setShell=async color=>{
+      try{const r=await api.gameSetShell({gameId,color});context.updateGame(r);options()}catch(e){error(e.message)}
+    };
+    q('#artShell').addEventListener('change',()=>setShell(q('#artShell').value));
+    q('#artShellAuto').onclick=()=>setShell(null);
     q('#artFindManuals').onclick=async()=>{
       error();importPending=true;options();q('#artImportStatus').textContent='Looking for manuals…';
       try {

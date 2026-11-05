@@ -19,6 +19,7 @@ An emulator front end for Windows, macOS and Linux that shows your games as real
 - **Physical games:**
   - Each system gets its own case, from jewel cases, DVD cases and Switch cases to cardboard boxes.
   - Discs and cartridges slide out of the selected case.
+  - **Cartridges come in their real colours:** taken from a photo of the actual cartridge, or from a list of famous ones (gold Ocarina of Time, the coloured Pokémon cartridges…). You can also pick your own colour per game in **Artwork → Change an image**.
   - Generated spines follow each console's retail design, and real spine scans always win.
   - Open a case to turn it around, flip it and read the manual.
 - **Start animation:** pressing Play spins the disc into a drive, or pushes the cartridge half-way into its slot, then starts the game. You can turn it off in Settings.
@@ -67,6 +68,39 @@ On Linux, data lives in `~/.config/PyroCade/data` and the emulator downloader in
 **Controls:**
 - **Keyboard:** ← → browse, ↑ ↓ switch system, **Enter** play, **Space** open the case, **M** manual, **/** search, **Ctrl+K** all systems, **F11** fullscreen.
 - **Controllers:** the matching buttons work, and LB/RB switch system.
+
+### Supported systems
+Each system's file types and emulator can be changed in **Settings**, and **Add system…** adds any system that isn't listed.
+
+| System | File types | Built-in emulator download |
+| --- | --- | --- |
+| PlayStation | `.m3u` `.cue` `.chd` `.pbp` | DuckStation |
+| PlayStation 2 | `.iso` `.chd` `.cso` `.gz` | PCSX2 |
+| PlayStation 3 | `.iso` | RPCS3 |
+| PlayStation 4 | `.pkg` | shadPS4 |
+| PSP | `.iso` `.cso` `.chd` | PPSSPP |
+| Nintendo Switch | `.nsp` `.xci` `.nsz` | Link your own |
+| Nintendo Switch 2 | `.nsp` `.xci` `.nsz` `.xcz` `.nup` | Link your own |
+| Wii U | `.wua` `.wud` `.wux` `.rpx` | Cemu |
+| Wii | `.rvz` `.wbfs` `.iso` | Link your own |
+| GameCube | `.rvz` `.iso` `.gcm` `.ciso` | Link your own |
+| Nintendo 64 | `.z64` `.n64` `.v64` | Link your own |
+| Super Nintendo | `.sfc` `.smc` | Link your own |
+| NES | `.nes` `.zip` | Link your own |
+| Nintendo 3DS | `.3ds` `.cci` `.cxi` `.cia` | Azahar |
+| Nintendo DS | `.nds` `.zip` | melonDS |
+| Game Boy Advance | `.gba` `.zip` | mGBA |
+| Game Boy Color | `.gbc` `.zip` | mGBA |
+| Game Boy | `.gb` `.zip` | Link your own |
+| Dreamcast | `.chd` `.gdi` `.cdi` | Flycast |
+| Sega Genesis | `.md` `.gen` `.smd` `.zip` | Link your own |
+| Xbox | `.iso` `.xiso` | xemu |
+| Xbox 360 | `.iso` `.xex` `.zar` | Link your own |
+| PC Games | `.lnk` `.url` `.exe` | Runs directly |
+| Atari 2600 | `.a26` `.zip` | Link your own |
+| Arcade | `.zip` | Link your own |
+
+Switch and Switch 2 games can also be unpacked game folders (`<game>ase\exefs\main`). Systems without a built-in download work with any emulator you link with **Use existing .exe…**.
 
 ### Your own artwork
 Your own files always win over downloads. PyroCade reads:

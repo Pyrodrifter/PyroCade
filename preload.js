@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('api', {
   gameAdd: options => call('game:add', options),
   gameRemove: id => call('game:remove', id),
   gameList: () => call('game:list'),
+  gameSetShell: options => call('game:setShell', options),
   fetchArt: (sys, base, options) => call('art:fetch', sys, base, options),
   artStart: options => call('art:start', options),
   artStatus: () => call('art:status'),

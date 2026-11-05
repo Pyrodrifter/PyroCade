@@ -16,6 +16,23 @@ const Cartridges=(()=>{
     genesis:{w:.78,h:.56,color:'#252526',depth:9,outline:'0,15 9,7 27,1 73,1 91,7 100,15 100,95 95,100 5,100 0,95',label:[14.5,4,71,84],details:'M7 24V83 M11 19V83 M89 19V83 M93 24V83 M15 82H85 M44 88L50 94L56 88'},
     a2600:{w:.70,h:.80,color:'#302f2c',depth:10,outline:rect,label:[7,13,86,63],details:'M5 7H95 M4 82H96 M8 87H92 M8 92H92 M8 97H92'}
   };
+  // Cartridges that shipped in their own plastic colour. Used when there is no photo of the real cartridge
+  // and no colour chosen by hand.
+  const special=[
+    ['n64',/ocarina of time|majora'?s mask/i,'#c9a227'],['n64',/donkey kong 64/i,'#f1c232'],['n64',/pok[eé]mon stadium/i,'#9aa0a6'],
+    ['nes',/^(the )?legend of zelda|zelda ii|adventure of link/i,'#c9a227'],
+    ['gbc',/pok[eé]mon.*gold/i,'#c9a227'],['gbc',/pok[eé]mon.*silver/i,'#b9bec7'],['gbc',/pok[eé]mon.*crystal/i,'#7cc6e3'],
+    ['gba',/pok[eé]mon.*ruby/i,'#c62d3e'],['gba',/pok[eé]mon.*sapphire/i,'#2c5bc4'],['gba',/pok[eé]mon.*emerald/i,'#2e9e5c'],
+    ['gba',/pok[eé]mon.*fire ?red/i,'#d9542e'],['gba',/pok[eé]mon.*leaf ?green/i,'#58b947'],
+    ['gb',/pok[eé]mon.*(red|blue|yellow)/i,'#9a9c93'],
+  ];
+  // Colour order: chosen by hand, then read from a real cartridge photo, then the list above.
+  function shellColor(game,system){
+    if(game?.shellCustom)return game.shellCustom;
+    if(game?.shell)return game.shell;
+    const title=game?.title||'';
+    return special.find(([s,re])=>s===system&&re.test(title))?.[2]||null;
+  }
   const fallback={w:.65,h:.62,color:'#5c6170',depth:7,outline:rect,label:[12,13,76,69],details:'M10 89H90'};
   function shell(p,back=false){
     const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
@@ -40,5 +57,5 @@ const Cartridges=(()=>{
     label.style.cssText=`left:${x}%;top:${y}%;width:${w}%;height:${h}%`;
     front.append(label);body.append(back,front);media.append(body);return label;
   }
-  return {build,profiles};
+  return {build,shellColor,profiles};
 })();

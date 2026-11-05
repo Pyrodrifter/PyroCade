@@ -2,6 +2,15 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
+## [Unreleased]
+
+### Added
+- **Cartridge colours:** every cartridge can have its own plastic colour. PyroCade uses, in this order:
+  - **your own colour**, chosen in **Artwork → Change an image → Cartridge colour**, with **Automatic** to go back;
+  - **the real colour**, read from a photo of the actual cartridge when one is downloaded;
+  - **a built-in list** of famous coloured cartridges, such as gold Ocarina of Time and Majora's Mask, the gold NES Zelda games, yellow Donkey Kong 64, and the coloured Pokémon cartridges on Game Boy Color and Game Boy Advance.
+- **Switch 2:** `.nup` files are picked up in Switch 2 folders and passed to your emulator. Existing settings get the new file type once.
+
 ## [0.4.3] - 2026-11-05
 
 ### Added
