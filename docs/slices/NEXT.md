@@ -1,26 +1,31 @@
 ---
-slice: P7
+slice: P8
 stateFile: docs/STATE.md
 donotCount: 3
-seededFrom: 3a65afa
+seededFrom: 4692cb5
 reads:
-  - main.js
   - package.json
+  - scripts/check-library-ui.cjs
+  - scripts/check-carousel.cjs
+  - scripts/check-artwork-ui.cjs
   - .github/workflows/release.yml
+  - src-tauri/src/lib.rs
   - src-tauri/src/backend.rs
-  - src-tauri/tauri.conf.json
-allowanceTokens: 135000
+  - src-tauri/src/emulators.rs
+  - src-tauri/src/artwork.rs
+allowanceTokens: 155000
 ---
 
 ## The next action — verbatim
 
-P7 — Port app update and release behavior. Replace Electron app-version/update/install behavior with Tauri-compatible release discovery and platform/architecture artifacts. Integrate signed Tauri updater artifacts where configured, with a clear manual-release fallback for package-managed installs.
+P8 — Port validation and release automation. Replace or adapt Electron-bound checks, add observable tests for migrated public behavior, configure native ARM64 Linux and macOS release jobs, smoke-test installed artifacts and controller/audio/rendering paths, and document the fork's support matrix.
 
 ## What is settled — do not re-derive
 
-- P1–P6 are complete; P6 packaging files are committed in `3a65afa`.
-- P6 configured Tauri product packaging; Electron remains available for legacy helper scripts, while product packaging uses Tauri.
-- Actual ARM64 package artifacts and workflow execution remain unverified and belong to later validation/release work.
+- P1–P7 are complete; P7 source commits are `39b7d24` and `4692cb5`.
+- Signed Tauri updater artifacts and the GitHub updater manifest are conditional on `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_UPDATER_PUBLIC_KEY`; the password secret is needed only for an encrypted key. Package-managed Linux installs use the release package/manual path.
+- Actual ARM64 builds, published signed artifacts, and release workflow execution remain unverified.
+- Legacy Electron sources remain for P9 removal.
 
 ## Withdrawn — proven wrong, do not use
 
@@ -28,21 +33,26 @@ None.
 
 ## Code to touch
 
-- `main.js`
 - `package.json`
+- `scripts/check-library-ui.cjs`
+- `scripts/check-carousel.cjs`
+- `scripts/check-artwork-ui.cjs`
 - `.github/workflows/release.yml`
+- `src-tauri/src/lib.rs`
 - `src-tauri/src/backend.rs`
-- `src-tauri/tauri.conf.json`
+- `src-tauri/src/emulators.rs`
+- `src-tauri/src/artwork.rs`
 
 ## Read these first, and only these
 
 - `.operator/specs/desktop-runtime.md` — section `Desktop Runtime Direction`.
-- `.babysteps/tauri-migration.plan.md` — sections `Tauri v2 migration slices` and `Budget rows` (P7).
-- `.babysteps/tauri-migration.tasks.json` — task `S06`.
+- `.operator/specs/artwork-service.md` — section `Contract`.
+- `.babysteps/tauri-migration.plan.md` — sections `Tauri v2 migration slices` and `Budget rows` (P8).
+- `.babysteps/tauri-migration.tasks.json` — task `S08`.
 
 ## Do-Not entries that apply here
 
-None.
+1, 2, and 3.
 
 Total Do-Not entries: 3.
 
@@ -51,8 +61,9 @@ Total Do-Not entries: 3.
 - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
 - `cargo test --manifest-path src-tauri/Cargo.toml`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
+- `actionlint .github/workflows/release.yml`
 - Run command (separate from `gateCommands`): `npm start`
 
 ## When this slice closes
 
-Closes when S06's stated contract is complete: Electron app-version/update/install behavior is replaced with Tauri-compatible release discovery and platform/architecture artifacts, signed Tauri updater artifacts are integrated where configured, and package-managed installs have a clear manual-release fallback.
+Closes when Electron-bound checks are replaced or adapted, observable tests cover migrated public behavior, native ARM64 Linux and macOS release jobs are configured, installed artifacts and controller/audio/rendering paths are smoke-tested, and the support matrix is documented.

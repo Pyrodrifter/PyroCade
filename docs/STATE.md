@@ -2,13 +2,13 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), and P6 / S07 (`3a65afa`) are complete; the next slice is P7 / S06.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), and P7 / S06 (`39b7d24`, `4692cb5`) are complete; the next slice is P8 / S08.
 
-**The next action is P7 / S06.**
+**The next action is P8 / S08.**
 
 ## Next action
 
-P7 — Port app update and release behavior. Replace Electron app-version/update/install behavior with Tauri-compatible release discovery and platform/architecture artifacts. Integrate signed Tauri updater artifacts where configured, with a clear manual-release fallback for package-managed installs.
+P8 — Port validation and release automation. Replace or adapt Electron-bound checks, add observable tests for migrated public behavior, configure native ARM64 Linux and macOS release jobs, smoke-test installed artifacts and controller/audio/rendering paths, and document the fork's support matrix.
 
 **The Do-Not list is `docs/donot.md`** — 3 entries, append-only. Never dropped, never trimmed.
 
@@ -54,12 +54,18 @@ P7 — Port app update and release behavior. Replace Electron app-version/update
   - Boundary linkage and path checks found no new linkage to `main.js`, `preload.js`, or `artwork.js`; changed slice paths are packaging config/workflow/lock files only. `.babysteps/babysteps-boundary.md` was absent.
   - Post-commit guard: WITHIN at 123,826/225,000 tokens (55%); cost $0.0598383/$0.70. Do-Not count remains 3; no new fault, no applicable Do-Not entry, and no withdrawn numbers.
 
+- **P7 / S06 — Port app update and release behavior.** Source committed as `39b7d24` (`Add signed Tauri app updates`) and `4692cb5` (`Harden release workflow shell handling`). Tauri release discovery now uses the signed updater when configured on macOS ARM64 and Linux ARM64 AppImages; package-managed Linux installs use the manual release path. The ARM64 workflow publishes an updater manifest only when signed artifacts are present; Electron sources remain for P9.
+  - Close condition: S06's stated contract is complete: Electron app-version/update/install behavior is replaced with Tauri-compatible release discovery and platform/architecture artifacts, signed Tauri updater artifacts are integrated where configured, and package-managed installs have a clear manual-release fallback.
+  - Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (18 tests), and `cargo check --manifest-path src-tauri/Cargo.toml`. The existing `merge_object` dead-code warning remains. `actionlint .github/workflows/release.yml` passed.
+  - `npm start` built `target/debug/pyrocade` and stayed active through a 60-second smoke window; its process group was stopped. No visual inspection, signed update installation, ARM64 build, or release workflow execution was performed.
+  - Boundary linkage and path checks found no new references into `main.js`, `preload.js`, or `artwork.js`; the boundary guide was absent.
+  - Post-commit guard after `4692cb5`: WITHIN at 148,172/225,000 tokens (66%); cost $0.10602815/$0.70. Do-Not count remains 3; no applicable entry, new fault, or withdrawn number.
+
 ### In progress
 
 - None.
 
 ### Queued
 
-- **P7 / S06 — Port app update and release behavior.** Replace Electron app-version/update/install behavior with Tauri-compatible release discovery and platform/architecture artifacts; integrate signed Tauri updater artifacts where configured, with a clear manual-release fallback for package-managed installs.
 - **P8 — Port validation and release automation.** Adapt checks and release automation; verify ARM64 target behavior.
 - **P9 — Remove obsolete Electron application runtime.** Remove Electron runtime packaging after Tauri parity gates pass.
