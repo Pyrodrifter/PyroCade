@@ -258,21 +258,7 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
                         .unwrap_or(""),
                 )))
         });
-        let mut best: HashMap<String, RomFile> = HashMap::new();
-        for file in files {
-            let base = Path::new(&file.name)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or(&file.name)
-                .to_owned();
-            let key = loose_key(&base);
-            let replace = best
-                .get(&key)
-                .is_none_or(|old| copy_score(&file) > copy_score(old));
-            if replace {
-                best.insert(key, file);
-            }
-        }
+        let best = select_best_roms(files);
         let roots = media_roots(config, system, &dirs, data_dir);
         for root in &roots {
             allow_tree(app, root);
@@ -299,11 +285,7 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
             }
             let media = media_paths
                 .into_iter()
-                .filter_map(|(kind, path)| {
-                    Url::from_file_path(path)
-                        .ok()
-                        .map(|url| (kind, url.to_string()))
-                })
+                .filter_map(|(kind, path)| media_value(&kind, &path).map(|value| (kind, value)))
                 .collect();
             let relative = file
                 .path
@@ -465,6 +447,7 @@ fn copy_score(file: &RomFile) -> f64 {
     if ["update", "upd", "dlc", "(beta", "(proto", "(demo", "(hack"]
         .iter()
         .any(|s| name.contains(s))
+        || has_dump_marker(&name)
     {
         score -= 6.0;
     }
@@ -472,6 +455,37 @@ fn copy_score(file: &RomFile) -> f64 {
         score += 1.0;
     }
     score + (file.size as f64 / 10_000_000_000.0).min(0.9)
+}
+
+fn has_dump_marker(name: &str) -> bool {
+    static DUMP_MARKER: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    DUMP_MARKER
+        .get_or_init(|| regex::Regex::new(r"\[(?:b|h|t|o)\d*\]|\[v[1-9]\d*\]").unwrap())
+        .is_match(name)
+}
+
+fn select_best_roms(files: Vec<RomFile>) -> HashMap<String, RomFile> {
+    let mut best = HashMap::new();
+    for file in files {
+        let base = Path::new(&file.name)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&file.name)
+            .to_owned();
+        let normalized = loose_key(&base);
+        let key = if normalized.is_empty() {
+            base.to_lowercase()
+        } else {
+            normalized
+        };
+        let replace = best
+            .get(&key)
+            .is_none_or(|old| copy_score(&file) > copy_score(old));
+        if replace {
+            best.insert(key, file);
+        }
+    }
+    best
 }
 
 fn index_media_root(root: &Path) -> MediaIndex {
@@ -512,12 +526,14 @@ fn media_kind_folder(name: &str) -> Option<(&'static str, &'static [&'static str
     [
         ("front", &["covers", "box2dfront", "boxart"][..]),
         ("frontHQ", &["cover-hq"][..]),
-        ("screenshot", &["screenshots", "snaps"][..]),
-        ("title", &["titlescreens"][..]),
+        ("screenshot", &["screenshots", "snaps", "images"][..]),
+        ("title", &["titlescreens", "titles"][..]),
         ("back", &["backcovers", "box2dback"][..]),
-        ("spine", &["spines"][..]),
-        ("disc", &["discs", "wheel"][..]),
-        ("fanart", &["fanart", "miximages"][..]),
+        ("spine", &["spines", "box2dside"][..]),
+        ("disc", &["physicalmedia", "discs", "support"][..]),
+        ("fanart", &["fanart", "backgrounds"][..]),
+        ("logo", &["marquees", "wheel", "logos"][..]),
+        ("video", &["videos"][..]),
         ("manual", &["manuals"][..]),
     ]
     .into_iter()
@@ -533,7 +549,18 @@ fn valid_media_extension(kind: &str, path: &Path) -> bool {
     if kind == "manual" {
         return ext == "pdf";
     }
+    if kind == "video" {
+        return ["mp4", "webm"].contains(&ext.as_str());
+    }
     ["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str())
+}
+
+fn media_value(kind: &str, path: &Path) -> Option<String> {
+    if kind == "manual" {
+        Some(path.to_string_lossy().into_owned())
+    } else {
+        Url::from_file_path(path).ok().map(|url| url.to_string())
+    }
 }
 
 fn find_media(indexes: &[MediaIndex], base: &str) -> (HashMap<String, PathBuf>, Option<Value>) {
@@ -605,25 +632,34 @@ fn media_names() -> Vec<(&'static str, &'static [&'static str])> {
     vec![
         ("front", &["front", "cover", "box-front", "boxfront", "box"]),
         ("frontHQ", &["front-hq"]),
-        ("screenshot", &["screenshot", "snap"]),
-        ("title", &["title", "titlescreen"]),
         ("back", &["back", "box-back", "boxback"]),
-        ("spine", &["spine"]),
-        ("disc", &["disc", "disk"]),
-        ("fanart", &["fanart", "background"]),
+        ("spine", &["spine", "box-spine", "side"]),
+        (
+            "disc",
+            &["disc", "cd", "cart", "cartridge", "media", "physicalmedia"],
+        ),
         ("manual", &["manual"]),
+        ("screenshot", &["screenshot", "snap", "screen"]),
+        ("title", &["title", "titlescreen"]),
+        ("fanart", &["fanart", "background", "bg"]),
+        ("logo", &["logo", "marquee", "wheel"]),
+        ("video", &["video", "trailer"]),
     ]
 }
 
 fn read_gamelist(root: &Path) -> HashMap<String, Value> {
-    let mut map = HashMap::new();
     let Ok(xml) = fs::read_to_string(root.join("gamelist.xml")) else {
-        return map;
+        return HashMap::new();
     };
+    parse_gamelist(&xml)
+}
+
+fn parse_gamelist(xml: &str) -> HashMap<String, Value> {
+    let mut map = HashMap::new();
     let Ok(game_re) = regex::Regex::new(r"(?s)<game[\s>].*?</game>") else {
         return map;
     };
-    for game in game_re.find_iter(&xml).map(|m| m.as_str()) {
+    for game in game_re.find_iter(xml).map(|m| m.as_str()) {
         let Some(path) = xml_tag(game, "path") else {
             continue;
         };
@@ -666,24 +702,59 @@ fn stem(name: &str) -> String {
 }
 
 fn loose_key(text: &str) -> String {
-    let normalized = text.to_lowercase();
-    normalized
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
+    clean_title(text)
+        .to_lowercase()
+        .replace('&', " ")
+        .split_whitespace()
+        .filter(|word| *word != "and" && *word != "the")
+        .flat_map(str::chars)
+        .filter(char::is_ascii_alphanumeric)
         .collect()
 }
 
 fn clean_title(name: &str) -> String {
-    name.replace("_", " ").trim().to_owned()
+    static BRACKETED: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static RELEASE_NUMBER: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static ENCRYPTION_SUFFIX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static WHITESPACE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let value = BRACKETED
+        .get_or_init(|| regex::Regex::new(r"\s*[\(\[][^)\]]*[\)\]]").unwrap())
+        .replace_all(name, "")
+        .replace('_', " ");
+    let value = RELEASE_NUMBER
+        .get_or_init(|| regex::Regex::new(r"^\d{3,5}\s*-?\s+").unwrap())
+        .replace(&value, "");
+    let value = ENCRYPTION_SUFFIX
+        .get_or_init(|| regex::Regex::new(r"(?i)\s*\b(decrypted|encrypted)\b\s*$").unwrap())
+        .replace(&value, "");
+    let cleaned = WHITESPACE
+        .get_or_init(|| regex::Regex::new(r"\s+").unwrap())
+        .replace_all(&value, " ")
+        .trim()
+        .to_owned();
+    if cleaned.is_empty() {
+        name.to_owned()
+    } else {
+        cleaned
+    }
 }
 
 fn display_title(name: &str) -> String {
-    let mut value = clean_title(name);
-    for article in [", The", ", A", ", An"] {
-        if value.ends_with(article) {
-            let cut = value.len() - article.len();
-            value = format!("{} {}", article.trim_start_matches(", "), &value[..cut]);
-            break;
+    let value = clean_title(name);
+    let (title, suffix) = value
+        .split_once(" - ")
+        .map_or((value.as_str(), None), |(title, suffix)| {
+            (title, Some(suffix))
+        });
+    for article in ["The", "A", "An"] {
+        if let Some(prefix) = title.strip_suffix(&format!(" {article}")) {
+            let prefix = prefix.trim_end_matches(',').trim_end();
+            if !prefix.is_empty() {
+                return match suffix {
+                    Some(suffix) => format!("{article} {prefix} - {suffix}"),
+                    None => format!("{article} {prefix}"),
+                };
+            }
         }
     }
     value
@@ -844,4 +915,71 @@ fn version_parts(value: &str) -> (u64, u64, u64) {
         parts.next().unwrap_or_default(),
         parts.next().unwrap_or_default(),
     )
+}
+
+#[cfg(test)]
+mod library_tests {
+    use super::*;
+
+    fn rom_file(name: &str) -> RomFile {
+        RomFile {
+            name: name.to_owned(),
+            path: PathBuf::from(name),
+            root: PathBuf::from("roms"),
+            root_index: 0,
+            size: 0,
+        }
+    }
+
+    #[test]
+    fn manual_media_keeps_a_filesystem_path() {
+        assert_eq!(
+            media_value("manual", Path::new("/library/manual.pdf")),
+            Some("/library/manual.pdf".to_owned())
+        );
+        assert_eq!(
+            media_value("front", Path::new("/library/front.png")),
+            Some("file:///library/front.png".to_owned())
+        );
+    }
+
+    #[test]
+    fn local_media_aliases_and_video_files_are_indexable() {
+        assert_eq!(
+            media_kind_folder("images").map(|(kind, _)| kind),
+            Some("screenshot")
+        );
+        assert_eq!(
+            media_kind_folder("wheel").map(|(kind, _)| kind),
+            Some("logo")
+        );
+        assert!(valid_media_extension("video", Path::new("trailer.webm")));
+        assert!(valid_media_extension("manual", Path::new("manual.pdf")));
+    }
+
+    #[test]
+    fn gamelist_metadata_decodes_entities_and_released_year() {
+        let games = parse_gamelist(
+            "<game><path>./Mario &amp; Luigi.rom</path><name>Mario &amp; Luigi</name><desc>Save &amp; play</desc><releasedate>19981021T000000</releasedate></game>",
+        );
+        let info = games.get("mario & luigi").unwrap();
+        assert_eq!(info["title"], "Mario & Luigi");
+        assert_eq!(info["description"], "Save & play");
+        assert_eq!(info["year"], "1998");
+    }
+
+    #[test]
+    fn rom_selection_uses_clean_titles_and_rejects_numbered_dumps() {
+        let selected = select_best_roms(vec![
+            rom_file("Game (USA) [v1].zip"),
+            rom_file("Game (USA) [!].chd"),
+        ]);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected.values().next().unwrap().name, "Game (USA) [!].chd");
+        assert_eq!(clean_title("0004 - Zelda (USA) [!] Encrypted"), "Zelda");
+        assert_eq!(
+            display_title("Legend of Zelda, The - Ocarina (USA)"),
+            "The Legend of Zelda - Ocarina"
+        );
+    }
 }
