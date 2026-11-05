@@ -1,31 +1,26 @@
 ---
-slice: P6
+slice: P7
 stateFile: docs/STATE.md
 donotCount: 3
-seededFrom: 74bdbae
+seededFrom: 3a65afa
 reads:
+  - main.js
   - package.json
-  - package-lock.json
   - .github/workflows/release.yml
+  - src-tauri/src/backend.rs
   - src-tauri/tauri.conf.json
-  - src-tauri/Cargo.toml
-allowanceTokens: 140000
+allowanceTokens: 135000
 ---
 
 ## The next action — verbatim
 
-P6 — Package macOS and Linux ARM64 builds. Configure Tauri bundles, icons, runtime dependencies, artifact names, app metadata, npm scripts, and target-specific build commands for macOS ARM64 and ARM64 Linux; keep the product build free of Electron runtime packaging.
+P7 — Port app update and release behavior. Replace Electron app-version/update/install behavior with Tauri-compatible release discovery and platform/architecture artifacts. Integrate signed Tauri updater artifacts where configured, with a clear manual-release fallback for package-managed installs.
 
 ## What is settled — do not re-derive
 
-- P1 / S01 through P5 / S05 are complete at `b9ce85e`, `bd4eb4f`, `d96b133`, `ff2ff8f`, and `74bdbae`.
-- The Rust format, test, and check gates passed for P5 (17 tests); the existing `merge_object` dead-code warning remains.
-- P5's `npm start` was not run; runtime behavior was not exercised.
-- User data contracts distinguish filesystem paths for manuals from file URLs for artwork; preserve that distinction.
-- The private runtime spec requires macOS ARM64 and Linux ARM64 support on modern Snapdragon hardware; package the full Tauri app rather than a prototype.
-- Keep the product build free of Electron runtime packaging, but leave the `electron .` route in `package.json` for P9's runtime removal.
-- Updater-plugin initialization remains out until its plugin config is added in the later updater slice; current manual release commands remain.
-- P5 added provider-specific artwork retry/cache behavior, safe exclusive downloads, image conversion limits, and synchronized renderer/backend import replacement.
+- P1–P6 are complete; P6 packaging files are committed in `3a65afa`.
+- P6 configured Tauri product packaging; Electron remains available for legacy helper scripts, while product packaging uses Tauri.
+- Actual ARM64 package artifacts and workflow execution remain unverified and belong to later validation/release work.
 
 ## Withdrawn — proven wrong, do not use
 
@@ -33,17 +28,17 @@ None.
 
 ## Code to touch
 
+- `main.js`
 - `package.json`
-- `package-lock.json`
 - `.github/workflows/release.yml`
+- `src-tauri/src/backend.rs`
 - `src-tauri/tauri.conf.json`
-- `src-tauri/Cargo.toml`
 
 ## Read these first, and only these
 
 - `.operator/specs/desktop-runtime.md` — section `Desktop Runtime Direction`.
-- `.babysteps/tauri-migration.plan.md` — sections `Tauri v2 migration slices` and `Budget rows` (P6).
-- `.babysteps/tauri-migration.tasks.json` — task `S07`.
+- `.babysteps/tauri-migration.plan.md` — sections `Tauri v2 migration slices` and `Budget rows` (P7).
+- `.babysteps/tauri-migration.tasks.json` — task `S06`.
 
 ## Do-Not entries that apply here
 
@@ -60,4 +55,4 @@ Total Do-Not entries: 3.
 
 ## When this slice closes
 
-Closes when S07's stated contract is complete: Tauri bundles, icons, runtime dependencies, artifact names, app metadata, npm scripts, and target-specific build commands for macOS ARM64 and ARM64 Linux are configured, and the product build is free of Electron runtime packaging.
+Closes when S06's stated contract is complete: Electron app-version/update/install behavior is replaced with Tauri-compatible release discovery and platform/architecture artifacts, signed Tauri updater artifacts are integrated where configured, and package-managed installs have a clear manual-release fallback.
