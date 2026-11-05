@@ -10,7 +10,8 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
   - **Find manuals in a folder…** in Artwork matches a whole folder of PDFs to your library.
   - Add a manual to one game with Change an image → Manual (PDF).
   - Manuals can be downloaded from ScreenScraper when you're signed in.
-- **Bookshelf** library mode: cases stand spine-out on a wooden shelf, and the selected game slides out to show its cover.
+  - Manuals open **inside PyroCade**, in a full-screen PDF viewer with zoom, pages and search. Close it with Esc or a controller's back button, or use "Open in your PDF reader".
+- **Bookshelf** library mode: cases stand spine-out side by side, and the selected game slides out to show its cover.
 - **Spinner rack** library mode: a rotating store tower with three tiers of cases. Browsing turns the tower, and the selected game pops out.
 - **Start animation:** pressing Play spins the disc into a drive slot or pushes the cartridge into its slot; the game starts as it goes in (about 2.5 seconds). Can be turned off in Settings, and is skipped with reduced motion.
 - **Game details** from the LaunchBox database: description, year, developer, publisher, genre and players. They fill only empty fields and need no extra downloads.
@@ -27,6 +28,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - Automatic artwork lookups no longer start the 100 MB LaunchBox download; only a download you start does.
 
 ### Fixed
+- The instruction booklet in an opened case no longer turns into a floating line when viewed from the side: it has real thickness now.
 - **Sharper covers no longer replace images you chose yourself.**
 - The emulator Source form keeps what you typed while an install is running.
 
