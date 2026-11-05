@@ -15,7 +15,7 @@ const Cartridges=(()=>{
     // N64: wide body with a raised centre panel, recessed side wings with notched lower corners, near-square label.
     // N64, measured from a retail cartridge: one gently curved top, wings a little lower than the middle,
     // seams between wings and middle, a small notch at each bottom corner, a tall rounded label.
-    n64:{w:.94,h:.65,color:'#8f9097',depth:10,outline:'0,10 1,7 4,5.5 11,4.5 18,3 19,1.5 30,.6 50,0 70,.6 81,1.5 82,3 89,4.5 96,5.5 99,7 100,10 100,70 97,75 97,98.5 95.5,100 4.5,100 3,98.5 3,75 0,70',label:[24,9,52,80],details:'M18.5 3V100 M81.5 3V100'},
+    n64:{w:.94,h:.65,color:'#8f9097',depth:10,outline:'0,19 0.3,16.5 1,14.8 2.2,13.4 4,12.4 6,11.8 10,9.8 15,7.5 20,5.5 25,3.8 30,2.4 35,1.4 40,0.6 45,0.2 50,0 55,0.2 60,0.6 65,1.4 70,2.4 75,3.8 80,5.5 85,7.5 90,9.8 94,11.8 96,12.4 97.8,13.4 99,14.8 99.7,16.5 100,19 100,99.4 99.4,100 0.6,100 0,99.4',label:[24,9,52,80],details:'M18.5 6V100 M81.5 6V100 M0 69L5 71.5V100 M100 69L95 71.5V100'},
     genesis:{w:.78,h:.56,color:'#252526',depth:9,outline:'0,15 9,7 27,1 73,1 91,7 100,15 100,95 95,100 5,100 0,95',label:[14.5,4,71,84],details:'M7 24V83 M11 19V83 M89 19V83 M93 24V83 M15 82H85 M44 88L50 94L56 88'},
     a2600:{w:.70,h:.80,color:'#302f2c',depth:10,outline:rect,label:[7,13,86,63],details:'M5 7H95 M4 82H96 M8 87H92 M8 92H92 M8 97H92'}
   };
