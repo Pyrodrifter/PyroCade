@@ -2,13 +2,13 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), and P7 / S06 (`39b7d24`, `4692cb5`) are complete; the next slice is P8 / S08.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), and P7 / S06 (`39b7d24`, `4692cb5`) are complete; P8 / S08 is active.
 
-**The next action is P8 / S08.**
+**The active slice is P8 / S08.**
 
 ## Next action
 
-P8 — Port validation and release automation. Replace or adapt Electron-bound checks, add observable tests for migrated public behavior, configure native ARM64 Linux and macOS release jobs, smoke-test installed artifacts and controller/audio/rendering paths, and document the fork's support matrix.
+P8 continuation — complete Tauri-native input/controller, audio, and non-macOS target-WebView validation, plus native Linux ARM64 artifact validation. Update the support matrix only with verified evidence. P8 remains open; do not advance to P9 until its close condition is met.
 
 **The Do-Not list is `docs/donot.md`** — 3 entries, append-only. Never dropped, never trimmed.
 
@@ -63,9 +63,13 @@ P8 — Port validation and release automation. Replace or adapt Electron-bound c
 
 ### In progress
 
-- None.
+- **P8 — Port validation and release automation.** Implementation committed as `c555b43` (`P8: Add native validation and release smoke checks`). Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`; `cargo test --manifest-path src-tauri/Cargo.toml` (18 passed, 0 failed); and `cargo check --manifest-path src-tauri/Cargo.toml`. Test/check retain the existing `merge_object` unused warning. `actionlint .github/workflows/release.yml` passed.
+  - `npm start` built and launched Tauri; the shell timed out after 120 seconds waiting for the GUI app, and no process remained afterward. `npm run dist:macos:arm64` built the macOS ARM64 `.app` and DMG. `hdiutil verify` validated the DMG checksum. Mounting the DMG in `localTmp/` was denied; the identical built `.app` was copied into `localTmp/Applications`, launched for 10 seconds, and captured. The capture confirmed that the native Tauri renderer loaded the demo library.
+  - The Linux ARM64 release workflow now installs and smoke-launches its DEB on the native runner, but that workflow has not been executed. Native controller/audio checks and non-macOS target WebView checks have not been run. Do not use Electron as Tauri validation; the selected legacy Electron scripts were not run. Their scratch/session/capture paths were moved under `localTmp/`, and library fixtures were made deterministic.
+  - `docs/SUPPORT.md` documents artifacts, update routes, and validation limits. P8 is not complete. Do-Not entries #1, #2, and #3 still apply; no new Do-Not faults were found.
 
 ### Queued
 
 - **P8 — Port validation and release automation.** Adapt checks and release automation; verify ARM64 target behavior.
 - **P9 — Remove obsolete Electron application runtime.** Remove Electron runtime packaging after Tauri parity gates pass.
+- **P10 — Queued.**
