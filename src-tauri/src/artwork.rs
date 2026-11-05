@@ -15,6 +15,10 @@ use url::Url;
 const LIBRETRO: &str = "https://thumbnails.libretro.com";
 const SWITCH_DATABASE: &str = "https://www.gametdb.com/switchtdb.txt?LANG=EN";
 const SWITCH_IMAGES: &str = "https://art.gametdb.com/switch";
+// MAX_ARTWORK_PIXELS caps one image at 40 million pixels, because compressed bytes do not bound decoded memory.
+const MAX_ARTWORK_PIXELS: u64 = 40_000_000;
+// MAX_SWITCH_CODES bounds title collisions, because each match multiplies remote requests.
+const MAX_SWITCH_CODES: usize = 4;
 const TYPES: &[(&str, &str, Option<&str>)] = &[
     ("front", "covers", Some("Named_Boxarts")),
     ("frontHQ", "cover-hq", None),
@@ -59,7 +63,22 @@ pub async fn fetch_art(
     } else {
         vec!["front".to_owned(), "screenshot".to_owned()]
     };
-    let result = download_game(&game, &types, &config, &state.data_dir, None).await;
+    let retry_missing = options
+        .as_ref()
+        .and_then(|o| o.get("retryMissing"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let refreshed_indexes = Arc::new(Mutex::new(HashSet::new()));
+    let result = download_game(
+        &game,
+        &types,
+        &config,
+        &state.data_dir,
+        None,
+        retry_missing,
+        &refreshed_indexes,
+    )
+    .await;
     update_game_media(&state.games, &game.id, &result);
     Ok(result.get("media").cloned().unwrap_or_else(|| json!({})))
 }
@@ -126,6 +145,10 @@ pub fn start_artwork_download(
     if types.is_empty() {
         return Err("Choose at least one artwork type".to_owned());
     }
+    let retry_missing = options
+        .get("retryMissing")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let all_games = state.games.read().map_err(|e| e.to_string())?.clone();
     let games: Vec<Game> = all_games
         .into_iter()
@@ -151,6 +174,7 @@ pub fn start_artwork_download(
     drop(control);
 
     let queue = Arc::new(Mutex::new(VecDeque::from(games)));
+    let refreshed_indexes = Arc::new(Mutex::new(HashSet::new()));
     let config = state.config();
     let data_dir = state.data_dir.clone();
     let game_store = state.games.clone();
@@ -168,6 +192,7 @@ pub fn start_artwork_download(
             let job_store = job_store.clone();
             let app = app_for_task.clone();
             let types = types.clone();
+            let refreshed_indexes = refreshed_indexes.clone();
             workers.push(tauri::async_runtime::spawn(async move {
                 loop {
                     if cancelled.load(Ordering::Relaxed) {
@@ -183,8 +208,16 @@ pub fn start_artwork_download(
                         }
                         emit_job(&app, &mut control, None, false);
                     }
-                    let result =
-                        download_game(&game, &types, &config, &data_dir, Some(&cancelled)).await;
+                    let result = download_game(
+                        &game,
+                        &types,
+                        &config,
+                        &data_dir,
+                        Some(&cancelled),
+                        retry_missing,
+                        &refreshed_indexes,
+                    )
+                    .await;
                     update_game_media(&game_store, &game.id, &result);
                     if let Ok(mut control) = job_store.lock() {
                         if let Some(job) = control.job.as_mut() {
@@ -300,7 +333,7 @@ pub fn import_artwork(
         || dimensions.1 == 0
         || dimensions.0 > 16384
         || dimensions.1 > 16384
-        || u64::from(dimensions.0) * u64::from(dimensions.1) > 40_000_000
+        || u64::from(dimensions.0) * u64::from(dimensions.1) > MAX_ARTWORK_PIXELS
     {
         return Err("Choose a valid image smaller than 40 megapixels.".to_owned());
     }
@@ -322,9 +355,9 @@ pub fn import_artwork(
     let url = Url::from_file_path(&file)
         .map_err(|_| "Could not create artwork URL".to_owned())?
         .to_string();
-    Ok(Some(
-        json!({"gameId":game.id,"media":{kind:url},"replace":true}),
-    ))
+    let result = json!({"gameId":game.id,"media":{kind:url},"replace":true});
+    update_game_media(&state.games, &game.id, &result);
+    Ok(Some(result))
 }
 
 fn emit_job(app: &AppHandle, control: &mut ArtworkControl, item: Option<Value>, force: bool) {
@@ -352,10 +385,14 @@ fn update_game_media(store: &Arc<RwLock<Vec<Game>>>, game_id: &str, result: &Val
     let Some(media) = result.get("media").and_then(Value::as_object) else {
         return;
     };
+    let replace = result
+        .get("replace")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     if let Ok(mut games) = store.write() {
         if let Some(game) = games.iter_mut().find(|g| g.id == game_id) {
             for (kind, url) in media {
-                if !game.media.contains_key(kind) {
+                if replace || !game.media.contains_key(kind) {
                     if let Some(url) = url.as_str() {
                         game.media.insert(kind.clone(), url.to_owned());
                     }
@@ -371,6 +408,8 @@ async fn download_game(
     config: &Value,
     data_dir: &Path,
     cancelled: Option<&Arc<AtomicBool>>,
+    retry_missing: bool,
+    refreshed_indexes: &Arc<Mutex<HashSet<String>>>,
 ) -> Value {
     let system = config
         .get("systems")
@@ -420,24 +459,50 @@ async fn download_game(
             continue;
         }
         let result = if switch {
-            fetch_switch_image(system, game, kind, data_dir, cancelled).await
+            fetch_switch_image(
+                system,
+                game,
+                kind,
+                data_dir,
+                cancelled,
+                retry_missing,
+                refreshed_indexes,
+            )
+            .await
         } else if let Some(remote) = remote {
-            fetch_libretro_image(system, &base, kind, remote, data_dir, cancelled).await
+            fetch_libretro_image(
+                system,
+                &base,
+                kind,
+                remote,
+                data_dir,
+                cancelled,
+                retry_missing,
+                refreshed_indexes,
+            )
+            .await
         } else {
             Ok(None)
         };
         match result {
             Ok(Some(bytes)) => {
-                if let Err(error) = write_new(&path, &bytes) {
-                    errors.push(error);
-                    continue;
+                if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+                    break;
                 }
-                downloaded += 1;
+                match write_new(&path, &bytes) {
+                    Ok(true) => downloaded += 1,
+                    Ok(false) => existing += 1,
+                    Err(error) => {
+                        errors.push(error);
+                        continue;
+                    }
+                }
                 if let Ok(url) = Url::from_file_path(&path) {
                     media.insert(kind.clone(), Value::String(url.to_string()));
                 }
             }
             Ok(None) => missing += 1,
+            Err(_) if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) => break,
             Err(error) => errors.push(error),
         }
     }
@@ -455,6 +520,8 @@ async fn fetch_libretro_image(
     remote: &str,
     data_dir: &Path,
     cancelled: Option<&Arc<AtomicBool>>,
+    retry_missing: bool,
+    refreshed_indexes: &Arc<Mutex<HashSet<String>>>,
 ) -> Result<Option<Vec<u8>>, String> {
     let category = system
         .get("libretro")
@@ -466,20 +533,35 @@ async fn fetch_libretro_image(
         system.get("id").and_then(Value::as_str).unwrap_or("system"),
         kind
     ));
-    let names = if file
-        .metadata()
-        .ok()
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| t.elapsed().ok())
-        .is_some_and(|age| age.as_secs() < 30 * 86400)
-    {
-        fs::read_to_string(&file)
-            .ok()
-            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
-    } else {
+    let system_id = system.get("id").and_then(Value::as_str).unwrap_or("system");
+    let refresh = refresh_index(
+        retry_missing,
+        refreshed_indexes,
+        format!("{system_id}/{kind}"),
+    );
+    let mut cached_files = vec![file.clone()];
+    if kind == "front" {
+        cached_files.push(dir.join(format!("{system_id}.json")));
+    }
+    let cached_names = if refresh {
         None
+    } else {
+        cached_files.into_iter().find_map(|cached| {
+            let fresh = cached
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|age| age.as_secs() < 30 * 86400);
+            if !fresh {
+                return None;
+            }
+            fs::read_to_string(cached)
+                .ok()
+                .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+        })
     };
-    let names = match names {
+    let names = match cached_names {
         Some(names) => names,
         None => {
             let mut url = Url::parse(&format!("{LIBRETRO}/")).map_err(|e| e.to_string())?;
@@ -506,6 +588,8 @@ async fn fetch_libretro_image(
             names
         }
     };
+    let mut names = names;
+    names.sort_by_key(|name| artwork_region_rank(name));
     let wanted = loose_key(base);
     let name = names
         .into_iter()
@@ -528,12 +612,21 @@ async fn fetch_switch_image(
     kind: &str,
     data_dir: &Path,
     cancelled: Option<&Arc<AtomicBool>>,
+    retry_missing: bool,
+    refreshed_indexes: &Arc<Mutex<HashSet<String>>>,
 ) -> Result<Option<Vec<u8>>, String> {
     if !["front", "frontHQ", "disc", "back"].contains(&kind) {
         return Ok(None);
     }
     let file = data_dir.join("media/_index/gametdb-switch.txt");
-    let text = if file
+    let refresh = refresh_index(
+        retry_missing,
+        refreshed_indexes,
+        "gametdb-switch".to_owned(),
+    );
+    let cached_text = if refresh {
+        None
+    } else if file
         .metadata()
         .ok()
         .and_then(|m| m.modified().ok())
@@ -544,7 +637,7 @@ async fn fetch_switch_image(
     } else {
         None
     };
-    let text = match text {
+    let text = match cached_text {
         Some(text) => text,
         None => {
             let text = request_text(
@@ -572,15 +665,21 @@ async fn fetch_switch_image(
         loose_key(&clean(&game.base)),
     ];
     let line_re = regex::Regex::new(r"(?m)^([A-Z0-9]{5}) = (.+)$").unwrap();
-    let codes: Vec<String> = line_re
-        .captures_iter(&text)
-        .filter_map(|c| {
-            let title = c.get(2)?.as_str();
-            keys.contains(&loose_key(title))
-                .then(|| c.get(1).unwrap().as_str().to_owned())
-        })
-        .take(4)
-        .collect();
+    let mut codes = Vec::new();
+    for capture in line_re.captures_iter(&text) {
+        let Some(title) = capture.get(2).map(|m| m.as_str()) else {
+            continue;
+        };
+        let Some(code) = capture.get(1).map(|m| m.as_str()) else {
+            continue;
+        };
+        if keys.contains(&loose_key(title)) && !codes.iter().any(|seen| seen == code) {
+            codes.push(code.to_owned());
+            if codes.len() == MAX_SWITCH_CODES {
+                break;
+            }
+        }
+    }
     let category = match kind {
         "frontHQ" => "coverHQ",
         "front" => "cover",
@@ -628,7 +727,12 @@ async fn request_image(
     let image = image::load_from_memory(&bytes)
         .map_err(|_| "Artwork server did not return a valid image".to_owned())?;
     let (width, height) = image.dimensions();
-    if width == 0 || height == 0 || width > 16384 || height > 16384 {
+    if width == 0
+        || height == 0
+        || width > 16384
+        || height > 16384
+        || u64::from(width) * u64::from(height) > MAX_ARTWORK_PIXELS
+    {
         return Err("Invalid artwork dimensions".to_owned());
     }
     let mut output = Cursor::new(Vec::new());
@@ -676,18 +780,36 @@ async fn request_bytes(
     Ok(Some(bytes.to_vec()))
 }
 
-fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
+fn write_new(path: &Path, bytes: &[u8]) -> Result<bool, String> {
     fs::create_dir_all(path.parent().ok_or("Artwork directory is invalid")?)
         .map_err(|e| e.to_string())?;
     let mut file = match OpenOptions::new().write(true).create_new(true).open(path) {
         Ok(file) => file,
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
         Err(e) => return Err(e.to_string()),
     };
-    file.write_all(bytes).map_err(|e| {
+    file.write_all(bytes).map(|_| true).map_err(|e| {
         let _ = fs::remove_file(path);
         e.to_string()
     })
+}
+
+fn refresh_index(
+    retry_missing: bool,
+    refreshed_indexes: &Mutex<HashSet<String>>,
+    key: String,
+) -> bool {
+    retry_missing
+        && refreshed_indexes
+            .lock()
+            .map(|mut refreshed| refreshed.insert(key))
+            .unwrap_or(false)
+}
+
+fn artwork_region_rank(name: &str) -> (bool, bool) {
+    let us = name.contains("(USA");
+    let preferred = us || name.contains("(Europe") || name.contains("(World");
+    (!us, !preferred)
 }
 
 fn safe_base(base: &str) -> Result<&str, String> {
@@ -717,4 +839,70 @@ fn loose_key(value: &str) -> String {
         .chars()
         .filter(|c| c.is_ascii_alphanumeric())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn libretro_matches_prefer_us_then_europe_or_world() {
+        let mut names = vec![
+            "Game (World).png",
+            "Game (Japan).png",
+            "Game (USA).png",
+            "Game (Europe).png",
+        ];
+        names.sort_by_key(|name| artwork_region_rank(name));
+        assert_eq!(
+            names,
+            [
+                "Game (USA).png",
+                "Game (World).png",
+                "Game (Europe).png",
+                "Game (Japan).png",
+            ]
+        );
+    }
+
+    #[test]
+    fn retry_missing_refreshes_each_index_once_per_job() {
+        let refreshed = Mutex::new(HashSet::new());
+        assert!(refresh_index(true, &refreshed, "snes/front".to_owned()));
+        assert!(!refresh_index(true, &refreshed, "snes/front".to_owned()));
+        assert!(!refresh_index(
+            false,
+            &refreshed,
+            "snes/screenshot".to_owned()
+        ));
+    }
+
+    #[test]
+    fn imported_artwork_replaces_the_backend_game_media() {
+        let game = Game {
+            id: "game".to_owned(),
+            system: "snes".to_owned(),
+            rom_path: "game.sfc".to_owned(),
+            base: "game".to_owned(),
+            title: "Game".to_owned(),
+            info: json!({}),
+            media: std::collections::HashMap::from([(
+                "front".to_owned(),
+                "file:///old.png".to_owned(),
+            )]),
+        };
+        let games = Arc::new(RwLock::new(vec![game]));
+        update_game_media(
+            &games,
+            "game",
+            &json!({"replace":true,"media":{"front":"file:///new.png"}}),
+        );
+        assert_eq!(
+            games.read().unwrap()[0]
+                .media
+                .get("front")
+                .map(String::as_str),
+            Some("file:///new.png")
+        );
+    }
 }
