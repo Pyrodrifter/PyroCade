@@ -3,7 +3,8 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {pathToFileURL}=require('node:url');
 const root=path.resolve(__dirname,'..');app.setPath('sessionData',path.join(os.tmpdir(),'PyroCade-library-check-'+process.pid));
 const coverDir=path.join(root,'data/media/switch/covers');
-const fixtures=fs.readdirSync(coverDir).filter(n=>n.endsWith('.png')).slice(0,16).map((name,i)=>({id:'fixture:'+i,system:'switch',base:name.slice(0,-4),title:name.replace(/\[[^\]]*\]|\([^)]*\)|\.png$/g,'').replace(/\bv?\d+(?:\.\d+)+\b/gi,'').trim(),demo:true,media:{front:pathToFileURL(path.join(coverDir,name)).href},info:{}}));
+// Local covers may be PNG or JPG (sharper downloads are stored as JPG).
+const fixtures=fs.readdirSync(coverDir).filter(n=>/\.(png|jpe?g)$/i.test(n)).slice(0,16).map((name,i)=>({id:'fixture:'+i,system:'switch',base:name.replace(/\.(png|jpe?g)$/i,''),title:name.replace(/\[[^\]]*\]|\([^)]*\)|\.(png|jpe?g)$/gi,'').replace(/\bv?\d+(?:\.\d+)+\b/gi,'').trim(),demo:true,media:{front:pathToFileURL(path.join(coverDir,name)).href},info:{}}));
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1584,height:861,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),sandbox:false,contextIsolation:true,offscreen:true,backgroundThrottling:false}});win.setContentSize(1584,861);
   const errors=[];win.webContents.on('console-message',e=>{if(e.level==='error')errors.push(e.message)});

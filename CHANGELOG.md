@@ -13,7 +13,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
   - Manuals open **inside PyroCade**, in a full-screen PDF viewer with zoom, pages and search. Close it with Esc or a controller's back button, or use "Open in your PDF reader".
 - **Bookshelf** library mode: cases stand spine-out side by side, and the selected game slides out to show its cover.
 - **Spinner rack** library mode: a rotating store tower with three tiers of cases. Browsing turns the tower, and the selected game pops out.
-- **Start animation:** pressing Play spins the disc into a drive slot or pushes the cartridge into its slot; the game starts as it goes in (about 2.5 seconds). Can be turned off in Settings, and is skipped with reduced motion.
+- **Start animation:** pressing Play spins the disc into a drive slot or pushes the cartridge half-way into its slot, where it stays sticking out like a real one; the game starts as it goes in (about 2.5 seconds). Can be turned off in Settings, and is skipped with reduced motion.
 - **Game details** from the LaunchBox database: description, year, developer, publisher, genre and players. They fill only empty fields and need no extra downloads.
 - **Clear logos** in place of the game title, **real spine scans** on the shelf, and **background fanart** behind the selected game.
 - **Other versions…** in Artwork → Change an image: pick a different cover, spine, disc, logo or background from the online sources.
@@ -28,6 +28,9 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - Automatic artwork lookups no longer start the 100 MB LaunchBox download; only a download you start does.
 
 ### Fixed
+- An out-of-date LaunchBox database is never re-downloaded in the background (library scans, automatic lookups); only an artwork download you start refreshes it, and "Refresh matches" does so at most once a day.
+- Library scans no longer wait for game details; they fill in right after the library appears.
+- Keys and controller input are ignored while a game is starting.
 - The instruction booklet in an opened case no longer turns into a floating line when viewed from the side: it has real thickness now.
 - **Sharper covers no longer replace images you chose yourself.**
 - The emulator Source form keeps what you typed while an install is running.

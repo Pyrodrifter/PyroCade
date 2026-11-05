@@ -65,7 +65,7 @@ const Appearance=(()=>{
     if(mode==='bookshelf') {
       // Cases stand spine-out side by side on one baseline; the selected one slides out to face you.
       const k=itemScale*.6,ks=itemScale*.82,base=323*k/2;
-      if(d===0){const [,H]=size(i);return {transform:`translate3d(0px,${base-H*ks/2-34*scale}px,150px) scale3d(${ks},${ks},${ks})`,hidden:false,shelf:base}}
+      if(d===0){const [,H]=size(i);return {transform:`translate3d(0px,${base-H*ks/2-34*scale}px,150px) scale3d(${ks},${ks},${ks})`,hidden:false}}
       const [Ws]=size(sel);let x=Ws*ks/2+18*scale;
       for(let j=sel+s;j!==i;j+=s)x+=size(j)[2]*k+1.5;
       const [,H,D]=size(i);x+=D*k/2;

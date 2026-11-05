@@ -112,15 +112,20 @@ function createLaunchBox({dataDir, normalize, download, onStatus=()=>{},
   metadataUrl='https://gamesdb.launchbox-app.com/Metadata.zip', imageUrl='https://images.launchbox-app.com'}) {
   const dir = path.join(dataDir, 'media', '_index'), indexFile = path.join(dir, 'launchbox-index.json'), metaDir = path.join(dir, 'launchbox-meta');
   let pending = null;const metaCache = new Map();
-  function load(refresh = false) {
-    if (pending && !refresh) return pending;
+  // offline: use the database already on disk, however old, and never download. Background work
+  // (library scans, automatic lookups) is always offline; only an Artwork download may refresh it.
+  async function readCached() {
+    const cached = JSON.parse(await fs.promises.readFile(indexFile, 'utf8'));
+    if (cached?.version !== INDEX_VERSION) throw new Error('The LaunchBox database is from an older PyroCade');
+    return cached;
+  }
+  function load(refresh = false, {offline = false} = {}) {
+    if (offline) return pending || readCached().then(index => (pending ||= Promise.resolve(index)));
+    let age = Infinity;try { age = Date.now() - fs.statSync(indexFile).mtimeMs; } catch {}
+    if (refresh && age < 864e5) refresh = false; // "Refresh matches" re-downloads at most once a day
+    if (pending && !refresh && age < MAX_AGE) return pending;
     const promise = (async () => {
-      if (!refresh) try {
-        if (Date.now() - fs.statSync(indexFile).mtimeMs < MAX_AGE) {
-          const cached = JSON.parse(await fs.promises.readFile(indexFile, 'utf8'));
-          if (cached?.version === INDEX_VERSION) return cached;
-        }
-      } catch {}
+      if (!refresh && age < MAX_AGE) try { return await readCached(); } catch {}
       const zip = path.join(dir, 'launchbox-metadata.zip');
       await fs.promises.mkdir(dir, {recursive:true});
       onStatus('Downloading the LaunchBox games database (about 100 MB, once a month)…');
@@ -144,10 +149,10 @@ function createLaunchBox({dataDir, normalize, download, onStatus=()=>{},
     return promise;
   }
   // Image URLs for one game and artwork kind, best first. Empty when the game or system is unknown.
-  async function find(sysId, keys, kind, {refresh=false}={}) {
+  async function find(sysId, keys, kind, {refresh=false, offline=false}={}) {
     const platform = PLATFORMS[sysId], wantedKind = kind === 'frontHQ' ? 'front' : kind;
     if (!platform || !IMAGE_TYPES[kind]) return [];
-    const index = await load(refresh);
+    const index = await load(refresh, {offline});
     const names = index.names[platform] || {}, own = k => Object.hasOwn(names, k) && Array.isArray(names[k]) ? names[k] : [];
     const ids = [...new Set(keys.filter(Boolean).flatMap(own))];
     for (const id of ids) {
@@ -157,11 +162,23 @@ function createLaunchBox({dataDir, normalize, download, onStatus=()=>{},
     return [];
   }
   // True once the database has been prepared, so lookups need no download.
-  const available = () => { try { return JSON.parse(fs.readFileSync(indexFile, 'utf8').slice(0, 40).match(/"version":(\d+)/)?.[1]) === INDEX_VERSION; } catch { return false; } };
+  // Reads only the start of the index (it is ~18 MB) and remembers the answer until the file changes.
+  let availableAt = -1, availableNow = false;
+  const available = () => {
+    try {
+      const {mtimeMs} = fs.statSync(indexFile);
+      if (mtimeMs !== availableAt) {
+        const head = Buffer.alloc(64), fd = fs.openSync(indexFile, 'r');
+        try { fs.readSync(fd, head, 0, 64, 0); } finally { fs.closeSync(fd); }
+        availableNow = Number(head.toString('utf8').match(/"version":(\d+)/)?.[1]) === INDEX_VERSION;availableAt = mtimeMs;
+      }
+      return availableNow;
+    } catch { return false; }
+  };
   // Description, year, developer, publisher, genre and players for one game, or null.
   async function details(sysId, keys) {
     const platform = PLATFORMS[sysId];if(!platform)return null;
-    const index = await load();
+    const index = await load(false, {offline:true});
     const names = index.names[platform] || {};
     const ids = [...new Set(keys.filter(Boolean).flatMap(k => Object.hasOwn(names, k) && Array.isArray(names[k]) ? names[k] : []))];
     if (!ids.length) return null;

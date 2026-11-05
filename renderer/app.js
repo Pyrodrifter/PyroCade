@@ -264,7 +264,6 @@ function layout() {
     const d = i - S.sel, a = Math.abs(d);
     const itemScale = scale * Number(e.dataset.displayScale || 1);
     const placement=Appearance.position(i,S.sel,scale,itemScale,stage,view,caseSize),t=placement.transform;
-    if(placement.shelf!==undefined)stage.style.setProperty('--shelf-line',placement.shelf+'px');
     e.style.setProperty('--rack-shade',placement.shade||0);
     if(placement.width){e.style.width=placement.width+'px';e.style.height=placement.height+'px'}else{e.style.removeProperty('width');e.style.removeProperty('height')}
     if (fresh) { e.style.transition = 'none'; e.style.transform = t + ' translateY(40px)'; e.offsetWidth; e.style.transition = ''; }
@@ -368,6 +367,8 @@ function launchFx(g) {
   fx.setAttribute('aria-hidden', 'true');
   const view = el('div', 'launch-window'), mover = el('div', 'launch-mover'), deck = el('div', 'launch-console');
   mover.append(media); view.append(mover);
+  // Cartridges stop half-way, sticking out of the slot like the real thing.
+  if (cart) mover.style.setProperty('--cart-h', media.style.getPropertyValue('--mh') || '160px');
   deck.append(el('div', 'launch-slot'), el('i', 'launch-led'), el('span', 'launch-title', esc(g.title)));
   fx.append(view, deck);
   document.body.append(fx);
@@ -786,6 +787,7 @@ $('#stage').addEventListener('wheel', e => {
 
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
+  if(document.querySelector('.launch-fx'))return; // a game is starting
   if(manualOpen()){if(action==='back'||action==='manual')closeManual();return;}
   if(Appearance.panelOpen()){Appearance.controller(action);return;}
   if(LibraryUI.pickerOpen()){LibraryUI.controller(action);return;}

@@ -6,10 +6,10 @@ const root=path.resolve(__dirname,'..');
 app.setPath('sessionData',path.join(os.tmpdir(),'PyroCade-packaging-'+process.pid));
 const ids=['switch','switch2','ps2','ps1','nds','3ds','wii','ps4','gb','gba','snes','n64'];
 const games=ids.map(id=>{
-  const dir=path.join(root,'data/media',id,'covers');let files=fs.existsSync(dir)?fs.readdirSync(dir).filter(n=>n.endsWith('.png')):[];
+  const dir=path.join(root,'data/media',id,'covers');let files=fs.existsSync(dir)?fs.readdirSync(dir).filter(n=>/\.(png|jpe?g)$/i.test(n)):[];
   const favorites={switch:'Mario Kart 8 Deluxe[',switch2:'Donkey Kong',ps2:'Ratchet & Clank (',ps1:'Harry Potter',nds:'New Super Mario', '3ds':'Super Mario',wii:'Super Mario',gb:'Super Mario',gba:'Metroid',snes:'Super Mario',n64:'Super Mario'};
   const name=files.find(n=>n.startsWith(favorites[id]))||files[0];
-  return {id:'packaging:'+id,system:id,title:name?name.replace(/\[[^\]]*\]|\([^)]*\)|\.png$/g,'').trim():'Pyro Quest',base:name?.slice(0,-4)||'Pyro Quest',media:name?{front:pathToFileURL(path.join(dir,name)).href}:{},info:{}};
+  return {id:'packaging:'+id,system:id,title:name?name.replace(/\[[^\]]*\]|\([^)]*\)|\.(png|jpe?g)$/gi,'').trim():'Pyro Quest',base:name?.replace(/\.(png|jpe?g)$/i,'')||'Pyro Quest',media:name?{front:pathToFileURL(path.join(dir,name)).href}:{},info:{}};
 });
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1760,height:1390,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),contextIsolation:true,sandbox:false,offscreen:true,backgroundThrottling:false}});

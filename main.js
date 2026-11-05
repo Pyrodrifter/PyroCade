@@ -7,6 +7,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const os = require('os');
 const { spawn } = require('child_process');
+const { randomUUID } = require('crypto');
 const { pipeline } = require('stream/promises');
 const { Readable } = require('stream');
 const { pathToFileURL } = require('url');
@@ -925,7 +926,10 @@ async function fillGameDetails(games) {
 let compacted = false;
 handle('library:scan', async () => {
   const games = await scanLibrary();
-  await fillGameDetails(games).catch(() => {});
+  // Details are filled in after the library is shown, so a scan never waits on them.
+  setImmediate(() => fillGameDetails(games).then(changed => {
+    if (changed.length && win && !win.isDestroyed()) win.webContents.send('library:info', changed);
+  }).catch(() => {}));
   if (!compacted) {
     compacted = true;
     const marker = path.join(DATA, 'media', '_index', 'compacted-v1');
@@ -967,7 +971,7 @@ handle('art:candidates', async ({ gameId, kind }) => {
   const found = await artwork.candidates(game, kind);
   pickerChoices = new Map();
   return found.map(bytes => {
-    const token = require('crypto').randomUUID(), image = nativeImage.createFromBuffer(bytes), size = image.getSize();
+    const token = randomUUID(), image = nativeImage.createFromBuffer(bytes), size = image.getSize();
     pickerChoices.set(token, { gameId, kind, bytes });
     const preview = size.height > size.width ? image.resize({ height: 260, quality: 'good' }) : image.resize({ width: 260, quality: 'good' });
     return { token, preview: preview.toDataURL(), width: size.width, height: size.height };

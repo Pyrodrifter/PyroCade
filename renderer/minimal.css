@@ -126,7 +126,7 @@ html[data-layout=spinner] .item { transition: transform .7s cubic-bezier(.25,.8,
 html[data-layout=spinner] .item.sel { filter: drop-shadow(0 18px 24px #000b); }
 
 /* Layout picker thumbnails for the new modes */
-.layout-mini[data-kind=bookshelf] { align-items: flex-end; gap: 1px; padding-bottom: 9px; background: linear-gradient(transparent 76%, #6b4426 76% 86%, transparent 86%), #080d1480; }
+.layout-mini[data-kind=bookshelf] { align-items: flex-end; gap: 1px; padding-bottom: 9px; }
 .layout-mini[data-kind=bookshelf] i { width: 5px !important; height: 30px !important; transform: none !important; border-radius: 1px; }
 .layout-mini[data-kind=bookshelf] i:nth-child(2) { width: 16px !important; height: 34px !important; }
 .layout-mini[data-kind=spinner] i { width: 14px !important; height: 11px !important; border-radius: 1px; }
@@ -163,7 +163,7 @@ html[data-layout=spinner] .item.sel { filter: drop-shadow(0 18px 24px #000b); }
   55% { transform: translateY(20px) rotateX(6deg); } 100% { transform: translateY(380px) rotateX(0deg); } }
 @keyframes disc-spin { to { transform: rotate(360deg); } }
 @keyframes cart-load { 0% { transform: translateY(-80px); opacity: 0; } 20% { opacity: 1; } 55% { transform: translateY(40px); }
-  64% { transform: translateY(34px); } 100% { transform: translateY(400px); } }
+  64% { transform: translateY(34px); } 100% { transform: translateY(calc(330px - var(--cart-h, 160px) / 2)); } }
 @keyframes led-on { to { background: #34e07a; box-shadow: 0 0 12px #34e07a, 0 0 3px #b9ffd4; } }
 @keyframes launch-in { from { opacity: 0; } }
 @keyframes launch-out { to { opacity: 0; } }

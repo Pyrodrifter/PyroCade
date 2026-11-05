@@ -149,7 +149,7 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     // Photos of whole cartridges are cut down to their sticker; systems without a measured label are skipped.
     const photo=bytes=>bytes&&type==='disc'&&sys.media==='cart' ? (cartridgeLabel?.(bytes,sys.id)||null) : bytes;
     // Automatic lookups never start the large LaunchBox download; a download from the Artwork page does.
-    if(launchbox&&(!background||launchbox.available()))steps.push(['launchbox',async()=>photo(await firstImage(await launchbox.find(sys.id,titleKeys(game),type,{refresh:refreshOnce('launchbox')}),signal))]);
+    if(launchbox&&(!background||launchbox.available()))steps.push(['launchbox',async()=>photo(await firstImage(await launchbox.find(sys.id,titleKeys(game),type,{refresh:!background&&refreshOnce('launchbox'),offline:background}),signal))]);
     if(screenscraper?.configured())steps.push(['screenscraper',async()=>photo(await firstImage(await screenscraper.find(game,type,{signal,refresh:refreshOnce('screenscraper')}),signal))]);
     if(isSwitch&&type!=='disc')steps.push(['gametdb-switch',gametdb]);
     if(!hqOnly&&sys.libretro&&TYPES[type].remote)steps.push([`${sys.id}/${type}`,()=>libretroImage(sys,type,game,{signal,retryMissing,refreshed,failures})]);
