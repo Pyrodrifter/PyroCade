@@ -7,7 +7,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 ### Added
 - **Bookshelf** library mode: cases stand spine-out on a wooden shelf, and the selected game slides out to show its cover.
 - **Spinner rack** library mode: a rotating store tower with three tiers of cases. Browsing turns the tower, and the selected game pops out.
-- **Start animation:** pressing Play spins the disc into a drive slot or pushes the cartridge into its slot while the emulator starts. Skipped with reduced motion.
+- **Start animation:** pressing Play spins the disc into a drive slot or pushes the cartridge into its slot; the game starts as it goes in (about 2.5 seconds). Can be turned off in Settings, and is skipped with reduced motion.
 - **Game details** from the LaunchBox database: description, year, developer, publisher, genre and players. They fill only empty fields and need no extra downloads.
 - **Clear logos** in place of the game title, **real spine scans** on the shelf, and **background fanart** behind the selected game.
 - **Other versions…** in Artwork → Change an image: pick a different cover, spine, disc, logo or background from the online sources.

@@ -71,6 +71,7 @@ function defaultConfig() {
   return {
     mediaRoot: '',
     hideWhilePlaying: true,
+    launchAnimation: true,
     checkUpdates: true,
     promptFamily: 'auto',
     motion: 'auto',

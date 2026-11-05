@@ -354,10 +354,12 @@ function setGameBackground(layer,game,a) {
 }
 
 // ---------- actions ----------
-// Start animation: the disc spins into a drive slot, or the cartridge is pushed into its slot,
-// while the emulator starts. Skipped with reduced motion; removed at once if the launch fails.
+// Start animation: the disc spins into a drive slot, or the cartridge is pushed into its slot.
+// The emulator starts as the media enters the slot (fx.ready), so the window minimising for the
+// game never cuts it short. Off in Settings or with reduced motion: no animation and no wait.
+const LAUNCH_SLOT_MS = 2500;
 function launchFx(g) {
-  if (document.documentElement.dataset.motion === 'reduced') return null;
+  if (S.config.launchAnimation === false || document.documentElement.dataset.motion === 'reduced') return null;
   $('.launch-fx')?.remove();
   const a = art(g), cart = a.sys.media === 'cart';
   const media = createMedia(g, { ...a, W: a.W * (cart ? 1.35 : 1.2), H: a.H * 1.2 });
@@ -368,16 +370,28 @@ function launchFx(g) {
   deck.append(el('div', 'launch-slot'), el('i', 'launch-led'), el('span', 'launch-title', esc(g.title)));
   fx.append(view, deck);
   document.body.append(fx);
-  setTimeout(() => fx.classList.add('out'), 2000);
-  setTimeout(() => fx.remove(), 2500);
+  fx.ready = new Promise(resolve => setTimeout(resolve, LAUNCH_SLOT_MS));
+  fx.finish = ok => {
+    if (!ok) return fx.remove();
+    fx.classList.add('powered');                       // power light on
+    setTimeout(() => fx.classList.add('out'), 900);
+    setTimeout(() => fx.remove(), 1400);
+  };
   return fx;
 }
+let launching = false;
 async function play(g = S.list[S.sel]) {
   if (!g) return;
   if (g.demo) return toast('This is a demo game — add your ROM folders in Settings to play for real.');
+  if (launching) return;
+  launching = true;
   const fx = launchFx(g);
-  try { await api.launch(g.id);AudioUI.play('launch'); toast(`Launching ${g.title}…`); }
-  catch (e) { fx?.remove(); AudioUI.play('error');toast(e.message, 5000); }
+  try {
+    if (fx) await fx.ready;
+    await api.launch(g.id); fx?.finish(true); AudioUI.play('launch'); toast(`Launching ${g.title}…`);
+  }
+  catch (e) { fx?.finish(false); AudioUI.play('error'); toast(e.message, 5000); }
+  finally { launching = false; }
 }
 function manual(g = S.list[S.sel]) {
   if (g?.media.manual) api.openManual(g.media.manual);
@@ -648,6 +662,7 @@ function renderSettings() {
   $('#sBackground').value = c.ambient?.background || (c.ambient?.ribbon === false ? 'off' : 'ribbon');
   $('#sMedia').value = c.mediaRoot || '';
   $('#sHide').checked = !!c.hideWhilePlaying;
+  $('#sLaunchFx').checked = c.launchAnimation !== false;
   $('#sCheckUpdates').checked = c.checkUpdates !== false;
   const body = $('#sysTable tbody'); body.innerHTML = '';
   // Always offer "None" and keep an unknown/removed emulator id as-is, so saving never
@@ -684,6 +699,7 @@ $('#btnSave').onclick = async () => {
   const c = structuredClone(S.config);
   c.mediaRoot = $('#sMedia').value.trim();
   c.hideWhilePlaying = $('#sHide').checked;
+  c.launchAnimation = $('#sLaunchFx').checked;
   c.checkUpdates = $('#sCheckUpdates').checked;
   c.promptFamily = promptPreference;
   c.motion = motionPreference;
