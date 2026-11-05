@@ -3,7 +3,10 @@ const ArtworkUI = (()=>{
   let job=null,gameId=null,pending=false,systemInitialized=false,importPending=false,coverage='';
   const q=s=>document.querySelector(s);
   const escape=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  let context;
+  let context,sources=null;
+  // Systems the LaunchBox and ScreenScraper sources know (kept in step with launchbox.js / screenscraper.js).
+  const LAUNCHBOX=new Set(['ps1','ps2','ps3','ps4','psp','switch','switch2','wiiu','wii','gc','n64','snes','nes','3ds','nds','gba','gbc','gb','dreamcast','genesis','xbox','x360','a2600','arcade']);
+  const SCREENSCRAPER=new Set(['genesis','nes','snes','gb','gbc','gba','gc','n64','nds','wii','3ds','wiiu','dreamcast','a2600','xbox','x360','ps1','ps2','ps3','psp','arcade','switch']);
   function chosenGames() {
     const games=context.getGames().filter(g=>!g.demo);
     const scope=q('#artScope').value;
@@ -14,29 +17,27 @@ const ArtworkUI = (()=>{
     const scope=q('#artScope').value;
     q('#artSystem').classList.toggle('hidden',scope!=='system');q('#artSystemLabel').classList.toggle('hidden',scope!=='system');
     const games=chosenGames(),systems=context.getSystems();
-    const supports=s=>s?.libretro||s?.artworkProvider==='gametdb-switch';
+    const supports=s=>!!(s&&(s.libretro||s.artworkProvider==='gametdb-switch'||LAUNCHBOX.has(s.id)||(sources?.screenscraper?.ready&&SCREENSCRAPER.has(s.id))));
     const unavailable=games.filter(g=>!supports(systems.find(s=>s.id===g.system))).length;
-    const switchGames=games.filter(g=>systems.find(s=>s.id===g.system)?.artworkProvider==='gametdb-switch').length;
-    const libretroGames=games.filter(g=>systems.find(s=>s.id===g.system)?.libretro).length;
+    const covered=games.length-unavailable;
     for(const input of document.querySelectorAll('#artTypes input')) {
-      const supported= ['front'].includes(input.value) ? switchGames+libretroGames : ['disc','back'].includes(input.value)?switchGames:libretroGames;
-      input.disabled=!supported;
-      if(!supported)input.checked=false;
-      input.closest('label').classList.toggle('art-type-unavailable',!supported);
+      input.disabled=!covered;
+      if(!covered&&games.length)input.checked=false; // with nothing loaded yet, keep the user's choices
+      input.closest('label').classList.toggle('art-type-unavailable',!covered);
     }
-    const nextCoverage=switchGames&&!libretroGames?'switch':libretroGames&&!switchGames?'libretro':'mixed';
-    if(nextCoverage!==coverage&&nextCoverage==='switch'&&!q('#artTypes input:checked'))q('#artTypes input[value=front]').checked=true;
+    const nextCoverage=covered?'any':'none';
+    if(nextCoverage!==coverage&&covered&&!q('#artTypes input:checked'))q('#artTypes input[value=front]').checked=true;
     coverage=nextCoverage;
     const selected=context.getGames().find(g=>g.id===gameId);
     q('#artImportGame').textContent=selected&&!selected.demo?`${selected.title} · ${systems.find(s=>s.id===selected.system)?.name||selected.system}`:'Select a game in Library, then use its Artwork button.';
     q('#artImport').disabled=importPending||!selected||selected.demo;q('#artImportKind').disabled=importPending||!selected||selected.demo;
     q('#artImport').textContent=importPending?'Applying…':'Choose image…';
-    q('#artSourceLabel').textContent=switchGames&&!libretroGames?'Source · GameTDB':libretroGames&&!switchGames?'Source · Libretro thumbnails':'Sources · Libretro & GameTDB';
-    q('#artSourceDetails').textContent=switchGames&&!libretroGames?'Switch covers, back covers and cartridge labels are matched by game title using GameTDB. Screenshots and title screens are not supplied by this source.':libretroGames&&!switchGames?'Libretro matches box covers, gameplay screenshots and title screens to your game filenames. Availability varies by game.':'Libretro supplies covers, gameplay screenshots and title screens. GameTDB supplies Switch covers, back covers and cartridge labels. Availability varies by game.';
+    q('#artSourceLabel').textContent='Sources · LaunchBox, ScreenScraper, GameTDB, Libretro';
+    q('#artSourceDetails').textContent='Each image comes from the first source that has it, in this order. Availability varies by game.';
     q('#artScopeSummary').textContent=(scope==='game'?(selected&&!selected.demo?selected.title:'Select a game in your library first.'):`${games.length.toLocaleString()} games`)+(unavailable?` · ${unavailable.toLocaleString()} skipped: no artwork source for ${[...new Set(games.filter(g=>!supports(systems.find(s=>s.id===g.system))).map(g=>systems.find(s=>s.id===g.system)?.name||g.system))].join(', ')}. Use “Use your own image” instead.`:'');
     const busy=pending||['running','cancelling'].includes(job?.status);
     q('#artStart').disabled=busy||!games.length||!q('#artTypes input:checked')||unavailable===games.length;
-    q('#artScope').disabled=busy;q('#artSystem').disabled=busy;q('#artTypes').disabled=busy;q('#artRetry').disabled=busy;
+    q('#artScope').disabled=busy;q('#artSystem').disabled=busy;q('#artTypes').disabled=busy;q('#artRetry').disabled=busy;q('#artUpgrade').disabled=busy;
     q('#artCancel').classList.toggle('hidden',!['running','cancelling'].includes(job?.status));
     q('#artCancel').disabled=job?.status==='cancelling';
     q('#artCancel').textContent=job?.status==='cancelling'?'Cancelling…':'Cancel download';
@@ -47,7 +48,9 @@ const ArtworkUI = (()=>{
     if(!next)return;
     if(job&&next.id!==job.id&&next.startedAt<job.startedAt)return;
     if(next.id===job?.id&&next.seq<job.seq)return;
+    const finished=job?.status==='running'&&next.status!=='running'&&next.status!=='cancelling';
     job=next;
+    if(finished)loadSources();
     if(next.item)context.updateGame(next.item);
     render();
   }
@@ -65,7 +68,7 @@ const ArtworkUI = (()=>{
     q('#artUnsupported').textContent=`${job.unsupported.toLocaleString()} ${job.unsupported===1?'game':'games'} skipped because this source does not cover their system.`;
     q('#artUnsupported').classList.toggle('hidden',!job.unsupported);
     q('#artActivity').innerHTML=(job.entries||[]).map(r=>{
-      const summary=r.unsupported?'No source for this system':[r.downloaded?`${r.downloaded} downloaded`:'',r.existing?`${r.existing} kept`:'',r.missing?`${r.missing} unavailable`:'',r.errors.length?'Download error':''].filter(Boolean).join(' · ');
+      const summary=r.unsupported?'No source for this system':[r.upgraded?`${r.upgraded} sharpened`:'',r.downloaded-(r.upgraded||0)?`${r.downloaded-(r.upgraded||0)} downloaded`:'',r.existing?`${r.existing} kept`:'',r.missing?`${r.missing} unavailable`:'',r.errors.length?'Download error':''].filter(Boolean).join(' · ');
       return `<li><span>${escape(r.title)}</span><small ${r.errors.length?'class="art-error"':''}>${escape(summary)}${r.errors.length?`<span class="art-error-detail">${escape(r.errors[0])}</span>`:''}</small></li>`;
     }).join('');
     options();
@@ -86,12 +89,33 @@ const ArtworkUI = (()=>{
     if(!['running','cancelling'].includes(job?.status))q('#artScope').value=scope;
     options();
   }
+  function showSources() {
+    if(!sources)return;
+    const built=sources.launchbox.built;
+    q('#artLaunchBoxState').textContent=built?`Database ready · updated ${new Date(built).toLocaleDateString()}`:'The database (about 100 MB) downloads with your first artwork download.';
+    const ss=sources.screenscraper;
+    q('#artScreenScraperState').textContent=ss.ready?`Signed in as ${ss.user}`:ss.user||ss.devId?'Login incomplete: all four fields are needed.':'Not set up';
+    q('#ssUser').value=ss.user||'';q('#ssDevId').value=ss.devId||'';
+    q('#ssPassword').placeholder=ss.hasPassword?'Saved (leave empty to keep)':'';
+    q('#ssDevPassword').placeholder=ss.hasDevPassword?'Saved (leave empty to keep)':'';
+    q('#ssClear').disabled=!(ss.user||ss.devId||ss.hasPassword||ss.hasDevPassword);
+  }
+  async function loadSources() {if(!api.artSources)return;try{sources=await api.artSources();showSources();options()}catch(e){error(e.message)}}
+  async function saveLogin(details) {
+    q('#ssSave').disabled=true;q('#ssStatus').textContent='';
+    try {
+      sources=await api.artSetScreenScraper(details);
+      q('#ssPassword').value='';q('#ssDevPassword').value='';
+      q('#ssStatus').textContent=details.clear?'Login removed.':'Login saved. It is used on your next artwork download.';
+      showSources();options();
+    } catch(e){q('#ssStatus').textContent=e.message} finally {q('#ssSave').disabled=false}
+  }
   function init(deps) {
     context=deps;
     for(const id of ['artScope','artSystem','artTypes'])q('#'+id).addEventListener('change',options);
     q('#artStart').onclick=async()=>{
       error();pending=true;options();
-      try {accept(await api.artStart({scope:q('#artScope').value,systemId:q('#artSystem').value,gameId,types:[...document.querySelectorAll('#artTypes input:checked')].map(i=>i.value),retryMissing:q('#artRetry').checked}))}
+      try {accept(await api.artStart({scope:q('#artScope').value,systemId:q('#artSystem').value,gameId,types:[...document.querySelectorAll('#artTypes input:checked')].map(i=>i.value),retryMissing:q('#artRetry').checked,upgrade:q('#artUpgrade').checked}))}
       catch(e){error(e.message)}finally{pending=false;options()}
     };
     q('#artCancel').onclick=async()=>{try{accept(await api.artCancel())}catch(e){error(e.message)}};
@@ -103,6 +127,9 @@ const ArtworkUI = (()=>{
         if(result){context.updateGame(result);q('#artImportStatus').textContent='Image applied. You can see it in Library and the case viewer.';}
       }catch(e){error(e.message)}finally{importPending=false;options()}
     };
+    q('#ssSave').onclick=()=>saveLogin({user:q('#ssUser').value,password:q('#ssPassword').value,devId:q('#ssDevId').value,devPassword:q('#ssDevPassword').value});
+    q('#ssClear').onclick=()=>saveLogin({clear:true});
+    loadSources();
     api.onArtProgress?.(accept);
     api.artStatus?.().then(accept).catch(e=>error(e.message));
   }

@@ -5,6 +5,7 @@ const config = {systems:[
   {id:'gba',name:'Game Boy Advance',caseType:'cartbox',media:'cart',color:'#4b3a9b',romDir:'',extensions:['.gba'],emulator:''}
 ],emulators:{},customEmulators:[],hideWhilePlaying:true,uiSound:{enabled:false,volume:.25}};
 contextBridge.exposeInMainWorld('api',{
+  appVersion:async()=>'0.0.0-test',appCheckUpdate:async()=>null,appInstallUpdate:async()=>{},appOpenRelease:async()=>{},onAppUpdateProgress:()=>{},artSources:async()=>({launchbox:{built:0},screenscraper:{user:'',devId:'',hasPassword:false,hasDevPassword:false,ready:false}}),artSetScreenScraper:async()=>({launchbox:{built:0},screenscraper:{user:'',devId:'',ready:false}}),
   getConfig:async()=>config, scan:async()=>[],emuList:async()=>[],onToast:()=>{},onProgress:()=>{},fetchArt:async()=>null,
   setConfig:async c=>Object.assign(config,c),openManual:async()=>{},launch:async()=>{},pickFolder:async()=>null
 });

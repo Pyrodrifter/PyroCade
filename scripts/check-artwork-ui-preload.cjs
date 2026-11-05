@@ -22,6 +22,7 @@ const service=createArtworkService({dataDir:root,getSystems:()=>systems,getGames
   return new Response(png,{headers:{'content-type':'image/png'}});
 }});
 contextBridge.exposeInMainWorld('api',{
+  appVersion:async()=>'0.0.0-test',appCheckUpdate:async()=>null,appInstallUpdate:async()=>{},appOpenRelease:async()=>{},onAppUpdateProgress:()=>{},artSources:async()=>({launchbox:{built:0},screenscraper:{user:'',devId:'',hasPassword:false,hasDevPassword:false,ready:false}}),artSetScreenScraper:async()=>({launchbox:{built:0},screenscraper:{user:'',devId:'',ready:false}}),
   getConfig:async()=>({systems,emulators:{},customEmulators:[],hideWhilePlaying:true}),scan:async()=>games,emuList:async()=>[],onToast:()=>{},onProgress:()=>{},fetchArt:async()=>null,
   setConfig:async c=>c,openManual:async()=>{},launch:async()=>{},pickFolder:async()=>null,
   artStart:async opts=>service.start(opts),artStatus:async()=>service.status(),artCancel:async()=>service.cancel(),artOpenFolder:async()=>'',onArtProgress:fn=>{listener=fn},

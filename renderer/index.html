@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="library-ui.css" />
   <link rel="stylesheet" href="xmb.css" />
+  <link rel="stylesheet" href="minimal.css" />
 </head>
 <body>
   <div id="bg"><div class="bg-layer" id="bgA"></div><div class="bg-layer" id="bgB"></div><canvas id="xmb" aria-hidden="true"></canvas><div class="bg-vignette"></div></div>
@@ -20,13 +21,7 @@
       <button data-view="artwork">Artwork</button>
       <button data-view="settings">Settings</button>
     </nav>
-    <button id="btnAppearance" aria-haspopup="dialog" aria-controls="appearancePicker" aria-expanded="false" title="Change layout, theme and sound"><span aria-hidden="true">◈</span>View &amp; theme</button>
-    <div class="header-status"><span id="inputBadge" class="hidden">Keyboard &amp; mouse</span><div id="clock"></div></div>
-  </header>
-
-  <!-- LIBRARY -->
-  <main id="view-library" class="view active">
-    <div class="toolbar">
+    <div class="toolbar" id="libraryBar">
       <button id="btnSystemPicker" class="system-browser" aria-haspopup="dialog" aria-expanded="false" aria-controls="systemPicker" title="Browse all systems (Ctrl+K)"><span class="system-browser-icon" aria-hidden="true"></span><span><strong>All systems</strong><small id="systemTotal"></small></span><span class="system-browser-chevron" aria-hidden="true">⌄</span></button>
       <div class="system-rail-shell">
         <button id="systemsPrev" class="rail-arrow" aria-label="Scroll systems left" title="Previous systems">‹</button>
@@ -35,6 +30,12 @@
       </div>
       <div class="library-search"><label class="search"><span class="search-icon" aria-hidden="true"></span><input id="search" aria-label="Search games" placeholder="Find a game…" spellcheck="false" /><button id="clearSearch" class="hidden" type="button" aria-label="Clear game search" title="Clear search">×</button><kbd class="search-shortcut" aria-hidden="true">/</kbd></label><span id="searchSummary" class="search-summary" role="status" aria-live="polite" aria-atomic="true"></span></div>
     </div>
+    <button id="btnAppearance" aria-haspopup="dialog" aria-controls="appearancePicker" aria-expanded="false" title="Change layout, theme and sound"><span aria-hidden="true">◈</span>View &amp; theme</button>
+    <div class="header-status"><span id="inputBadge" class="hidden">Keyboard &amp; mouse</span><div id="clock"></div></div>
+  </header>
+
+  <!-- LIBRARY -->
+  <main id="view-library" class="view active">
     <div id="loading" class="hidden"><div class="spinner"></div>Scanning your library…</div>
     <div id="updateBanner" class="banner update-banner hidden" role="status">
       <span id="updateText"></span>
@@ -105,7 +106,7 @@
   <!-- EMULATORS -->
   <main id="view-emus" class="view">
     <div class="view-head">
-      <div><h1>Emulators</h1><p class="sub">Downloaded from each project's official GitHub releases. Updates keep your settings.</p></div>
+      <div><h1>Emulators</h1><p class="sub">Downloaded from each project's GitHub releases, or a fork you choose under Source. Updates keep your settings.</p></div>
       <div class="actions">
         <button id="btnCheckAll" class="primary">Check all for updates</button>
         <button id="btnAddCustom">+ Add your own emulator</button>
@@ -113,10 +114,13 @@
     </div>
     <form id="customForm" class="panel hidden">
       <input name="name" placeholder="Name (e.g. Eden)" required />
-      <input name="systems" placeholder="Systems (e.g. switch)" />
+      <input name="systems" placeholder="Systems (e.g. switch, switch2)" />
       <input name="args" placeholder="Arguments" value="{rom}" />
-      <button class="primary" type="submit">Choose .exe…</button>
+      <input name="repo" placeholder="GitHub repo (optional, e.g. owner/emulator)" spellcheck="false" />
+      <label class="emu-check"><input type="checkbox" name="prerelease" /> Dev builds</label>
+      <button class="primary" type="submit" id="customSubmit">Choose .exe…</button>
       <button type="button" id="customCancel">Cancel</button>
+      <p class="emu-form-note">Leave the repo empty to link a program you already have. With a repo, PyroCade downloads and updates it for you. Only use repositories you trust.</p>
     </form>
     <div id="emuGrid" class="grid"></div>
   </main>
@@ -139,9 +143,10 @@
           <label><input type="checkbox" value="front" checked /> <span>Box covers<small>Used on your 3D game cases</small></span></label>
           <label><input type="checkbox" value="screenshot" checked /> <span>Screenshots<small>Gameplay previews and backgrounds</small></span></label>
           <label><input type="checkbox" value="title" /> <span>Title screens<small>An extra preview when no screenshot is available</small></span></label>
-          <label><input type="checkbox" value="disc" /> <span>Cartridge labels<small>Switch labels for the cartridge reveal</small></span></label>
-          <label><input type="checkbox" value="back" /> <span>Back covers<small>Switch packaging for the case viewer</small></span></label>
+          <label><input type="checkbox" value="disc" /> <span>Cartridge &amp; disc art<small>Disc scans, Game Boy and Switch cartridge labels</small></span></label>
+          <label><input type="checkbox" value="back" /> <span>Back covers<small>The back of the case in the case viewer</small></span></label>
         </fieldset>
+        <label class="art-retry"><input id="artUpgrade" type="checkbox" checked /> Replace low-resolution covers with sharper copies</label>
         <label class="art-retry"><input id="artRetry" type="checkbox" /> Refresh matches and retry missing artwork</label>
         
         <div class="actions"><button id="artStart" class="primary">Download artwork</button><button id="artCancel" class="hidden">Cancel download</button></div>
@@ -161,7 +166,24 @@
           <ul id="artActivity" class="art-activity" aria-label="Recent artwork results"></ul>
         </section>
         <section class="panel art-source" aria-labelledby="artImportTitle"><h2 id="artImportTitle">Use your own image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="fanart">Background</option></select><button id="artImport">Choose image…</button></div><p>PNG, JPG or WebP. Only the chosen type is replaced.</p><p id="artImportStatus" role="status" aria-live="polite"></p></section>
-        <section class="panel art-source"><span id="artSourceLabel" class="hidden"></span><h2>Sources</h2><p id="artSourceDetails">Libretro: covers, screenshots, title screens. GameTDB: Switch covers, back covers, cartridge labels. No account needed; availability varies by game.</p></section>
+        <section class="panel art-source"><span id="artSourceLabel" class="hidden"></span><h2>Sources</h2><p id="artSourceDetails"></p>
+          <ol class="art-source-list">
+            <li><strong>LaunchBox Games Database</strong><span>Full-size box scans, discs, cartridges and screenshots. No account needed.</span><small id="artLaunchBoxState"></small></li>
+            <li><strong>ScreenScraper</strong><span>Optional. Matches by file, good for rare and regional releases.</span><small id="artScreenScraperState"></small></li>
+            <li><strong>GameTDB &amp; Libretro</strong><span>Fallbacks: Switch labels, and smaller covers for everything else.</span></li>
+          </ol>
+          <details id="artScreenScraper" class="art-login"><summary>ScreenScraper login</summary>
+            <p>Use your free screenscraper.fr account. ScreenScraper also requires a developer ID, which developers request on the ScreenScraper forum.</p>
+            <div class="art-login-grid">
+              <label>User name<input id="ssUser" autocomplete="off" spellcheck="false" /></label>
+              <label>Password<input id="ssPassword" type="password" autocomplete="off" /></label>
+              <label>Developer ID<input id="ssDevId" autocomplete="off" spellcheck="false" /></label>
+              <label>Developer password<input id="ssDevPassword" type="password" autocomplete="off" /></label>
+            </div>
+            <div class="actions"><button id="ssSave" class="primary">Save login</button><button id="ssClear">Remove login</button></div>
+            <p id="ssStatus" class="sub" role="status" aria-live="polite"></p>
+          </details>
+        </section>
       </div>
     </div>
   </main>
