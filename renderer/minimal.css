@@ -109,3 +109,9 @@ html[data-view]:not([data-view=library]) header .toolbar { visibility:hidden; }
 .view:not(#view-library) .emu .sys span { font-size: 10px; }
 .view:not(#view-library) .emu .line { font-size: 12px; color: var(--bar-text); }
 #info .actions { gap: 8px; }
+
+/* Dropdowns: the open list is drawn by the system from the select's own colours, so they must be
+   solid and dark (a see-through background left white text on a white list). */
+select { color-scheme: dark; background-color: #151a22; color: var(--text); }
+select option, select optgroup { background-color: #151a22; color: #e8ebf2; }
+.view:not(#view-library) select { background-color: #151a22; }
