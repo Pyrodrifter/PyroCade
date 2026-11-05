@@ -449,13 +449,15 @@ async function renderEmus() {
   try { S.emus = await api.emuList(); } catch (e) { return toast(e.message); }
   const grid = $('#emuGrid'); grid.innerHTML = '';
   const sysNames = id => S.config.systems.find(s => s.id === id)?.name || id;
+  const targetName = e => `${e.platform === 'macos' ? 'macOS' : e.platform} ${e.architecture === 'arm64' ? 'ARM64' : e.architecture}`;
   for (const e of S.emus) {
     const L = S.latest[e.id], P = S.progress[e.id];
     const upd = L && !L.error && L.updateAvailable && e.installed;
-    const state = e.installed ? (upd ? ['up', 'UPDATE'] : ['ok', 'INSTALLED']) : e.exe ? ['ok', 'LINKED'] : ['no', 'NOT INSTALLED'];
+    const state = e.installed ? (upd ? ['up', 'UPDATE'] : ['ok', 'INSTALLED']) : e.exe ? ['ok', 'LINKED'] : e.available === false ? ['no', 'UNAVAILABLE'] : ['no', 'NOT INSTALLED'];
     const card = el('div', 'emu', `
       <h3>${esc(e.name)} <span class="tag ${state[0]}">${state[1]}</span></h3>
       <div class="sys">${e.systems.map(s => `<span>${esc(sysNames(s))}</span>`).join('')}</div>
+      ${e.available === false ? `<div class="line">No managed build for ${esc(targetName(e))}. You can still link a program manually.</div>` : ''}
       ${e.installed ? `<div class="line">Installed: <b>${esc(e.installed.name)}</b> · ${new Date(e.installed.date).toLocaleDateString()}</div>` : ''}
       ${e.exe && !e.installed ? `<div class="line">Program: <b>${esc(e.exe)}</b></div>` : ''}
       ${L ? (L.error ? `<div class="line" style="color:#ff8a8a">${esc(L.error)}</div>` :
@@ -471,7 +473,7 @@ async function renderEmus() {
       else btn('Check for update', () => check(e.id));
     }
     if (e.exe) btn('Open folder', () => api.emuOpenFolder(e.id));
-    btn(e.exe && !e.installed ? 'Change .exe…' : 'Use existing .exe…', async () => { if (await api.emuPickExe(e.id)) { S.config = await api.getConfig(); renderEmus(); } });
+    btn(e.exe && !e.installed ? 'Change program…' : 'Use existing program…', async () => { if (await api.emuPickExe(e.id)) { S.config = await api.getConfig(); renderEmus(); } });
     if (e.installed) btn('Uninstall', async () => { if (confirm(`Remove ${e.name} and its files from PyroCade’s emulators folder?`)) { await api.emuUninstall(e.id); delete S.latest[e.id]; renderEmus(); } });
     grid.append(card);
   }

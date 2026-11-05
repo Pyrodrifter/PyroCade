@@ -316,39 +316,57 @@ function emuDef(id) {
   const base = catalog || config.customEmulators.find(e => e.id === id);
   if (!base) return null;
   const override = config.emulators[id] || {};
-  // On Linux the catalog's "linux" block replaces the Windows download rules. Catalog emulators
-  // without one aren't managed by the downloader there (they can still be linked by hand).
-  let platform = base;
-  if (catalog && process.platform !== 'win32') {
-    platform = catalog.linux && process.platform === 'linux'
-      ? { ...catalog, asset: catalog.linux.asset, exe: catalog.linux.exe, source: { ...catalog.source, repo: catalog.linux.repo || catalog.source.repo } }
-      : { ...catalog, source: undefined };
-  }
-  // For catalog emulators `exe` is a filename regex used after installing; a program the user
-  // linked with "Use existing .exe…" is kept separately as exePath so the two never mix.
-  return { ...platform, ...override, exe: platform.exe, source: platform.source, asset: platform.asset,
-    exePath: override.exe || (catalog ? null : base.exe), custom: !catalog };
+  const platform = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : process.platform;
+  const architecture = process.arch === 'x64' ? 'x86_64' : process.arch;
+  const target = catalog?.platforms?.[platform]?.[architecture];
+  const selected = catalog
+    ? { ...base, ...(target || {}), source: target?.source, asset: target?.asset, exe: target?.exe }
+    : base;
+  const custom = !catalog;
+  const available = custom || !!target;
+  const managed = !custom && available && !!selected.source?.repo && !!selected.asset && !!(selected.exe || selected.appBundle);
+  return { ...selected, ...override, exe: selected.exe, source: selected.source, asset: selected.asset, appBundle: selected.appBundle,
+    exePath: override.exe || (catalog ? null : base.exe), custom, available, managed, platform, architecture };
 }
 function manifestPath(id) { return path.join(EMU_DIR, id, '.pyrocade.json'); }
 function readManifest(id) { try { return JSON.parse(fs.readFileSync(manifestPath(id), 'utf8')); } catch { return null; } }
+
+function manifestMatchesTarget(manifest, def) {
+  if (manifest.platform && manifest.architecture) {
+    return manifest.platform === def.platform && manifest.architecture === def.architecture;
+  }
+  return !manifest.platform && !manifest.architecture && def.architecture === 'x86_64'
+    && ['windows', 'linux'].includes(def.platform);
+}
+
+function appBundleOf(file) {
+  for (let directory = file; directory !== path.dirname(directory); directory = path.dirname(directory)) {
+    if (path.extname(directory).toLowerCase() === '.app') return directory;
+  }
+  return null;
+}
 
 function resolveExe(id) {
   const def = emuDef(id);
   if (!def) return null;
   if (def.exePath && path.isAbsolute(def.exePath) && fs.existsSync(def.exePath)) return def.exePath;
   const man = readManifest(id);
-  if (man?.exe) { const p = path.join(EMU_DIR, id, man.exe); if (fs.existsSync(p)) return p; }
+  if (man?.exe && manifestMatchesTarget(man, def)) { const p = path.join(EMU_DIR, id, man.exe); if (fs.existsSync(p)) return p; }
   return null;
 }
 
 function emuStatus(id) {
   const def = emuDef(id);
   const man = readManifest(id);
+  const installed = man && manifestMatchesTarget(man, def) && man.exe
+    && fs.existsSync(path.join(EMU_DIR, id, man.exe))
+    ? { version: man.tag, name: man.releaseName, date: man.publishedAt }
+    : null;
   return {
     id, name: def.name, systems: def.systems || [], repo: def.source?.repo, custom: def.custom,
+    available: def.available, platform: def.platform, architecture: def.architecture,
     prerelease: !!def.source?.prerelease || !!config.emulators[id]?.prerelease,
-    args: def.args, exe: resolveExe(id), installed: man ? { version: man.tag, name: man.releaseName, date: man.publishedAt } : null,
-    managed: !!def.source,
+    args: def.args, exe: resolveExe(id), installed, managed: def.managed,
   };
 }
 
@@ -374,7 +392,7 @@ async function latestRelease(id) {
       assetId: asset.id, assetName: asset.name, size: asset.size, url: asset.browser_download_url, notes: rel.body || '',
     };
   }
-  throw new Error(`No Windows download matching /${def.asset}/ found in recent releases.`);
+  throw new Error(`No ${def.platform} ${def.architecture} download matching /${def.asset}/ found in recent releases.`);
 }
 
 async function checkUpdate(id) {
@@ -396,6 +414,20 @@ function findFile(dir, re) {
   return null;
 }
 
+function findAppBundle(dir, re) {
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.shift();
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (!e.isDirectory()) continue;
+      if (re.test(e.name) && fs.existsSync(path.join(p, 'Contents', 'MacOS'))) return p;
+      stack.push(p);
+    }
+  }
+  return null;
+}
+
 // Linux programs (AppImages, binaries) usually have no .exe extension.
 const PROGRAM_FILTERS = process.platform === 'win32' ? [{ name: 'Programs', extensions: ['exe'] }] : [{ name: 'All files', extensions: ['*'] }];
 const ARCHIVE = /\.(zip|7z|tar|tgz|tar\.(gz|xz|zst|bz2))$/i;
@@ -412,6 +444,7 @@ function run(cmd, args) {
 // bsdtar (Arch/SteamOS), unzip / 7z, then GNU tar for tarballs.
 async function extract(archive, dest) {
   if (process.platform === 'win32') return run(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', archive, '-C', dest]);
+  if (process.platform === 'darwin' && /\.zip$/i.test(archive)) return run('/usr/bin/ditto', ['-x', '-k', archive, dest]);
   const tries = [['bsdtar', ['-xf', archive, '-C', dest]]];
   if (/\.zip$/i.test(archive)) tries.push(['unzip', ['-o', '-q', archive, '-d', dest]], ['7z', ['x', '-y', `-o${dest}`, archive]]);
   else if (/\.7z$/i.test(archive)) tries.push(['7z', ['x', '-y', `-o${dest}`, archive]], ['7za', ['x', '-y', `-o${dest}`, archive]]);
@@ -458,25 +491,24 @@ async function installEmu(id, send) {
       // A single program file (e.g. a Linux AppImage) is used as downloaded.
       await fsp.rename(archive, path.join(stage, rel.assetName));
     }
-    // Flatten a single wrapping folder.
     let src = stage;
     const top = fs.readdirSync(stage, { withFileTypes: true });
-    if (top.length === 1 && top[0].isDirectory()) src = path.join(stage, top[0].name);
+    if (top.length === 1 && top[0].isDirectory() && !/\.app$/i.test(top[0].name)) src = path.join(stage, top[0].name);
 
-    // Look for the program in the new files only, so an old version left in the folder is never picked.
-    const found = findFile(src, new RegExp(def.exe, 'i'));
-    if (!found) throw new Error(`Downloaded, but couldn't find the program (/${def.exe}/) in it.`);
+    const app = def.appBundle ? findAppBundle(src, new RegExp(def.appBundle, 'i')) : null;
+    const found = app || (def.exe && findFile(src, new RegExp(def.exe, 'i')));
+    if (!found) throw new Error(`Downloaded, but couldn't find the program (/${def.appBundle || def.exe}/) in it.`);
     const exeRel = path.relative(src, found);
     const dest = path.join(EMU_DIR, id);
     await fsp.mkdir(dest, { recursive: true });
     // Copy over the top so emulator settings / portable folders survive updates.
     await fsp.cp(src, dest, { recursive: true, force: true });
     const exe = path.join(dest, exeRel);
-    if (process.platform !== 'win32') await fsp.chmod(exe, 0o755);
+    if (process.platform !== 'win32' && !fs.statSync(exe).isDirectory()) await fsp.chmod(exe, 0o755);
     // Versioned single-file programs (pcsx2-v2.8.2-….AppImage) would otherwise pile up.
     const old = readManifest(id)?.exe;
     if (old && old !== exeRel && !/[\\/]/.test(old) && /\.appimage$/i.test(old)) await fsp.rm(path.join(dest, old), { force: true });
-    const man = { ...rel, exe: exeRel, installedAt: new Date().toISOString() };
+    const man = { ...rel, exe: exeRel, installedAt: new Date().toISOString(), platform: def.platform, architecture: def.architecture };
     delete man.notes;
     fs.writeFileSync(manifestPath(id), JSON.stringify(man, null, 2));
     send({ id, stage: 'Done', pct: 1, done: true });
@@ -515,7 +547,10 @@ function launchGame(gameId) {
   const args = splitArgs(tpl).map(a => a.split('{rom}').join(game.romPath));
   return new Promise((resolve, reject) => {
     // detached: the game keeps running if PyroCade is closed or restarted while playing.
-    const child = spawn(exe, args, { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
+    const bundle = process.platform === 'darwin' ? appBundleOf(exe) : null;
+    const command = bundle ? '/usr/bin/open' : exe;
+    const launchArgs = bundle ? ['--wait-apps', '-a', bundle, '--args', ...args] : args;
+    const child = spawn(command, launchArgs, { cwd: bundle ? path.dirname(bundle) : path.dirname(exe), detached: true, stdio: 'ignore' });
     child.once('error', e => reject(new Error(`Launch failed: ${e.message}`)));
     child.once('spawn', () => {
       // Only hide once the emulator really started, so a failed launch never leaves us minimized.

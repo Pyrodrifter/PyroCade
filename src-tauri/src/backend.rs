@@ -174,10 +174,31 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
         .into_iter()
         .map(|part| part.replace("{rom}", &game.rom_path))
         .collect();
-    let cwd = executable.parent().unwrap_or_else(|| Path::new("."));
-    let mut command = Command::new(&executable);
+    let app_bundle = cfg!(target_os = "macos")
+        .then(|| {
+            executable
+                .ancestors()
+                .find(|path| path.extension().and_then(|ext| ext.to_str()) == Some("app"))
+        })
+        .flatten();
+    let cwd = app_bundle
+        .and_then(Path::parent)
+        .or_else(|| executable.parent())
+        .unwrap_or_else(|| Path::new("."));
+    let mut command = if let Some(bundle) = app_bundle {
+        let mut command = Command::new("open");
+        command
+            .args(["--wait-apps", "-a"])
+            .arg(bundle)
+            .arg("--args")
+            .args(args);
+        command
+    } else {
+        let mut command = Command::new(&executable);
+        command.args(args);
+        command
+    };
     command
-        .args(args)
         .current_dir(cwd)
         .stdin(Stdio::null())
         .stdout(Stdio::null())

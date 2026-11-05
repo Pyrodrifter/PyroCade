@@ -5,17 +5,51 @@
     "systems": [
       "ps1"
     ],
-    "source": {
-      "type": "github",
-      "repo": "stenzek/duckstation",
-      "prerelease": true
-    },
-    "asset": "^duckstation-windows-x64-release\\.zip$",
-    "exe": "^duckstation-qt.*\\.exe$",
     "args": "-batch -fullscreen {rom}",
-    "linux": {
-      "asset": "^DuckStation-x64.AppImage$",
-      "exe": "^DuckStation-x64.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "stenzek/duckstation",
+            "prerelease": true
+          },
+          "asset": "^duckstation-windows-x64-release\\.zip$",
+          "exe": "^duckstation-qt.*\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "stenzek/duckstation",
+            "prerelease": true
+          },
+          "asset": "^DuckStation-x64.AppImage$",
+          "exe": "^DuckStation-x64.AppImage$"
+        },
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "stenzek/duckstation",
+            "prerelease": true
+          },
+          "asset": "^DuckStation-arm64\\.AppImage$",
+          "exe": "^DuckStation-arm64\\.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "stenzek/duckstation",
+            "prerelease": true
+          },
+          "asset": "^duckstation-mac-release\\.zip$",
+          "exe": "^duckstation-qt$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   },
   {
@@ -24,17 +58,42 @@
     "systems": [
       "ps2"
     ],
-    "source": {
-      "type": "github",
-      "repo": "PCSX2/pcsx2",
-      "prerelease": false
-    },
-    "asset": "windows-x64-Qt\\.7z$",
-    "exe": "^pcsx2-qt\\.exe$",
     "args": "-batch -fullscreen -- {rom}",
-    "linux": {
-      "asset": "-linux-appimage-x64-Qt.AppImage$",
-      "exe": "-linux-appimage-x64-Qt.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "PCSX2/pcsx2",
+            "prerelease": false
+          },
+          "asset": "windows-x64-Qt\\.7z$",
+          "exe": "^pcsx2-qt\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "PCSX2/pcsx2",
+            "prerelease": false
+          },
+          "asset": "-linux-appimage-x64-Qt.AppImage$",
+          "exe": "-linux-appimage-x64-Qt.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "PCSX2/pcsx2",
+            "prerelease": false
+          },
+          "asset": "-macos-Qt\\.tar\\.xz$",
+          "exe": "^pcsx2-qt$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   },
   {
@@ -43,18 +102,30 @@
     "systems": [
       "ps3"
     ],
-    "source": {
-      "type": "github",
-      "repo": "RPCS3/rpcs3-binaries-win",
-      "prerelease": false
-    },
-    "asset": "_win64\\.7z$",
-    "exe": "^rpcs3\\.exe$",
     "args": "--no-gui {rom}",
-    "linux": {
-      "repo": "RPCS3/rpcs3-binaries-linux",
-      "asset": "_linux64.AppImage$",
-      "exe": "_linux64.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "RPCS3/rpcs3-binaries-win",
+            "prerelease": false
+          },
+          "asset": "_win64\\.7z$",
+          "exe": "^rpcs3\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "RPCS3/rpcs3-binaries-linux",
+            "prerelease": false
+          },
+          "asset": "_linux64.AppImage$",
+          "exe": "_linux64.AppImage$"
+        }
+      }
     }
   },
   {
@@ -63,17 +134,42 @@
     "systems": [
       "ps4"
     ],
-    "source": {
-      "type": "github",
-      "repo": "shadps4-emu/shadPS4",
-      "prerelease": true
-    },
-    "asset": "^shadps4-win64-sdl.*\\.zip$",
-    "exe": "^shadps4\\.exe$",
     "args": "-g {rom}",
-    "linux": {
-      "asset": "^shadps4-linux-sdl-.*.zip$",
-      "exe": "^shadps4.*.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "shadps4-emu/shadPS4",
+            "prerelease": true
+          },
+          "asset": "^shadps4-win64-sdl.*\\.zip$",
+          "exe": "^shadps4\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "shadps4-emu/shadPS4",
+            "prerelease": true
+          },
+          "asset": "^shadps4-linux-sdl-.*.zip$",
+          "exe": "^shadps4.*.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "shadps4-emu/shadPS4",
+            "prerelease": true
+          },
+          "asset": "^shadps4-macos-sdl-.*\\.zip$",
+          "exe": "^shadps4$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   },
   {
@@ -82,17 +178,51 @@
     "systems": [
       "psp"
     ],
-    "source": {
-      "type": "github",
-      "repo": "hrydgard/ppsspp",
-      "prerelease": false
-    },
-    "asset": "-Windows-x64\\.zip$",
-    "exe": "^PPSSPPWindows64\\.exe$",
     "args": "--fullscreen {rom}",
-    "linux": {
-      "asset": "-anylinux-x86_64.AppImage$",
-      "exe": "-anylinux-x86_64.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "hrydgard/ppsspp",
+            "prerelease": false
+          },
+          "asset": "-Windows-x64\\.zip$",
+          "exe": "^PPSSPPWindows64\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "hrydgard/ppsspp",
+            "prerelease": false
+          },
+          "asset": "-anylinux-x86_64.AppImage$",
+          "exe": "-anylinux-x86_64.AppImage$"
+        },
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "hrydgard/ppsspp",
+            "prerelease": false
+          },
+          "asset": "^PPSSPP-v.*-anylinux-aarch64\\.AppImage$",
+          "exe": "^PPSSPP-v.*-anylinux-aarch64\\.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "hrydgard/ppsspp",
+            "prerelease": false
+          },
+          "asset": "^PPSSPPSDL-macOS-v.*\\.zip$",
+          "exe": "^PPSSPPSDL$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   },
   {
@@ -101,17 +231,30 @@
     "systems": [
       "wiiu"
     ],
-    "source": {
-      "type": "github",
-      "repo": "cemu-project/Cemu",
-      "prerelease": false
-    },
-    "asset": "windows-x64\\.zip$",
-    "exe": "^Cemu\\.exe$",
     "args": "-f -g {rom}",
-    "linux": {
-      "asset": "-x86_64.AppImage$",
-      "exe": "-x86_64.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "cemu-project/Cemu",
+            "prerelease": false
+          },
+          "asset": "windows-x64\\.zip$",
+          "exe": "^Cemu\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "cemu-project/Cemu",
+            "prerelease": false
+          },
+          "asset": "-x86_64.AppImage$",
+          "exe": "-x86_64.AppImage$"
+        }
+      }
     }
   },
   {
@@ -120,17 +263,42 @@
     "systems": [
       "3ds"
     ],
-    "source": {
-      "type": "github",
-      "repo": "azahar-emu/azahar",
-      "prerelease": true
-    },
-    "asset": "^azahar-windows-msvc-.*.zip$",
-    "exe": "^azahar\\.exe$",
     "args": "{rom}",
-    "linux": {
-      "asset": "^azahar.AppImage$",
-      "exe": "^azahar.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "azahar-emu/azahar",
+            "prerelease": true
+          },
+          "asset": "^azahar-windows-msvc-.*.zip$",
+          "exe": "^azahar\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "azahar-emu/azahar",
+            "prerelease": true
+          },
+          "asset": "^azahar.AppImage$",
+          "exe": "^azahar.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "azahar-emu/azahar",
+            "prerelease": true
+          },
+          "asset": "^azahar-macos-arm64-.*\\.zip$",
+          "exe": "^azahar$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   },
   {
@@ -139,17 +307,51 @@
     "systems": [
       "nds"
     ],
-    "source": {
-      "type": "github",
-      "repo": "melonDS-emu/melonDS",
-      "prerelease": false
-    },
-    "asset": "windows-x86_64\\.zip$",
-    "exe": "^melonDS\\.exe$",
     "args": "{rom}",
-    "linux": {
-      "asset": "-appimage-x86_64.zip$",
-      "exe": "^melonDS.*.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "melonDS-emu/melonDS",
+            "prerelease": false
+          },
+          "asset": "windows-x86_64\\.zip$",
+          "exe": "^melonDS\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "melonDS-emu/melonDS",
+            "prerelease": false
+          },
+          "asset": "-appimage-x86_64.zip$",
+          "exe": "^melonDS.*.AppImage$"
+        },
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "melonDS-emu/melonDS",
+            "prerelease": false
+          },
+          "asset": "^melonDS-[0-9.]+-appimage-aarch64\\.zip$",
+          "exe": "^melonDS-aarch64\\.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "melonDS-emu/melonDS",
+            "prerelease": false
+          },
+          "asset": "macOS-universal\\.zip$",
+          "exe": "^melonDS$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   },
   {
@@ -159,17 +361,39 @@
       "gba",
       "gbc"
     ],
-    "source": {
-      "type": "github",
-      "repo": "mgba-emu/mgba",
-      "prerelease": false
-    },
-    "asset": "-win64\\.7z$",
-    "exe": "^mGBA\\.exe$",
     "args": "-f {rom}",
-    "linux": {
-      "asset": "-appimage-x64.appimage$",
-      "exe": "-appimage-x64.appimage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "mgba-emu/mgba",
+            "prerelease": false
+          },
+          "asset": "-win64\\.7z$",
+          "exe": "^mGBA\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "mgba-emu/mgba",
+            "prerelease": false
+          },
+          "asset": "-appimage-x64.appimage$",
+          "exe": "-appimage-x64.appimage$"
+        },
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "mgba-emu/mgba",
+            "prerelease": false
+          },
+          "asset": "^mGBA-.*-appimage-arm64\\.appimage$",
+          "exe": "^mGBA-.*-appimage-arm64\\.appimage$"
+        }
+      }
     }
   },
   {
@@ -178,17 +402,42 @@
     "systems": [
       "dreamcast"
     ],
-    "source": {
-      "type": "github",
-      "repo": "flyinghead/flycast",
-      "prerelease": false
-    },
-    "asset": "^flycast-win64-.*\\.zip$",
-    "exe": "^flycast\\.exe$",
     "args": "{rom}",
-    "linux": {
-      "asset": "^flycast-x86_64-.*.AppImage$",
-      "exe": "^flycast-x86_64-.*.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "flyinghead/flycast",
+            "prerelease": false
+          },
+          "asset": "^flycast-win64-.*\\.zip$",
+          "exe": "^flycast\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "flyinghead/flycast",
+            "prerelease": false
+          },
+          "asset": "^flycast-x86_64-.*.AppImage$",
+          "exe": "^flycast-x86_64-.*.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "flyinghead/flycast",
+            "prerelease": false
+          },
+          "asset": "^flycast-macOS-.*\\.zip$",
+          "exe": "^flycast$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   },
   {
@@ -197,17 +446,51 @@
     "systems": [
       "xbox"
     ],
-    "source": {
-      "type": "github",
-      "repo": "xemu-project/xemu",
-      "prerelease": true
-    },
-    "asset": "^(?!.*-dbg-)(?!.*pdb).*-windows-x86_64\\.zip$",
-    "exe": "^xemu\\.exe$",
     "args": "-full-screen -dvd_path {rom}",
-    "linux": {
-      "asset": "^xemu-(?!.*-dbg-).*-x86_64.AppImage$",
-      "exe": "^xemu-.*-x86_64.AppImage$"
+    "platforms": {
+      "windows": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "xemu-project/xemu",
+            "prerelease": true
+          },
+          "asset": "^xemu-[0-9.]+(?:-[0-9]+-g[0-9a-f]+)?-windows-x86_64\\.zip$",
+          "exe": "^xemu\\.exe$"
+        }
+      },
+      "linux": {
+        "x86_64": {
+          "source": {
+            "type": "github",
+            "repo": "xemu-project/xemu",
+            "prerelease": true
+          },
+          "asset": "^xemu-[0-9.]+(?:-[0-9]+-g[0-9a-f]+)?-x86_64\\.AppImage$",
+          "exe": "^xemu-[0-9.]+(?:-[0-9]+-g[0-9a-f]+)?-x86_64\\.AppImage$"
+        },
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "xemu-project/xemu",
+            "prerelease": true
+          },
+          "asset": "^xemu-[0-9.]+(?:-[0-9]+-g[0-9a-f]+)?-aarch64\\.AppImage$",
+          "exe": "^xemu-[0-9.]+(?:-[0-9]+-g[0-9a-f]+)?-aarch64\\.AppImage$"
+        }
+      },
+      "macos": {
+        "arm64": {
+          "source": {
+            "type": "github",
+            "repo": "xemu-project/xemu",
+            "prerelease": true
+          },
+          "asset": "^xemu-[0-9.]+(?:-[0-9]+-g[0-9a-f]+)?-macos-universal(?:-unsigned)?\\.zip$",
+          "exe": "^xemu$",
+          "appBundle": "\\.app$"
+        }
+      }
     }
   }
 ]
