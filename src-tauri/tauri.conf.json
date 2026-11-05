@@ -30,6 +30,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": false,
     "targets": ["app", "dmg", "appimage", "deb", "rpm"],
     "category": "Game",
     "shortDescription": "3D carousel front end for emulators",

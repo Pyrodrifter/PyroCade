@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::UpdaterExt;
 use url::Url;
 
 pub struct AppState {
@@ -812,8 +813,29 @@ pub fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+fn supports_self_update(os: &str, arch: &str, appimage: bool) -> bool {
+    matches!((os, arch), ("macos", "aarch64"))
+        || matches!((os, arch), ("linux", "aarch64") if appimage)
+}
+
+fn self_update_supported() -> bool {
+    supports_self_update(
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        std::env::var_os("APPIMAGE").is_some(),
+    )
+}
+
+fn manual_update_hint() -> &'static str {
+    if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() {
+        "This Linux install is managed by your package manager. Install the matching ARM64 package from the release page."
+    } else {
+        "Download the matching platform and architecture release from the release page."
+    }
+}
+
 #[tauri::command]
-pub async fn check_app_update() -> Result<Value, String> {
+pub async fn check_app_update(app: AppHandle) -> Result<Value, String> {
     const REPO: &str = "Pyrodrifter/PyroCade";
     let current = env!("CARGO_PKG_VERSION");
     let response = reqwest::Client::builder()
@@ -854,18 +876,67 @@ pub async fn check_app_update() -> Result<Value, String> {
         .unwrap_or_default();
     let latest = tag.trim_start_matches(['v', 'V']);
     let available = version_parts(latest) > version_parts(current);
+    let can_install = if self_update_supported() {
+        match app.updater() {
+            Ok(updater) => updater.check().await.is_ok_and(|update| update.is_some()),
+            Err(_) => false,
+        }
+    } else {
+        false
+    };
     Ok(json!({
         "current":current,"latest":latest,"available":available,
         "name":release.get("name").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or(tag),
         "notes":release.get("body").and_then(Value::as_str).unwrap_or(""),
-        "url":release.get("html_url"),"installer":Value::Null,"canInstall":false,
-        "manualHint":"Download the matching Tauri release from the release page."
+        "url":release.get("html_url"),"installer":Value::Null,"canInstall":can_install,
+        "manualHint":manual_update_hint()
     }))
 }
 
 #[tauri::command]
 pub async fn install_app_update(app: AppHandle) -> Result<Value, String> {
-    let update = check_app_update().await?;
+    if self_update_supported() {
+        if let Ok(updater) = app.updater() {
+            if let Ok(Some(update)) = updater.check().await {
+                let version = update.version.clone();
+                let progress_version = version.clone();
+                let progress_app = app.clone();
+                let mut downloaded = 0usize;
+                update
+                    .download_and_install(
+                        move |chunk, total| {
+                            downloaded += chunk;
+                            let total = total.unwrap_or_default();
+                            let pct = if total > 0 {
+                                downloaded as f64 / total as f64
+                            } else {
+                                0.0
+                            };
+                            let _ = progress_app.emit(
+                                "app:updateProgress",
+                                json!({
+                                    "stage": format!("Downloading PyroCade {progress_version}…"),
+                                    "pct": pct,
+                                    "got": downloaded,
+                                    "total": total
+                                }),
+                            );
+                        },
+                        || {},
+                    )
+                    .await
+                    .map_err(|e| e.to_string())?;
+                app.emit(
+                    "app:updateProgress",
+                    json!({"stage":"Update installed; restart PyroCade to finish.","pct":1,"done":true}),
+                )
+                .map_err(|e| e.to_string())?;
+                return Ok(json!({"version":version,"mode":"updater"}));
+            }
+        }
+    }
+
+    let update = check_app_update(app.clone()).await?;
     if !update
         .get("available")
         .and_then(Value::as_bool)
@@ -950,6 +1021,14 @@ fn version_parts(value: &str) -> (u64, u64, u64) {
 #[cfg(test)]
 mod library_tests {
     use super::*;
+
+    #[test]
+    fn self_updater_is_limited_to_supported_arm64_installs() {
+        assert!(supports_self_update("macos", "aarch64", false));
+        assert!(supports_self_update("linux", "aarch64", true));
+        assert!(!supports_self_update("linux", "aarch64", false));
+        assert!(!supports_self_update("linux", "x86_64", true));
+    }
 
     fn rom_file(name: &str) -> RomFile {
         RomFile {
