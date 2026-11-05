@@ -1,0 +1,168 @@
+[
+  {
+    "id": "duckstation",
+    "name": "DuckStation",
+    "systems": [
+      "ps1"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "stenzek/duckstation",
+      "prerelease": true
+    },
+    "asset": "^duckstation-windows-x64-release\\.zip$",
+    "exe": "^duckstation-qt.*\\.exe$",
+    "args": "-batch -fullscreen {rom}"
+  },
+  {
+    "id": "pcsx2",
+    "name": "PCSX2",
+    "systems": [
+      "ps2"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "PCSX2/pcsx2",
+      "prerelease": false
+    },
+    "asset": "windows-x64-Qt\\.7z$",
+    "exe": "^pcsx2-qt\\.exe$",
+    "args": "-batch -fullscreen -- {rom}"
+  },
+  {
+    "id": "rpcs3",
+    "name": "RPCS3",
+    "systems": [
+      "ps3"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "RPCS3/rpcs3-binaries-win",
+      "prerelease": false
+    },
+    "asset": "_win64\\.7z$",
+    "exe": "^rpcs3\\.exe$",
+    "args": "--no-gui {rom}"
+  },
+  {
+    "id": "shadps4",
+    "name": "shadPS4",
+    "systems": [
+      "ps4"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "shadps4-emu/shadPS4",
+      "prerelease": true
+    },
+    "asset": "^shadps4-win64-sdl.*\\.zip$",
+    "exe": "^shadps4\\.exe$",
+    "args": "-g {rom}"
+  },
+  {
+    "id": "ppsspp",
+    "name": "PPSSPP",
+    "systems": [
+      "psp"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "hrydgard/ppsspp",
+      "prerelease": false
+    },
+    "asset": "-Windows-x64\\.zip$",
+    "exe": "^PPSSPPWindows64\\.exe$",
+    "args": "--fullscreen {rom}"
+  },
+  {
+    "id": "cemu",
+    "name": "Cemu",
+    "systems": [
+      "wiiu"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "cemu-project/Cemu",
+      "prerelease": false
+    },
+    "asset": "windows-x64\\.zip$",
+    "exe": "^Cemu\\.exe$",
+    "args": "-f -g {rom}"
+  },
+  {
+    "id": "azahar",
+    "name": "Azahar",
+    "systems": [
+      "3ds"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "azahar-emu/azahar",
+      "prerelease": true
+    },
+    "asset": "^azahar-windows-msvc-.*.zip$",
+    "exe": "^azahar\\.exe$",
+    "args": "{rom}"
+  },
+  {
+    "id": "melonds",
+    "name": "melonDS",
+    "systems": [
+      "nds"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "melonDS-emu/melonDS",
+      "prerelease": false
+    },
+    "asset": "windows-x86_64\\.zip$",
+    "exe": "^melonDS\\.exe$",
+    "args": "{rom}"
+  },
+  {
+    "id": "mgba",
+    "name": "mGBA",
+    "systems": [
+      "gba",
+      "gbc"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "mgba-emu/mgba",
+      "prerelease": false
+    },
+    "asset": "-win64\\.7z$",
+    "exe": "^mGBA\\.exe$",
+    "args": "-f {rom}"
+  },
+  {
+    "id": "flycast",
+    "name": "Flycast",
+    "systems": [
+      "dreamcast"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "flyinghead/flycast",
+      "prerelease": false
+    },
+    "asset": "^flycast-win64-.*\\.zip$",
+    "exe": "^flycast\\.exe$",
+    "args": "{rom}"
+  },
+  {
+    "id": "xemu",
+    "name": "xemu",
+    "systems": [
+      "xbox"
+    ],
+    "source": {
+      "type": "github",
+      "repo": "xemu-project/xemu",
+      "prerelease": true
+    },
+    "asset": "^(?!.*-dbg-)(?!.*pdb).*-windows-x86_64\\.zip$",
+    "exe": "^xemu\\.exe$",
+    "args": "-full-screen -dvd_path {rom}"
+  }
+]

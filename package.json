@@ -1,0 +1,19 @@
+{
+  "name": "pyrocade",
+  "version": "0.1.0",
+  "description": "3D carousel front-end for emulators with built-in emulator downloader/updater",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "prompts:build": "node scripts/build-prompts.js",
+    "prompts:export": "electron scripts/export-prompts.cjs",
+    "prompts:check": "electron scripts/check-prompts.cjs",
+    "carousel:check": "electron scripts/check-carousel.cjs",
+    "artwork:check": "node scripts/check-artwork.cjs && electron scripts/check-artwork-ui.cjs",
+    "eshop:check": "electron scripts/check-eshop.cjs",
+    "ui:check": "electron scripts/check-library-ui.cjs"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0"
+  }
+}

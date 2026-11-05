@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data: blob:; style-src 'self' 'unsafe-inline'; img-src 'self' file: data: blob:; media-src file: data: blob:" />
+  <title>PyroCade</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="library-ui.css" />
+</head>
+<body>
+  <div id="bg"><div class="bg-layer" id="bgA"></div><div class="bg-layer" id="bgB"></div><div class="bg-vignette"></div></div>
+
+  <header>
+    <div class="brand"><span class="flame">▲</span> PYRO<b>CADE</b></div>
+    <nav id="tabs">
+      <button data-view="library" class="active">Library</button>
+      <button data-view="emus">Emulators</button>
+      <button data-view="artwork">Artwork</button>
+      <button data-view="settings">Settings</button>
+    </nav>
+    <button id="btnAppearance" aria-haspopup="dialog" aria-controls="appearancePicker" aria-expanded="false" title="Change layout, theme and sound"><span aria-hidden="true">◈</span>View &amp; theme</button>
+    <div class="header-status"><span id="inputBadge">Keyboard &amp; mouse</span><div id="clock"></div></div>
+  </header>
+
+  <!-- LIBRARY -->
+  <main id="view-library" class="view active">
+    <div class="toolbar">
+      <button id="btnSystemPicker" class="system-browser" aria-haspopup="dialog" aria-expanded="false" aria-controls="systemPicker" title="Browse all systems (Ctrl+K)"><span class="system-browser-icon" aria-hidden="true"></span><span><strong>All systems</strong><small id="systemTotal">Your collection</small></span><span class="system-browser-chevron" aria-hidden="true">⌄</span></button>
+      <div class="system-rail-shell">
+        <button id="systemsPrev" class="rail-arrow" aria-label="Scroll systems left" title="Previous systems">‹</button>
+        <nav id="systems" class="chips" aria-label="Game systems"></nav>
+        <button id="systemsNext" class="rail-arrow" aria-label="Scroll systems right" title="More systems">›</button>
+      </div>
+      <div class="library-search"><label class="search"><span class="search-icon" aria-hidden="true"></span><input id="search" aria-label="Search games" placeholder="Find a game…" spellcheck="false" /><button id="clearSearch" class="hidden" type="button" aria-label="Clear game search" title="Clear search">×</button><kbd class="search-shortcut" aria-hidden="true">/</kbd></label><span id="searchSummary" class="search-summary" role="status" aria-live="polite" aria-atomic="true"></span></div>
+    </div>
+    <div id="loading" class="hidden"><div class="spinner"></div>Scanning your library…</div>
+    <div id="demoBanner" class="banner hidden">Demo shelf — point a system at your ROM folder in <a href="#" data-goto="settings">Settings</a> to load your own games.</div>
+    <div id="stage">
+      <div class="shelf-heading"><span id="shelfLabel">Your collection</span><span id="mediaType"></span></div>
+      <div class="shelf-spotlight" aria-hidden="true"></div>
+      <div id="floor"></div>
+      <div id="carousel" role="listbox" aria-label="Game collection" tabindex="0"></div>
+      <div id="empty" class="hidden">No games for this system yet.</div>
+      <button id="shelfPrev" class="shelf-arrow previous" aria-label="Previous game" title="Previous game"></button>
+      <button id="shelfNext" class="shelf-arrow next" aria-label="Next game" title="Next game"></button>
+      <div class="shelf-position"><span id="shelfPosition"></span><div class="shelf-progress" aria-hidden="true"><i id="shelfProgress"></i></div><span class="shelf-instruction">Select to preview · open case to explore</span></div>
+    </div>
+    <div id="selectionStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <section id="info">
+      <div class="info-text">
+        <div class="eyebrow"><span id="gSystem"></span><span id="counter"></span><span id="gFormat" class="format-badge"></span></div>
+        <h1 id="gTitle"></h1>
+        <div id="gMeta" class="meta"></div>
+        <p id="gDesc"></p>
+        <div class="actions">
+          <button id="btnPlay" class="primary">▶ Play</button>
+          <button id="btnCase">⟲ Open case</button>
+          <button id="btnManual">▤ Manual</button>
+          <button id="btnArtwork">Artwork</button>
+        </div>
+      </div>
+      <div id="gShot" class="shot"></div>
+    </section>
+    <div id="libraryHints" class="hints prompt-bar" aria-label="Library controls"></div>
+  </main>
+
+  <dialog id="systemPicker" aria-labelledby="systemPickerTitle">
+    <div class="system-picker-heading"><div><div class="eyebrow">Your collection, connected</div><h2 id="systemPickerTitle">Choose a system</h2></div><button id="closeSystemPicker" aria-label="Close system browser">×</button></div>
+    <label class="system-picker-search"><span class="search-icon" aria-hidden="true"></span><input id="systemSearch" aria-label="Find a system" placeholder="Find a system…" spellcheck="false" /><kbd aria-hidden="true">Esc</kbd></label>
+    <div id="systemPickerGrid" aria-label="Available systems"></div>
+    <p id="systemPickerEmpty" class="hidden">No systems match your search.</p>
+    <div class="system-picker-footer"><span id="systemPickerSummary"></span><span>Arrow keys to browse · Enter to choose</span><button id="systemPickerAppearance">View &amp; theme</button></div>
+  </dialog>
+  <dialog id="appearancePicker" aria-labelledby="appearanceTitle">
+    <div class="system-picker-heading"><div><div class="eyebrow">Set the mood</div><h2 id="appearanceTitle">Make it yours</h2></div><button id="closeAppearance" aria-label="Close appearance controls">×</button></div>
+    <div class="appearance-label">Browse your games</div><div id="layoutOptions" class="layout-options"></div>
+    <div class="appearance-label">Colour theme</div><div id="themeOptions" class="theme-options"></div>
+    <div class="appearance-label">Interface sound</div><div class="sound-controls"><button id="soundToggle" aria-pressed="true">Sound on</button><input id="soundVolume" aria-label="Interface sound volume" type="range" min="0" max="100" step="1" value="25" /><output id="soundVolumeValue">25%</output><button id="soundPreview" title="Preview sound">Test</button></div>
+    <p class="appearance-note">Changes preview instantly and save automatically. Press the controller’s Menu / Start button to browse all systems.</p>
+  </dialog>
+
+  <!-- CASE VIEWER -->
+  <div id="caseView" class="hidden">
+    <div id="caseScene"><div id="caseRig"></div></div>
+    <div class="case-ui">
+      <div class="case-title"><div id="cvSystem" class="eyebrow"></div><h2 id="cvTitle"></h2></div>
+      <div class="actions">
+        <button id="cvPlay" class="primary">▶ Play</button>
+        <button id="cvFlip">⇋ Flip</button>
+        <button id="cvToggle">Close case</button>
+        <button id="cvBack">✕ Back</button>
+      </div>
+      <div id="caseHints" class="hints prompt-bar" aria-label="Case viewer controls"></div>
+    </div>
+  </div>
+
+  <!-- EMULATORS -->
+  <main id="view-emus" class="view">
+    <div class="view-head">
+      <div><h1>Emulators</h1><p class="sub">Downloads come straight from each project's official GitHub releases. Updates install on top, so your emulator settings are kept.</p></div>
+      <div class="actions">
+        <button id="btnCheckAll" class="primary">Check all for updates</button>
+        <button id="btnAddCustom">+ Add your own emulator</button>
+      </div>
+    </div>
+    <form id="customForm" class="panel hidden">
+      <input name="name" placeholder="Name (e.g. Eden)" required />
+      <input name="systems" placeholder="Systems (e.g. switch)" />
+      <input name="args" placeholder="Arguments" value="{rom}" />
+      <button class="primary" type="submit">Choose .exe…</button>
+      <button type="button" id="customCancel">Cancel</button>
+    </form>
+    <div id="emuGrid" class="grid"></div>
+  </main>
+
+  <!-- ARTWORK -->
+  <main id="view-artwork" class="view">
+    <div class="view-head">
+      <div><div class="eyebrow">Make it yours</div><h1>Artwork</h1><p class="sub">Bring your collection to life with covers, screenshots and title screens. Downloads appear in your library as they arrive.</p></div>
+      <button id="artOpenFolder">Open artwork folder</button>
+    </div>
+    <div class="artwork-layout">
+      <section class="panel art-options" aria-labelledby="artOptionsTitle">
+        <h2 id="artOptionsTitle">Choose your collection</h2>
+        <label class="art-field" for="artScope">Download for</label>
+        <select id="artScope"><option value="game">Selected game</option><option value="system">One system</option><option value="library">Entire library</option></select>
+        <label class="art-field" for="artSystem" id="artSystemLabel">System</label>
+        <select id="artSystem"></select>
+        <p id="artScopeSummary" class="art-scope-summary"></p>
+        <fieldset id="artTypes"><legend>Artwork to download</legend>
+          <label><input type="checkbox" value="front" checked /> <span>Box covers<small>Used on your 3D game cases</small></span></label>
+          <label><input type="checkbox" value="screenshot" checked /> <span>Screenshots<small>Gameplay previews and backgrounds</small></span></label>
+          <label><input type="checkbox" value="title" /> <span>Title screens<small>An extra preview when no screenshot is available</small></span></label>
+          <label><input type="checkbox" value="disc" /> <span>Cartridge labels<small>Switch labels for the cartridge reveal</small></span></label>
+          <label><input type="checkbox" value="back" /> <span>Back covers<small>Switch packaging for the case viewer</small></span></label>
+        </fieldset>
+        <label class="art-retry"><input id="artRetry" type="checkbox" /> Refresh matches and retry missing artwork</label>
+        <p class="art-preserve">Existing artwork is kept. Run the download again to fill remaining gaps.</p>
+        <div class="actions"><button id="artStart" class="primary">Download artwork</button><button id="artCancel" class="hidden">Cancel download</button></div>
+        <p id="artError" class="art-error hidden" role="alert"></p>
+      </section>
+      <div>
+        <section class="panel art-progress-panel" aria-labelledby="artJobTitle">
+          <div class="art-status-heading"><h2 id="artJobTitle">Ready when you are</h2><span id="artJobState" class="art-state">Ready</span></div>
+          <p id="artCurrent" class="sub" role="status" aria-live="polite">Choose a game, a system, or your entire library to get started.</p>
+          <progress id="artProgress" value="0" max="1" aria-label="Artwork download progress"></progress>
+          <div class="art-progress-caption"><span id="artCount">No download running</span><span id="artPercent"></span></div>
+          <div class="art-stats">
+            <div><strong id="artDownloaded">0</strong><span>Images downloaded</span></div><div><strong id="artKept">0</strong><span>Images already kept</span></div>
+            <div><strong id="artMissing">0</strong><span>Images not found</span></div><div><strong id="artErrors">0</strong><span>Games with errors</span></div>
+          </div>
+          <p id="artUnsupported" class="sub hidden"></p>
+          <ul id="artActivity" class="art-activity" aria-label="Recent artwork results"></ul>
+        </section>
+        <section class="panel art-source" aria-labelledby="artImportTitle"><span class="eyebrow">Your choice</span><h2 id="artImportTitle">Use your own image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="fanart">Background</option></select><button id="artImport">Choose image…</button></div><p>Use a PNG, JPG or WebP image. Only the chosen artwork type is replaced. To change another game, select it in Library and click its Artwork button.</p><p id="artImportStatus" role="status" aria-live="polite"></p></section>
+        <section class="panel art-source"><span class="eyebrow" id="artSourceLabel">Sources · Libretro &amp; GameTDB</span><h2>No account needed</h2><p id="artSourceDetails">Libretro provides covers, gameplay screenshots and title screens. GameTDB supplies Switch covers, back covers and cartridge labels. Availability varies by game.</p><p>Spines, manuals and other unmatched images can be added from your own files.</p></section>
+      </div>
+    </div>
+  </main>
+
+  <!-- SETTINGS -->
+  <main id="view-settings" class="view">
+    <div class="view-head">
+      <div><h1>Settings</h1><p class="sub">Point each system at a ROM folder. Artwork is found automatically — see “Artwork folders” below.</p></div>
+      <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
+    </div>
+    <div class="panel">
+      <label class="row"><span>Button prompts</span><select id="sPrompts"><option value="auto">Automatic · last input used</option><option value="keyboard">Keyboard &amp; mouse</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="nintendo">Nintendo</option><option value="generic">Generic gamepad</option></select><a class="prompt-preview-link" href="assets/prompts/preview.html" target="_blank" rel="noopener">View full set ↗</a></label>
+      <p class="prompt-note" id="promptStatus" role="status"></p>
+      <p class="prompt-note">Prompt labels follow your physical controller, regardless of the emulated system. Override the family if your adapter reports a generic name.</p>
+      <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow Windows preference</option><option value="full">Full · animated media &amp; ambient light</option><option value="reduced">Reduced · instant previews</option></select></label>
+      <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
+      <label class="row"><span>Artwork folder (optional)</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
+      <label class="row check"><input type="checkbox" id="sHide" /> Minimise PyroCade while a game is running</label>
+    </div>
+    <table id="sysTable" class="panel">
+      <thead><tr><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <details class="panel help">
+      <summary>Artwork folders</summary>
+      <p>For each game PyroCade looks in <code>&lt;Artwork folder&gt;\&lt;system&gt;\</code>, then <code>&lt;ROM folder&gt;\media\</code>, then the ROM folder itself. Either layout works:</p>
+      <pre>One folder per game                 ES-DE / Skraper style
+ps2\Neon Drift (USA)\front.png      ps2\covers\Neon Drift (USA).png
+                    \back.png          \backcovers\…
+                    \spine.png         \physicalmedia\…   (disc / cart)
+                    \disc.png          \manuals\….pdf
+                    \manual.pdf        \screenshots\…
+                    \screenshot.png    \fanart\…
+                    \fanart.jpg        \videos\….mp4
+                    \video.mp4
+                    \info.json  {"title","year","developer","publisher","genre","players","description"}</pre>
+      <p>An EmulationStation <code>gamelist.xml</code> in the ROM folder is also read for titles and descriptions. Anything missing gets generated art.</p>
+    </details>
+  </main>
+
+  <div id="toast"></div>
+  <script src="art.js"></script>
+  <script src="assets/prompts/manifest.js"></script>
+  <script src="prompts.js"></script>
+  <script src="artwork-ui.js"></script>
+  <script src="eshop-covers.js"></script>
+  <script src="cartridges.js"></script>
+  <script src="packaging.js"></script>
+  <script src="library-ui.js"></script>
+  <script src="ui-audio.js"></script>
+  <script src="appearance.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

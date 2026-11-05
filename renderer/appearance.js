@@ -1,0 +1,79 @@
+const Appearance=(()=>{
+  const $=s=>document.querySelector(s);
+  const themes={ember:{name:'Ember',accent:'#ff752e',light:'#ffc074'},glacier:{name:'Glacier',accent:'#37bfe6',light:'#9defff'},violet:{name:'Violet',accent:'#a685ff',light:'#ebafff'},mint:{name:'Mint',accent:'#4dc59c',light:'#c3f59f'},rose:{name:'Rose',accent:'#f46e9b',light:'#ffc2a5'}};
+  const layouts={carousel:{name:'Carousel',note:'Your 3D collection'},vertical:{name:'Vertical stack',note:'A top-to-bottom filmstrip'},flipbook:{name:'Flipbook',note:'Turn through your collection'},swatches:{name:'Colour cards',note:'An artwork-coloured grid'}};
+  let theme='ember',mode='carousel',context,saves=Promise.resolve(),volumeTimer;
+  function persist(){
+    const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.uiSound=AudioUI.settings();
+    const snapshot=structuredClone(state.config);
+    saves=saves.catch(()=>{}).then(()=>api.setConfig(snapshot)).catch(()=>context.toast('Appearance could not be saved. Try changing the option again.'));
+    return saves;
+  }
+  function apply(next={},save=true){
+    const old=mode;if(themes[next.theme])theme=next.theme;if(layouts[next.layout])mode=next.layout;
+    document.documentElement.dataset.theme=theme;document.documentElement.dataset.layout=mode;
+    const palette=themes[theme];document.documentElement.style.setProperty('--accent',palette.accent);document.documentElement.style.setProperty('--accent2',palette.light);
+    for(const b of document.querySelectorAll('#layoutOptions button'))b.setAttribute('aria-pressed',String(b.dataset.layout===mode));
+    for(const b of document.querySelectorAll('#themeOptions button'))b.setAttribute('aria-pressed',String(b.dataset.theme===theme));
+    $('#btnAppearance').title=`${layouts[mode].name} · ${themes[theme].name} · change appearance`;
+    if(context&&old!==mode)context.refresh();if(save){AudioUI.play('confirm');persist()}
+  }
+  function init(options){
+    context=options;const config=context.getState().config;
+    for(const [id,v]of Object.entries(layouts)){
+      const b=document.createElement('button');b.className='layout-option';b.dataset.layout=id;b.type='button';
+      b.innerHTML=`<span class="layout-mini" data-kind="${id}" aria-hidden="true"><i></i><i></i><i></i>${id==='swatches'?'<i></i>':''}</span><strong>${v.name}</strong><small>${v.note}</small>`;
+      b.onclick=()=>apply({layout:id});$('#layoutOptions').append(b);
+    }
+    for(const [id,v]of Object.entries(themes)){
+      const b=document.createElement('button');b.className='theme-option';b.dataset.theme=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${v.light},${v.accent})`);b.innerHTML=`<i aria-hidden="true"></i>${v.name}`;b.onclick=()=>apply({theme:id});$('#themeOptions').append(b);
+    }
+    apply({theme:config.libraryTheme||'ember',layout:config.libraryLayout||'carousel'},false);
+    $('#btnAppearance').onclick=()=>{if($('#appearancePicker').open)return $('#appearancePicker').close();if($('#systemPicker').open)$('#systemPicker').close();AudioUI.play('open');$('#appearancePicker').showModal();$('#btnAppearance').setAttribute('aria-expanded','true');$('#layoutOptions [aria-pressed=true]').focus()};
+    $('#closeAppearance').onclick=()=>$('#appearancePicker').close();
+    $('#appearancePicker').addEventListener('close',()=>{$('#btnAppearance').setAttribute('aria-expanded','false');$('#btnAppearance').focus();AudioUI.play('back')});
+    $('#appearancePicker').addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();if(e.target===e.currentTarget&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))e.currentTarget.close()});
+    const updateSound=()=>{const sound=AudioUI.settings();$('#soundToggle').textContent=sound.enabled?'Sound on':'Muted';$('#soundToggle').setAttribute('aria-pressed',String(sound.enabled));$('#soundVolume').value=Math.round(sound.volume*100);$('#soundVolume').setAttribute('aria-valuetext',Math.round(sound.volume*100)+'%');$('#soundVolumeValue').textContent=Math.round(sound.volume*100)+'%';$('#soundPreview').disabled=!sound.enabled||sound.volume===0};
+    updateSound();$('#soundToggle').onclick=()=>{AudioUI.configure({enabled:!AudioUI.settings().enabled});updateSound();AudioUI.play('confirm');persist()};
+    $('#soundVolume').oninput=e=>{AudioUI.configure({volume:Number(e.target.value)/100});updateSound();clearTimeout(volumeTimer);volumeTimer=setTimeout(persist,180)};
+    $('#soundVolume').onchange=()=>{clearTimeout(volumeTimer);persist();AudioUI.play('confirm')};$('#soundPreview').onclick=()=>AudioUI.play('system');
+    $('#appearancePicker').addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&!e.target.matches('input')){e.preventDefault();controller(e.key.slice(5).toLowerCase())}});
+  }
+  function geometry(stage,selected,length){
+    if(mode!=='swatches')return {lo:selected-8,hi:selected+8};
+    const columns=Math.max(1,Math.min(stage.clientWidth>=1400?4:3,length||1)),rows=stage.clientHeight>=260?2:1,cells=columns*rows;
+    const start=Math.floor(selected/cells)*cells,width=Math.min(300,(stage.clientWidth-180-(columns-1)*16)/columns),height=Math.min(133,Math.max(78,(stage.clientHeight-58-(rows-1)*14)/rows));
+    return {lo:start,hi:Math.min(length-1,start+cells-1),columns,rows,width,height,start};
+  }
+  function position(i,sel,scale,itemScale,stage,view){
+    const d=i-sel,a=Math.abs(d),s=Math.sign(d);
+    if(mode==='swatches'){
+      const col=(i-view.start)%view.columns,row=Math.floor((i-view.start)/view.columns);
+      return {transform:`translate3d(${col*(view.width+16)-(view.columns*view.width+(view.columns-1)*16)/2}px,${row*(view.height+14)-(view.rows*view.height+(view.rows-1)*14)/2}px,0)`,hidden:i<view.lo||i>view.hi,width:view.width,height:view.height};
+    }
+    if(mode==='vertical')return {transform:d===0?`translate3d(${85*scale}px,-8px,90px) scale(${itemScale*.91})`:`translate3d(${-235*scale}px,${d*Math.min(95*scale,stage.clientHeight*.17)}px,${-a*80}px) rotateY(12deg) scale(${itemScale*.40})`,hidden:a>(stage.clientHeight>300?2:1)};
+    if(mode==='flipbook')return {transform:d===0?`translate3d(${-15*scale}px,-6px,100px) rotateY(-9deg) scale(${itemScale})`:`translate3d(${s*(275+(a-1)*37)*scale}px,${a*3}px,${-a*65}px) rotateY(${-s*62}deg) scale(${itemScale*.87})`,hidden:a>3};
+    return {transform:d===0?`translate3d(${-55*scale}px,-8px,130px) scale(${itemScale})`:`translate3d(${s*(325+(a-1)*156)*scale}px,10px,${-a*115-85}px) rotateY(${-s*50}deg) scale(${itemScale*.92})`,hidden:a>6};
+  }
+  function card(game,a){
+    const card=document.createElement('div');card.className='swatch-card';card.setAttribute('aria-hidden','true');
+    const cover=EshopCovers.face(game,a,'swatch-cover'),copy=document.createElement('div');copy.className='swatch-copy';const title=document.createElement('strong');title.textContent=game.title;const system=document.createElement('small');system.textContent=a.sys.name;copy.append(title,system);card.append(cover,copy);
+    if(game._swatchSource!==a.front){game._swatchSource=a.front;delete game._swatchColor}
+    card.style.setProperty('--swatch-color',game._swatchColor||a.sys.color||'#554668');
+    if(!game._swatchColor)Art.tint(a.digital?.source||a.front,a.digital?.crop||a.packshot).then(color=>{if(game._swatchSource===a.front){game._swatchColor=color;card.style.setProperty('--swatch-color',color)}});
+    return card;
+  }
+  function controller(action){
+    if(action==='back'||action==='systems')return $('#appearancePicker').close();
+    const active=document.activeElement;
+    if(action==='play'||action==='case'){if(active.matches('button'))active.click();return;}
+    if(!['left','right','up','down'].includes(action))return;
+    if(active.id==='soundVolume'&&['left','right'].includes(action)){active.value=Math.max(0,Math.min(100,Number(active.value)+(action==='left'?-5:5)));active.dispatchEvent(new Event('input'));AudioUI.play('scroll');return;}
+    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,2),layoutButtons.slice(2),[...document.querySelectorAll('#themeOptions button')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
+    let row=rows.findIndex(r=>r.includes(active)),col=row<0?0:rows[row].indexOf(active);if(row<0){rows[0][0].focus();return;}
+    if(action==='left'||action==='right')col=Math.max(0,Math.min(rows[row].length-1,col+(action==='left'?-1:1)));
+    else{row=Math.max(0,Math.min(rows.length-1,row+(action==='up'?-1:1)));col=Math.min(col,rows[row].length-1)}
+    rows[row][col].focus();
+  }
+  return {init,apply,persist,geometry,position,card,controller,mode:()=>mode,theme:()=>theme,panelOpen:()=>!!$('#appearancePicker')?.open,layouts,themes};
+})();

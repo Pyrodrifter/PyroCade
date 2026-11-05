@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Per-user data: config (ROM/emulator paths), installed emulators, downloaded artwork
+data/
+
+# Local test captures and design notes that reference them
+output/
+design-qa.md
+
+# OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+*.log
