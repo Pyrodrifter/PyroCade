@@ -65,3 +65,6 @@ Everything personal lives in `data/` next to the app and is not part of this rep
 
 ## Legal
 PyroCade is only a launcher. It does not include or download games, BIOS files or console firmware/keys. Use dumps of games and systems you own. Emulators are downloaded from their own official GitHub releases and remain under their own licenses.
+
+## License
+MIT. See [LICENSE](LICENSE).
