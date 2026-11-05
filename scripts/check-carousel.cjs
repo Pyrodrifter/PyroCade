@@ -2,9 +2,12 @@
 const {app,BrowserWindow} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
-app.setPath('sessionData',path.join(os.tmpdir(),'PyroCade-carousel-check-'+process.pid));
-const output=path.resolve(__dirname,'../output');
+const root=path.resolve(__dirname,'..');
+const scratchDir=path.join(root,'localTmp');
+const sessionDataDir=path.join(scratchDir,'PyroCade-carousel-check-'+process.pid);
+fs.mkdirSync(sessionDataDir,{recursive:true});
+app.setPath('sessionData',sessionDataDir);
+const output=path.join(scratchDir,'carousel-check');
 app.whenReady().then(async()=>{
   const errors=[];
   const win=new BrowserWindow({show:false,width:1600,height:900,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),contextIsolation:true,sandbox:false,backgroundThrottling:false,offscreen:true}});

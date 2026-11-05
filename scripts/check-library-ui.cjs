@@ -1,15 +1,20 @@
 const {app,BrowserWindow}=require('electron');
-const fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const {pathToFileURL}=require('node:url');
-const root=path.resolve(__dirname,'..');app.setPath('sessionData',path.join(os.tmpdir(),'PyroCade-library-check-'+process.pid));
-const coverDir=path.join(root,'data/media/switch/covers');
-const fixtures=fs.readdirSync(coverDir).filter(n=>n.endsWith('.png')).slice(0,16).map((name,i)=>({id:'fixture:'+i,system:'switch',base:name.slice(0,-4),title:name.replace(/\[[^\]]*\]|\([^)]*\)|\.png$/g,'').replace(/\bv?\d+(?:\.\d+)+\b/gi,'').trim(),demo:true,media:{front:pathToFileURL(path.join(coverDir,name)).href},info:{}}));
+const fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const scratchDir=path.join(root,'localTmp');
+const sessionDataDir=path.join(scratchDir,'PyroCade-library-check-'+process.pid);
+const outputDir=path.join(scratchDir,'library-ui-check');
+const fixtureCount=16;
+const fixtureImage='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="448"><rect width="320" height="448" fill="#283047"/><path d="M0 300 320 120v328H0" fill="#c77d46"/></svg>');
+fs.mkdirSync(sessionDataDir,{recursive:true});fs.mkdirSync(outputDir,{recursive:true});
+app.setPath('sessionData',sessionDataDir);
+const fixtures=Array.from({length:fixtureCount},(_,i)=>({id:'fixture:'+i,system:'switch',base:'fixture-'+i,title:'Fixture '+i,demo:true,media:{front:fixtureImage},info:{}}));
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1584,height:861,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),sandbox:false,contextIsolation:true,offscreen:true,backgroundThrottling:false}});win.setContentSize(1584,861);
   const errors=[];win.webContents.on('console-message',e=>{if(e.level==='error')errors.push(e.message)});
   const watchdog=setTimeout(()=>{console.error('Library UI check timed out');app.exit(1)},60000);
   const run=code=>win.webContents.executeJavaScript(`(async()=>{const assert=(v,m)=>{if(!v)throw new Error(m)};const pause=ms=>new Promise(r=>setTimeout(r,ms));${code}})()`);
-  const snap=async name=>{win.webContents.invalidate();await new Promise(r=>setTimeout(r,150));fs.writeFileSync(path.join(root,'output',name),(await win.webContents.capturePage()).toPNG())};
+  const snap=async name=>{win.webContents.invalidate();await new Promise(r=>setTimeout(r,150));fs.writeFileSync(path.join(outputDir,name),(await win.webContents.capturePage()).toPNG())};
   try{
     await win.loadFile(path.join(root,'renderer/index.html'));
     await run(`
