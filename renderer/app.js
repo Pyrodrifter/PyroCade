@@ -320,6 +320,7 @@ async function showInfo(quiet) {
   const ext = !g.romPath ? null : /[\\/]exefs[\\/]main$/i.test(g.romPath) ? 'FOLDER DUMP' : g.romPath.split('.').pop().toUpperCase();
   $('#gMeta').innerHTML = [g.info.year, g.info.developer, g.info.genre, g.info.players && `${g.info.players} player${g.info.players === '1' ? '' : 's'}`, regionOf(g), ext]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
+  $('#btnManual').disabled = !g.media.manual;
   if (quiet) {
     const shot = $('#gShot');
     if (g.media.screenshot || g.media.title) { shot.style.backgroundImage = `url("${g.media.screenshot || g.media.title}")`; shot.style.display = ''; }

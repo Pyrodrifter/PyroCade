@@ -11,7 +11,7 @@ const SYSTEMS = {
 };
 // PyroCade artwork type -> ScreenScraper media types, best first.
 const MEDIA = {
-  front:['box-2D'], frontHQ:['box-2D'], back:['box-2D-back'], disc:['support-2D'], screenshot:['ss'], title:['sstitle'],
+  front:['box-2D'], frontHQ:['box-2D'], back:['box-2D-back'], disc:['support-2D'], screenshot:['ss'], title:['sstitle'], manual:['manuel'],
 };
 const REGIONS = ['us','wor','ss','eu','uk','fr','de','jp'];
 const regionRank = r => { const i = REGIONS.indexOf(r); return i < 0 ? REGIONS.length : i; };

@@ -5,6 +5,11 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 ## [Unreleased]
 
 ### Added
+- **Manuals:**
+  - Manuals in extras folders such as `00 Goodies\Manuals` are found automatically and matched by title, even when names differ slightly or drop a brand ("DreamWorks", "Nickelodeon", "Disney-Pixar").
+  - **Find manuals in a folder…** in Artwork matches a whole folder of PDFs to your library.
+  - Add a manual to one game with Change an image → Manual (PDF).
+  - Manuals can be downloaded from ScreenScraper when you're signed in.
 - **Bookshelf** library mode: cases stand spine-out on a wooden shelf, and the selected game slides out to show its cover.
 - **Spinner rack** library mode: a rotating store tower with three tiers of cases. Browsing turns the tower, and the selected game pops out.
 - **Start animation:** pressing Play spins the disc into a drive slot or pushes the cartridge into its slot; the game starts as it goes in (about 2.5 seconds). Can be turned off in Settings, and is skipped with reduced motion.

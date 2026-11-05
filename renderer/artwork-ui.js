@@ -31,8 +31,9 @@ const ArtworkUI = (()=>{
     const selected=context.getGames().find(g=>g.id===gameId);
     q('#artImportGame').textContent=selected&&!selected.demo?`${selected.title} · ${systems.find(s=>s.id===selected.system)?.name||selected.system}`:'Select a game in Library, then use its Artwork button.';
     q('#artImport').disabled=importPending||!selected||selected.demo;q('#artImportKind').disabled=importPending||!selected||selected.demo;
-    q('#artImport').textContent=importPending?'Applying…':'Your own image…';
-    q('#artVersions').disabled=importPending||!selected||selected.demo;
+    q('#artVersions').disabled=importPending||!selected||selected.demo||q('#artImportKind').value==='manual';
+    q('#artImport').textContent=importPending?'Applying…':q('#artImportKind').value==='manual'?'Choose PDF…':'Your own image…';
+    q('#artFindManuals').disabled=importPending;
     q('#artSourceLabel').textContent='Sources · LaunchBox, ScreenScraper, GameTDB, Libretro';
     q('#artSourceDetails').textContent='Each image comes from the first source that has it, in this order. Availability varies by game.';
     q('#artScopeSummary').textContent=(scope==='game'?(selected&&!selected.demo?selected.title:'Select a game in your library first.'):`${games.length.toLocaleString()} games`)+(unavailable?` · ${unavailable.toLocaleString()} skipped: no artwork source for ${[...new Set(games.filter(g=>!supports(systems.find(s=>s.id===g.system))).map(g=>systems.find(s=>s.id===g.system)?.name||g.system))].join(', ')}. Use “Use your own image” instead.`:'');
@@ -121,7 +122,16 @@ const ArtworkUI = (()=>{
     };
     q('#artCancel').onclick=async()=>{try{accept(await api.artCancel())}catch(e){error(e.message)}};
     q('#artOpenFolder').onclick=async()=>{try{const message=await api.artOpenFolder();if(message)error(message)}catch(e){error(e.message)}};
-    q('#artImportKind').addEventListener('change',()=>{q('#artVersionGrid').classList.add('hidden');q('#artVersionGrid').replaceChildren()});
+    q('#artImportKind').addEventListener('change',()=>{q('#artVersionGrid').classList.add('hidden');q('#artVersionGrid').replaceChildren();options()});
+    q('#artFindManuals').onclick=async()=>{
+      error();importPending=true;options();q('#artImportStatus').textContent='Looking for manuals…';
+      try {
+        const r=await api.artFindManuals();
+        if(!r){q('#artImportStatus').textContent='';return}
+        for(const m of r.matched)context.updateGame(m);
+        q('#artImportStatus').textContent=`Found ${r.found.toLocaleString()} PDF${r.found===1?'':'s'}; ${r.matched.length.toLocaleString()} matched to games that had no manual yet.`;
+      } catch(e){q('#artImportStatus').textContent='';error(e.message)} finally{importPending=false;options()}
+    };
     q('#artVersions').onclick=async()=>{
       error();const grid=q('#artVersionGrid'),kind=q('#artImportKind').value;
       importPending=true;options();q('#artImportStatus').textContent='Looking up other versions… (the first time can take a minute)';
@@ -149,7 +159,7 @@ const ArtworkUI = (()=>{
       error();importPending=true;options();
       try {
         const result=await api.artImport({gameId,kind:q('#artImportKind').value});
-        if(result){context.updateGame(result);q('#artImportStatus').textContent='Image applied. You can see it in Library and the case viewer.';}
+        if(result){context.updateGame(result);q('#artImportStatus').textContent=result.media.manual?'Manual added. Open it with the Manual button in Library.':'Image applied. You can see it in Library and the case viewer.';}
       }catch(e){error(e.message)}finally{importPending=false;options()}
     };
     q('#ssSave').onclick=()=>saveLogin({user:q('#ssUser').value,password:q('#ssPassword').value,devId:q('#ssDevId').value,devPassword:q('#ssDevPassword').value});

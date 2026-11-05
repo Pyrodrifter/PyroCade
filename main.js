@@ -151,18 +151,30 @@ function cleanTitle(name) {
 const displayTitle = s => cleanTitle(s).replace(/^(.+?),? (The|A|An)(?= - |$)/, '$2 $1');
 
 // Index a media root once: folder-per-game dirs + ES-DE style kind folders.
+// Kind folders (covers, manuals…) are found directly in a root or one level down, so extras kept
+// in e.g. "00 Goodies\Manuals" are picked up too. Files are matched by exact name, then loosely by
+// title ("Game (USA).pdf" for "Game (USA) (Rev 1).rvz").
 async function indexMediaRoot(root) {
-  const idx = { gameDirs: new Map(), kinds: {} };
+  const idx = { gameDirs: new Map(), kinds: {}, loose: {} };
+  const kindOf = name => Object.entries(KINDS).find(([, k]) => k.folders.includes(name.toLowerCase()));
+  async function addKindFolder(dir, [kind, k]) {
+    const m = (idx.kinds[kind] ||= new Map()), loose = (idx.loose[kind] ||= new Map());
+    for (const f of await listDir(dir)) {
+      if (!f.isFile() || !k.exts.includes(path.extname(f.name).toLowerCase())) continue;
+      const file = path.join(dir, f.name);
+      if (!m.has(stem(f.name))) m.set(stem(f.name), file);
+      const key = looseKey(path.basename(f.name, path.extname(f.name)));
+      for (const k of [key, bareKey(path.basename(f.name, path.extname(f.name)))]) if (k && !loose.has(k)) loose.set(k, file);
+    }
+  }
   for (const e of await listDir(root)) {
     if (!e.isDirectory()) continue;
-    const lower = e.name.toLowerCase();
-    const kind = Object.entries(KINDS).find(([, k]) => k.folders.includes(lower));
-    if (kind) {
-      const m = (idx.kinds[kind[0]] ||= new Map());
-      for (const f of await listDir(path.join(root, e.name)))
-        if (f.isFile() && kind[1].exts.includes(path.extname(f.name).toLowerCase())) m.set(stem(f.name), path.join(root, e.name, f.name));
-    } else {
-      idx.gameDirs.set(lower, path.join(root, e.name));
+    const kind = kindOf(e.name);
+    if (kind) { await addKindFolder(path.join(root, e.name), kind); continue; }
+    idx.gameDirs.set(e.name.toLowerCase(), path.join(root, e.name));
+    for (const sub of await listDir(path.join(root, e.name))) {
+      const inner = sub.isDirectory() && kindOf(sub.name);
+      if (inner) await addKindFolder(path.join(root, e.name, sub.name), inner);
     }
   }
   return idx;
@@ -186,6 +198,8 @@ async function findMedia(indexes, base) {
     }
     for (const [kind, m] of Object.entries(idx.kinds)) if (!media[kind] && m.has(key)) media[kind] = m.get(key);
   }
+  const loose = looseKey(base);
+  for (const k of [loose, bareKey(base)]) if (k) for (const idx of indexes) for (const [kind, m] of Object.entries(idx.loose || {})) if (!media[kind] && m.has(k)) media[kind] = m.get(k);
   return { media, info };
 }
 
@@ -237,6 +251,12 @@ async function walkRoms(dir, exts, depth = 0, out = []) {
 // Loose key for matching names across naming schemes: "Pokémon - Ruby (U) [!]" -> "pokemonruby".
 const looseKey = s => cleanTitle(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/&|\band\b|\bthe\b/g, '').replace(/[^a-z0-9]/g, '');
+
+// The same key without a leading brand ("Nickelodeon SpongeBob…", "DreamWorks Shrek…"), which
+// manual and artwork collections often leave out. Only used as a last resort.
+// Works on the original name, where "Nickelodeon's" and "Nickelodeon SpongeBob" can still be told apart.
+const BRAND = /^\s*(disney\s*[-•]?\s*pixar|disney|pixar|dreamworks|nickelodeon|nicktoons)('s)?\b[\s:-]*/i;
+const bareKey = name => { if (!BRAND.test(cleanTitle(name))) return ''; const b = looseKey(cleanTitle(name).replace(BRAND, '')); return b.length >= 6 ? b : ''; };
 
 // When the same game appears more than once, keep the best copy.
 function copyScore(f) {
@@ -989,8 +1009,14 @@ handle('art:openFolder', () => { fs.mkdirSync(path.join(DATA,'media'),{recursive
 handle('art:import', async ({gameId,kind}) => {
   const game=libraryGames.find(g=>g.id===gameId);
   if(!game)throw new Error('Select a game in your library first.');
-  if(!['front','back','spine','disc','screenshot','title','fanart'].includes(kind))throw new Error('Choose an artwork type.');
+  if(!['front','back','spine','disc','screenshot','title','logo','fanart','manual'].includes(kind))throw new Error('Choose an artwork type.');
   if(/[<>:"/\\|?*\x00-\x1f]/.test(game.base)||game.base==='.'||game.base==='..')throw new Error('Invalid game filename');
+  if(kind==='manual'){
+    const picked=await dialog.showOpenDialog(win,{title:`Choose the manual for ${game.title}`,filters:[{name:'PDF manuals',extensions:['pdf']}],properties:['openFile']});
+    if(picked.canceled)return null;
+    const file=await keepManual(game,picked.filePaths[0]);
+    return {gameId:game.id,media:{manual:file},replace:true};
+  }
   const picked=await dialog.showOpenDialog(win,{title:`Choose ${kind==='front'?'cover':kind==='disc'?'disc or cartridge label':kind} for ${game.title}`,filters:[{name:'Images',extensions:['png','jpg','jpeg','webp']}],properties:['openFile']});
   if(picked.canceled)return null;
   const source=picked.filePaths[0];
@@ -1002,6 +1028,51 @@ handle('art:import', async ({gameId,kind}) => {
   const dest=path.join(folder,`${kind}.png`);await fsp.writeFile(dest,png);
   const url=fileUrl(dest)+'?v='+Date.now();game.media[kind]=url;
   return {gameId:game.id,media:{[kind]:url},replace:true};
+});
+// Manuals are PDFs kept as media/<system>/manuals/<game>.pdf. A hard link is used when the PDF is on
+// the same drive (no extra space); otherwise it is copied.
+async function keepManual(game, source) {
+  const head = Buffer.alloc(5); const fd = await fsp.open(source, 'r');
+  try { await fd.read(head, 0, 5, 0); } finally { await fd.close(); }
+  if (head.toString('latin1') !== '%PDF-') throw new Error(`${path.basename(source)} is not a PDF file.`);
+  if (/[<>:"/\\|?*\x00-\x1f]/.test(game.base) || game.base === '.' || game.base === '..') throw new Error('Invalid game filename');
+  const dir = path.join(config.mediaRoot ? path.join(config.mediaRoot, game.system) : path.join(DATA, 'media', game.system), 'manuals');
+  await fsp.mkdir(dir, { recursive: true });
+  const dest = path.join(dir, game.base + '.pdf');
+  if (path.resolve(dest) === path.resolve(source)) return dest;
+  await fsp.rm(dest, { force: true });
+  try { await fsp.link(source, dest); } catch { await fsp.copyFile(source, dest); }
+  game.media.manual = dest;
+  return dest;
+}
+// Looks through a folder (and its subfolders) for PDF manuals and gives each game without a manual the
+// best match by title. When the same title exists on several systems, a folder named after the system wins.
+handle('art:findManuals', async () => {
+  const picked = await dialog.showOpenDialog(win, { title: 'Choose a folder with game manuals (PDF)', properties: ['openDirectory'] });
+  if (picked.canceled) return null;
+  const pdfs = [];
+  async function walk(dir, depth) {
+    for (const e of await listDir(dir)) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory() && depth < 6) await walk(p, depth + 1);
+      else if (e.isFile() && /\.pdf$/i.test(e.name)) pdfs.push(p);
+      if (pdfs.length > 20000) return;
+    }
+  }
+  await walk(picked.filePaths[0], 0);
+  const byKey = new Map();
+  for (const p of pdfs) { const name = path.basename(p, path.extname(p)); for (const key of [looseKey(name), bareKey(name)]) if (key) (byKey.get(key) || byKey.set(key, []).get(key)).push(p); }
+  const words = id => { const s = config.systems.find(x => x.id === id); return [s?.name, s?.id, s?.libretro].filter(Boolean).map(w => w.toLowerCase()); };
+  const matched = [];
+  for (const game of libraryGames) {
+    if (game.demo || game.media.manual) continue;
+    const names = [game.base, game.title || ''].filter(Boolean);
+    const options = [...new Set([...names.map(looseKey), ...names.map(bareKey)].filter(Boolean))].flatMap(k => byKey.get(k) || []);
+    if (!options.length) continue;
+    const best = options.find(p => words(game.system).some(w => p.toLowerCase().includes(w))) || options[0];
+    try { matched.push({ gameId: game.id, media: { manual: await keepManual(game, best) }, replace: true }); } catch {}
+  }
+  return { folder: picked.filePaths[0], found: pdfs.length, matched };
 });
 handle('emu:list', () => [...CATALOG, ...config.customEmulators].map(e => emuStatus(e.id)));
 handle('emu:check', id => checkUpdate(id));

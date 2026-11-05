@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   artImport: options => call('art:import', options),
   artSources: () => call('art:sources'),
   artCandidates: options => call('art:candidates', options),
+  artFindManuals: () => call('art:findManuals'),
   artChoose: options => call('art:choose', options),
   artSetScreenScraper: details => call('art:setScreenScraper', details),
   onArtProgress: fn => ipcRenderer.on('art:progress', (_e, p) => fn(p)),

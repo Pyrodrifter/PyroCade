@@ -15,6 +15,7 @@ const TYPES = {
   spine:{folder:'spines'},
   logo:{folder:'logos'},
   fanart:{folder:'fanart'},
+  manual:{folder:'manuals'},
 };
 const IMAGE_EXTS = ['.png','.jpg','.jpeg','.webp'];
 // Kinds worth replacing when a sharper copy turns up, and the width that counts as sharp enough.
@@ -69,6 +70,14 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
       if(response.status===404)return null;
       if(!response.ok)throw new Error(`Artwork server returned HTTP ${response.status}`);
       if(kind==='text')return response.text();
+      if(kind==='pdf') {
+        // Manuals: PDF only, up to 150 MB.
+        const chunks=[];let total=0;
+        for await(const chunk of response.body){total+=chunk.length;if(total>150*1024*1024){await response.body.cancel?.().catch(()=>{});throw new Error('Manual is too large')}chunks.push(Buffer.from(chunk))}
+        const bytes=Buffer.concat(chunks);
+        if(bytes.subarray(0,5).toString('latin1')!=='%PDF-')throw new Error('Manual source did not return a PDF');
+        return bytes;
+      }
       if(Number(response.headers.get('content-length'))>20*1024*1024)throw new Error('Artwork image is too large');
       const chunks=[];let total=0;
       for await(const chunk of response.body) {
@@ -234,10 +243,26 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
   }
   // Large photos are scaled down and stored as JPEG; see encodeArtwork in main.js.
   const encode=async(bytes,type)=>encodeImage ? encodeImage(bytes,type) : {bytes,ext:'png'};
+  // Manuals come only from ScreenScraper (when signed in) and are kept as PDF files, not images.
+  async function manual(game,sys,base,signal) {
+    if(game.media?.manual)return {existing:1,media:{manual:game.media.manual}};
+    const file=path.join(dataDir,'media',sys.id,'manuals',base+'.pdf');
+    if(fs.existsSync(file))return {existing:1,media:{manual:file}};
+    if(!screenscraper?.configured())return {missing:1,media:{}};
+    for(const url of await screenscraper.find(game,'manual',{signal})) {
+      const bytes=await request(url,'pdf',signal).catch(e=>{if(signal?.aborted)throw e;return null});
+      if(!bytes)continue;
+      await fs.promises.mkdir(path.dirname(file),{recursive:true});
+      await fs.promises.writeFile(file,bytes,{flag:'wx'}).catch(e=>{if(e.code!=='EEXIST')throw e});
+      return {downloaded:1,media:{manual:file}};
+    }
+    return {missing:1,media:{}};
+  }
   async function one(game,type,{signal,retryMissing=false,upgrade=false,background=false,refreshed,failures}={}) {
     aborted(signal);
     const sys=getSystems().find(s=>s.id===game.system);
     const base=safeBase(game.base);
+    if(type==='manual')return manual(game,sys,base,signal);
     const kept=game.media?.[type] ? ownedFile(game.media[type],sys,type) : savedFile(sys,type,base);
     const keptUrl=game.media?.[type]||(kept&&pathToFileURL(kept).href);
     if(keptUrl) {
