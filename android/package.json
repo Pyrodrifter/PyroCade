@@ -1,0 +1,20 @@
+{
+  "name": "pyrocade-android",
+  "version": "0.4.4",
+  "private": true,
+  "description": "Proof-of-concept Android build of PyroCade: the desktop renderer in a Capacitor WebView with a small native bridge.",
+  "license": "MIT",
+  "scripts": {
+    "web": "node scripts/build-web.cjs",
+    "sync": "node scripts/build-web.cjs && cap sync android",
+    "apk": "node scripts/build-web.cjs && cap sync android && cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/preferences": "^8.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}

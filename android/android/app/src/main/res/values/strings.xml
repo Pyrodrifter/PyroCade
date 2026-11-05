@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PyroCade</string>
+    <string name="title_activity_main">PyroCade</string>
+    <string name="package_name">com.pyrodrifter.pyrocade</string>
+    <string name="custom_url_scheme">com.pyrodrifter.pyrocade</string>
+</resources>

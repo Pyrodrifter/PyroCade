@@ -1,0 +1,8 @@
+{
+  "appId": "com.pyrodrifter.pyrocade",
+  "appName": "PyroCade",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#07080c"
+  }
+}
