@@ -398,3 +398,9 @@ td.name i { display: inline-block; width: 10px; height: 10px; border-radius: 3px
   background: rgba(20,22,30,.95); border: 1px solid var(--line); transition: .3s; max-width: 70vw; pointer-events: none; }
 #toast.on { opacity: 1; transform: translate(-50%, 0); }
 ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 5px; }
+
+/* ---------- app update banner ---------- */
+.update-banner { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; }
+.update-banner button { padding: 4px 12px; font-size: 12px; border-radius: 999px; }
+.update-banner.busy button { display: none; }
+.update-version { color: var(--muted, #9aa0ad); font-size: 13px; }

@@ -64,6 +64,7 @@ async function boot() {
   api.onProgress(onProgress);
   ArtworkUI.init({getGames:()=>S.games,getSystems:()=>S.config.systems,getSelected:()=>S.list[S.sel],updateGame:updateArtwork});
   await loadLibrary();
+  initAppUpdates();
   new ResizeObserver(resizeShelf).observe($('#info'));
   new ResizeObserver(() => { if (S.config && libraryActive()) layout(); }).observe($('#stage'));
   renderEmus();
@@ -341,7 +342,7 @@ function setGameBackground(layer,game,a) {
 async function play(g = S.list[S.sel]) {
   if (!g) return;
   if (g.demo) return toast('This is a demo game — add your ROM folders in Settings to play for real.');
-  try { await api.launch(g.id, g.romPath);AudioUI.play('launch'); toast(`Launching ${g.title}…`); }
+  try { await api.launch(g.id);AudioUI.play('launch'); toast(`Launching ${g.title}…`); }
   catch (e) {AudioUI.play('error');toast(e.message, 5000); }
 }
 function manual(g = S.list[S.sel]) {
@@ -470,7 +471,7 @@ async function renderEmus() {
       else btn('Check for update', () => check(e.id));
     }
     if (e.exe) btn('Open folder', () => api.emuOpenFolder(e.id));
-    btn(e.exe && !e.installed ? 'Change .exe…' : 'Use existing .exe…', async () => { if (await api.emuPickExe(e.id)) renderEmus(); });
+    btn(e.exe && !e.installed ? 'Change .exe…' : 'Use existing .exe…', async () => { if (await api.emuPickExe(e.id)) { S.config = await api.getConfig(); renderEmus(); } });
     if (e.installed) btn('Uninstall', async () => { if (confirm(`Remove ${e.name} and its files from PyroCade’s emulators folder?`)) { await api.emuUninstall(e.id); delete S.latest[e.id]; renderEmus(); } });
     grid.append(card);
   }
@@ -506,6 +507,55 @@ $('#customForm').onsubmit = async ev => {
   if (r) { ev.target.reset(); ev.target.classList.add('hidden'); S.config = await api.getConfig(); renderEmus(); renderSettings(); }
 };
 
+// ---------- PyroCade updates ----------
+let appUpdate = null;
+async function checkAppUpdate(quiet) {
+  try {
+    appUpdate = await api.appCheckUpdate();
+    if (appUpdate.available) showUpdateBanner();
+    else if (!quiet) toast(`PyroCade ${appUpdate.current} is the latest version.`);
+  } catch (e) { if (!quiet) toast(`Couldn't check for updates: ${e.message}`, 5000); }
+  renderAppVersion();
+}
+function renderAppVersion() {
+  const v = appUpdate?.current || S.appVersion || '';
+  $('#sVersion').textContent = appUpdate?.available ? `Version ${v} · ${appUpdate.latest} available` : v ? `Version ${v}` : '';
+}
+function showUpdateBanner() {
+  const b = $('#updateBanner');
+  b.classList.remove('busy', 'hidden');
+  $('#updateText').textContent = appUpdate.canInstall
+    ? `PyroCade ${appUpdate.latest} is available (you have ${appUpdate.current}).`
+    : `PyroCade ${appUpdate.latest} is available. ${appUpdate.manualHint}`;
+  $('#updateNow').classList.toggle('hidden', !appUpdate.canInstall);
+}
+async function installAppUpdate() {
+  const b = $('#updateBanner');
+  b.classList.add('busy');
+  try {
+    const r = await api.appInstallUpdate();
+    $('#updateText').textContent = r.needsNpmInstall
+      ? `PyroCade ${r.version} is installed. Run "npm install" in the PyroCade folder, then start it again.`
+      : r.mode === 'installer' ? `Installing PyroCade ${r.version}… it will start again by itself.`
+      : `PyroCade ${r.version} is installed. Restarting…`;
+  } catch (e) {
+    b.classList.remove('busy');
+    toast(`Update failed: ${e.message}`, 6000);
+    showUpdateBanner();
+  }
+}
+function initAppUpdates() {
+  api.appVersion().then(v => { S.appVersion = v; renderAppVersion(); }).catch(() => {});
+  api.onAppUpdateProgress(p => {
+    $('#updateText').textContent = p.total ? `${p.stage} ${(p.got / 1048576).toFixed(1)} / ${(p.total / 1048576).toFixed(1)} MB` : p.stage;
+  });
+  $('#updateNow').onclick = installAppUpdate;
+  $('#updateNotes').onclick = () => appUpdate && api.appOpenRelease(appUpdate.url).catch(e => toast(e.message));
+  $('#updateLater').onclick = () => $('#updateBanner').classList.add('hidden');
+  $('#btnCheckApp').onclick = () => checkAppUpdate(false);
+  if (S.config.checkUpdates !== false) checkAppUpdate(true);
+}
+
 // ---------- settings ----------
 function renderSettings() {
   const c = S.config;
@@ -514,8 +564,15 @@ function renderSettings() {
   $('#sEshop').value = eShopStyle;
   $('#sMedia').value = c.mediaRoot || '';
   $('#sHide').checked = !!c.hideWhilePlaying;
+  $('#sCheckUpdates').checked = c.checkUpdates !== false;
   const body = $('#sysTable tbody'); body.innerHTML = '';
-  const emuOpts = sel => [...(S.emus.length ? S.emus : [])].map(e => `<option value="${e.id}" ${e.id === sel ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+  // Always offer "None" and keep an unknown/removed emulator id as-is, so saving never
+  // silently assigns the first emulator in the list.
+  const emuOpts = sel => {
+    const opt = (id, name) => `<option value="${esc(id)}" ${id === (sel || '') ? 'selected' : ''}>${esc(name)}</option>`;
+    const known = S.emus.some(e => e.id === sel);
+    return opt('', 'None') + (sel && !known ? opt(sel, `${sel} (not found)`) : '') + S.emus.map(e => opt(e.id, e.name)).join('');
+  };
   c.systems.forEach((s, i) => {
     const tr = el('tr', '', `
       <td class="name"><i style="background:${s.color}"></i>${esc(s.name)}</td>
@@ -537,6 +594,7 @@ $('#btnSave').onclick = async () => {
   const c = structuredClone(S.config);
   c.mediaRoot = $('#sMedia').value.trim();
   c.hideWhilePlaying = $('#sHide').checked;
+  c.checkUpdates = $('#sCheckUpdates').checked;
   c.promptFamily = promptPreference;
   c.motion = motionPreference;
   c.eShopStyle = eShopStyle;

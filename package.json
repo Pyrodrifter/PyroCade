@@ -15,15 +15,57 @@
     "ui:check": "electron scripts/check-library-ui.cjs",
     "brand:build": "electron scripts/build-brand.cjs",
     "brand:check": "electron scripts/check-brand.cjs",
-    "demo:record": "electron scripts/record-reddit-demo.cjs"
+    "demo:record": "electron scripts/record-reddit-demo.cjs",
+    "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
-    "electron": "^39.0.0"
+    "electron": "^39.0.0",
+    "electron-builder": "^26.18.0"
   },
   "productName": "PyroCade",
   "author": "Pyrodrifter",
   "repository": {
     "type": "git",
     "url": "https://github.com/Pyrodrifter/PyroCade.git"
+  },
+  "build": {
+    "appId": "com.pyrodrifter.pyrocade",
+    "productName": "PyroCade",
+    "copyright": "Copyright (c) 2026 Pyrodrifter",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "artwork.js",
+      "emulators.json",
+      "package.json",
+      "LICENSE",
+      "renderer/**/*",
+      "!renderer/assets/prompts/png/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "renderer/assets/brand/pyrocade.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "PyroCade-Setup-${version}.exe",
+      "shortcutName": "PyroCade",
+      "installerIcon": "renderer/assets/brand/pyrocade.ico",
+      "uninstallerIcon": "renderer/assets/brand/pyrocade.ico",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": null
   }
 }

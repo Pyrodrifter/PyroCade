@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   getConfig: () => call('config:get'),
   setConfig: cfg => call('config:set', cfg),
   scan: () => call('library:scan'),
-  launch: (id, rom) => call('game:launch', id, rom),
+  launch: id => call('game:launch', id),
   fetchArt: (sys, base, options) => call('art:fetch', sys, base, options),
   artStart: options => call('art:start', options),
   artStatus: () => call('art:status'),
@@ -29,4 +29,9 @@ contextBridge.exposeInMainWorld('api', {
   openManual: p => call('manual:open', p),
   onProgress: fn => ipcRenderer.on('emu:progress', (_e, p) => fn(p)),
   onToast: fn => ipcRenderer.on('toast', (_e, m) => fn(m)),
+  appVersion: () => call('app:version'),
+  appCheckUpdate: () => call('app:checkUpdate'),
+  appInstallUpdate: () => call('app:installUpdate'),
+  appOpenRelease: url => call('app:openRelease', url),
+  onAppUpdateProgress: fn => ipcRenderer.on('app:updateProgress', (_e, p) => fn(p)),
 });

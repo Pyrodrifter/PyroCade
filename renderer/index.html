@@ -35,6 +35,12 @@
       <div class="library-search"><label class="search"><span class="search-icon" aria-hidden="true"></span><input id="search" aria-label="Search games" placeholder="Find a game…" spellcheck="false" /><button id="clearSearch" class="hidden" type="button" aria-label="Clear game search" title="Clear search">×</button><kbd class="search-shortcut" aria-hidden="true">/</kbd></label><span id="searchSummary" class="search-summary" role="status" aria-live="polite" aria-atomic="true"></span></div>
     </div>
     <div id="loading" class="hidden"><div class="spinner"></div>Scanning your library…</div>
+    <div id="updateBanner" class="banner update-banner hidden" role="status">
+      <span id="updateText"></span>
+      <button id="updateNow" class="primary">Update now</button>
+      <button id="updateNotes">What's new</button>
+      <button id="updateLater" aria-label="Hide until next start">Later</button>
+    </div>
     <div id="demoBanner" class="banner hidden">Demo shelf — point a system at your ROM folder in <a href="#" data-goto="settings">Settings</a> to load your own games.</div>
     <div id="stage">
       <div class="shelf-heading"><span id="shelfLabel">Your collection</span><span id="mediaType"></span></div>
@@ -173,6 +179,10 @@
       <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
       <label class="row"><span>Artwork folder (optional)</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
       <label class="row check"><input type="checkbox" id="sHide" /> Minimise PyroCade while a game is running</label>
+    </div>
+    <div class="panel">
+      <div class="row"><span>PyroCade updates</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>
+      <label class="row check"><input type="checkbox" id="sCheckUpdates" /> Check for a new PyroCade release when the app starts</label>
     </div>
     <table id="sysTable" class="panel">
       <thead><tr><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>

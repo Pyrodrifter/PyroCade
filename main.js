@@ -7,11 +7,19 @@ const fs = require('fs');
 const fsp = fs.promises;
 const os = require('os');
 const { spawn } = require('child_process');
+const { pipeline } = require('stream/promises');
+const { Readable } = require('stream');
 const { pathToFileURL } = require('url');
 const {createArtworkService} = require('./artwork');
 
 const ROOT = __dirname;
-const DATA = path.join(process.env.PORTABLE_EXECUTABLE_DIR || ROOT, 'data');
+// Where settings, installed emulators and artwork live:
+//  - portable build: next to the .exe
+//  - installed build: %APPDATA%\PyroCade\data (the program folder is read-only / inside app.asar)
+//  - running from source (npm start): ./data
+const DATA = process.env.PORTABLE_EXECUTABLE_DIR ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
+  : app.isPackaged ? path.join(app.getPath('appData'), 'PyroCade', 'data')
+  : path.join(ROOT, 'data');
 const EMU_DIR = path.join(DATA, 'emulators');
 const CONFIG_PATH = path.join(DATA, 'config.json');
 const CATALOG = JSON.parse(fs.readFileSync(path.join(ROOT, 'emulators.json'), 'utf8'));
@@ -61,6 +69,7 @@ function defaultConfig() {
   return {
     mediaRoot: '',
     hideWhilePlaying: true,
+    checkUpdates: true,
     promptFamily: 'auto',
     motion: 'auto',
     eShopStyle: 'enhanced',
@@ -71,9 +80,15 @@ function defaultConfig() {
   };
 }
 
+let configWarning = null;
 function loadConfig() {
+  let text;
+  try { text = fs.readFileSync(CONFIG_PATH, 'utf8'); } catch { return defaultConfig(); } // first run
   try {
-    const saved = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    const saved = JSON.parse(text);
+    if (!saved || !Array.isArray(saved.systems)) throw new Error('missing systems');
+    saved.emulators ||= {};
+    saved.customEmulators ||= [];
     const def = defaultConfig();
     // Keep new default systems appearing for older configs.
     const ids = new Set(saved.systems.map(s => s.id));
@@ -81,11 +96,21 @@ function loadConfig() {
     // Fill in fields added in newer versions (libretro name, case shape…).
     saved.systems = saved.systems.map(s => ({ ...(def.systems.find(d => d.id === s.id) || {}), ...s }));
     return { ...def, ...saved };
-  } catch { return defaultConfig(); }
+  } catch (e) {
+    // Keep the damaged file instead of letting the next save overwrite it with defaults.
+    const backup = `${CONFIG_PATH}.broken-${Date.now()}`;
+    try { fs.copyFileSync(CONFIG_PATH, backup); } catch {}
+    console.error(`config.json could not be read (${e.message}); a copy was kept at ${backup}`);
+    configWarning = `Your settings file was damaged, so defaults were loaded. The old file was kept as ${path.basename(backup)} in the data folder.`;
+    return defaultConfig();
+  }
 }
 function saveConfig(cfg) {
   fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  // Write to a temp file and swap it in, so a crash mid-save can't leave a half-written config.
+  const tmp = `${CONFIG_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2));
+  fs.renameSync(tmp, CONFIG_PATH);
 }
 let config = loadConfig();
 
@@ -181,18 +206,21 @@ async function readGamelist(dir) {
 }
 
 // Walk a ROM folder (and its sub-folders) collecting files with matching extensions.
+const exists = p => fsp.access(p).then(() => true, () => false);
 async function walkRoms(dir, exts, depth = 0, out = []) {
+  const entries = await listDir(dir);
   // Decrypted Switch / Switch 2 dumps are folders: <game>\base\exefs\main (+ romfs), or <game>\exefs\main.
-  // The whole folder counts as one game, launched through its exefs\main.
-  if (depth > 0 && exts.includes('.nsp')) {
-    const main = [path.join(dir, 'base', 'exefs', 'main'), path.join(dir, 'exefs', 'main')].find(p => fs.existsSync(p));
-    if (main) {
+  // The whole folder counts as one game, launched through its exefs\main. Only folders that
+  // actually contain base\ or exefs\ are checked, so normal folders cost no extra disk access.
+  if (exts.includes('.nsp') && entries.some(e => e.isDirectory() && /^(base|exefs)$/i.test(e.name))) {
+    for (const main of [path.join(dir, 'base', 'exefs', 'main'), path.join(dir, 'exefs', 'main')]) {
+      if (!(await exists(main))) continue;
       const label = path.basename(dir).replace(/([a-z])([A-Z])/g, '$1 $2'); // DonkeyKongBananza -> Donkey Kong Bananza
       out.push({ name: label + '.dump', path: main, size: 9e9, dump: true });
       return out;
     }
   }
-  for (const e of await listDir(dir)) {
+  for (const e of entries) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) { if (depth < 4 && !SKIP_DIRS.test(e.name)) await walkRoms(p, exts, depth + 1, out); }
     else if (exts.includes(path.extname(e.name).toLowerCase())) {
@@ -276,9 +304,13 @@ const artwork = createArtworkService({
 
 // ---------- Emulators ----------
 function emuDef(id) {
-  const base = CATALOG.find(e => e.id === id) || config.customEmulators.find(e => e.id === id);
+  const catalog = CATALOG.find(e => e.id === id);
+  const base = catalog || config.customEmulators.find(e => e.id === id);
   if (!base) return null;
-  return { ...base, ...(config.emulators[id] || {}), custom: !CATALOG.find(e => e.id === id) };
+  const override = config.emulators[id] || {};
+  // For catalog emulators `exe` is a filename regex used after installing; a program the user
+  // linked with "Use existing .exe…" is kept separately as exePath so the two never mix.
+  return { ...base, ...override, exe: base.exe, exePath: override.exe || (catalog ? null : base.exe), custom: !catalog };
 }
 function manifestPath(id) { return path.join(EMU_DIR, id, '.pyrocade.json'); }
 function readManifest(id) { try { return JSON.parse(fs.readFileSync(manifestPath(id), 'utf8')); } catch { return null; } }
@@ -286,7 +318,7 @@ function readManifest(id) { try { return JSON.parse(fs.readFileSync(manifestPath
 function resolveExe(id) {
   const def = emuDef(id);
   if (!def) return null;
-  if (def.exe && path.isAbsolute(def.exe) && fs.existsSync(def.exe)) return def.exe;
+  if (def.exePath && path.isAbsolute(def.exePath) && fs.existsSync(def.exePath)) return def.exePath;
   const man = readManifest(id);
   if (man?.exe) { const p = path.join(EMU_DIR, id, man.exe); if (fs.existsSync(p)) return p; }
   return null;
@@ -358,6 +390,13 @@ function extract(archive, dest) {
   });
 }
 
+// Stream a fetch() response to a file, calling onChunk for progress.
+async function downloadTo(response, file, onChunk = () => {}) {
+  await pipeline(Readable.fromWeb(response.body), async function* (source) {
+    for await (const chunk of source) { onChunk(chunk); yield chunk; }
+  }, fs.createWriteStream(file));
+}
+
 const installing = new Set();
 async function installEmu(id, send) {
   if (installing.has(id)) throw new Error('Already installing');
@@ -371,14 +410,12 @@ async function installEmu(id, send) {
     const r = await fetch(rel.url, { headers: { 'User-Agent': UA['User-Agent'] } });
     if (!r.ok) throw new Error(`Download failed: HTTP ${r.status}`);
     const total = Number(r.headers.get('content-length')) || rel.size || 0;
-    const out = fs.createWriteStream(archive);
     let got = 0, last = 0;
-    for await (const chunk of r.body) {
+    // pipeline() closes the file on any error, so a dropped connection can't leave it locked.
+    await downloadTo(r, archive, chunk => {
       got += chunk.length;
-      if (!out.write(chunk)) await new Promise(res => out.once('drain', res));
       if (Date.now() - last > 120) { last = Date.now(); send({ id, stage: `Downloading ${rel.assetName}`, pct: total ? got / total : 0, got, total }); }
-    }
-    await new Promise((res, rej) => out.end(err => (err ? rej(err) : res())));
+    });
 
     send({ id, stage: 'Extracting…', pct: 1 });
     const stage = path.join(tmp, 'x');
@@ -419,23 +456,131 @@ function splitArgs(s) {
 }
 
 let win;
-function launchGame(gameId, romPath) {
-  const sysId = gameId.split(':')[0];
-  const sys = config.systems.find(s => s.id === sysId);
+function launchGame(gameId) {
+  // The ROM path always comes from the scanned library, never from the renderer.
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game) throw new Error('This game is no longer in your library. Rescan in Settings and try again.');
+  const sys = config.systems.find(s => s.id === game.system);
   if (!sys) throw new Error('Unknown system');
   const emuId = sys.emulator;
+  if (!emuId) throw new Error(`No emulator is set for ${sys.name}. Choose one in Settings.`);
   const exe = resolveExe(emuId);
-  if (!exe) throw new Error(`${emuDef(emuId)?.name || emuId} isn't installed yet — install it from the Emulators tab.`);
+  if (!exe) throw new Error(`${emuDef(emuId)?.name || emuId} isn't installed yet. Install it from the Emulators tab.`);
   const tpl = sys.args || emuDef(emuId).args || '{rom}';
-  const args = splitArgs(tpl).map(a => a.replace('{rom}', romPath));
-  // detached: the game keeps running if PyroCade is closed or restarted while playing.
-  const child = spawn(exe, args, { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
-  child.on('error', e => win?.webContents.send('toast', `Launch failed: ${e.message}`));
-  if (config.hideWhilePlaying) {
-    win.minimize();
-    child.on('exit', () => { if (win && !win.isDestroyed()) { win.restore(); win.focus(); } });
+  // split/join instead of replace(): "$&", "$$" etc. in a filename must stay literal.
+  const args = splitArgs(tpl).map(a => a.split('{rom}').join(game.romPath));
+  return new Promise((resolve, reject) => {
+    // detached: the game keeps running if PyroCade is closed or restarted while playing.
+    const child = spawn(exe, args, { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
+    child.once('error', e => reject(new Error(`Launch failed: ${e.message}`)));
+    child.once('spawn', () => {
+      // Only hide once the emulator really started, so a failed launch never leaves us minimized.
+      if (config.hideWhilePlaying && win && !win.isDestroyed()) {
+        win.minimize();
+        child.once('exit', () => { if (win && !win.isDestroyed()) { win.restore(); win.focus(); } });
+      }
+      resolve(true);
+    });
+  });
+}
+
+// ---------- PyroCade self-update ----------
+// New versions are published as GitHub releases on APP_REPO with tags like "v0.2.0".
+const APP_REPO = 'Pyrodrifter/PyroCade';
+const APP_VERSION = require('./package.json').version;
+// A git checkout is a developer copy: never overwrite it, just point at the release.
+const isDevCheckout = () => fs.existsSync(path.join(ROOT, '.git'));
+const versionParts = v => String(v).replace(/^v/i, '').split(/[.+-]/).slice(0, 3).map(n => parseInt(n, 10) || 0);
+function isNewer(latest, current) {
+  const a = versionParts(latest), b = versionParts(current);
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
+  return false;
+}
+
+async function checkAppUpdate() {
+  const r = await fetch(`https://api.github.com/repos/${APP_REPO}/releases/latest`, { headers: UA });
+  if (r.status === 404) return { current: APP_VERSION, available: false }; // no releases published yet
+  if (!r.ok) throw new Error(`GitHub ${r.status}: ${r.statusText}${r.status === 403 ? ' (rate limited — try again later)' : ''}`);
+  const rel = await r.json();
+  // Installed builds update by running the new release's setup .exe.
+  const installer = (rel.assets || []).find(a => /^PyroCade-Setup-.*\.exe$/i.test(a.name));
+  return {
+    current: APP_VERSION, latest: rel.tag_name.replace(/^v/i, ''), available: isNewer(rel.tag_name, APP_VERSION),
+    name: rel.name || rel.tag_name, notes: rel.body || '', url: rel.html_url, zip: rel.zipball_url,
+    installer: installer ? { url: installer.browser_download_url, name: installer.name, size: installer.size } : null,
+    canInstall: app.isPackaged ? !!installer && !process.env.PORTABLE_EXECUTABLE_DIR : !isDevCheckout(),
+    // Shown instead of "Update now" when this copy can't update itself.
+    manualHint: app.isPackaged ? 'Download it from the release page.' : 'This is a git copy, so update it with "git pull".',
+  };
+}
+
+// Installed build: download the new setup .exe, run it silently and quit so it can replace us.
+// The installer starts PyroCade again when it's done (--force-run).
+async function installFromSetup(info, send) {
+  const file = path.join(os.tmpdir(), info.installer.name);
+  const r = await fetch(info.installer.url, { headers: { 'User-Agent': UA['User-Agent'] } });
+  if (!r.ok) throw new Error(`Download failed: HTTP ${r.status}`);
+  const total = Number(r.headers.get('content-length')) || info.installer.size || 0;
+  let got = 0, last = 0;
+  await downloadTo(r, file, chunk => {
+    got += chunk.length;
+    if (Date.now() - last > 120) { last = Date.now(); send({ stage: `Downloading PyroCade ${info.latest}…`, pct: total ? got / total : 0, got, total }); }
+  });
+  send({ stage: 'Installing… PyroCade will restart by itself.', pct: 1, done: true });
+  await new Promise((resolve, reject) => {
+    const child = spawn(file, ['/S', '--force-run'], { detached: true, stdio: 'ignore' });
+    child.once('error', e => reject(new Error(`Couldn't start the installer: ${e.message}`)));
+    child.once('spawn', () => { child.unref(); resolve(); });
+  });
+  return { version: info.latest, mode: 'installer' };
+}
+
+let appUpdating = false;
+async function installAppUpdate(send) {
+  if (!app.isPackaged && isDevCheckout()) throw new Error('This copy of PyroCade is a git checkout. Update it with "git pull" instead.');
+  if (appUpdating) throw new Error('An update is already being installed.');
+  appUpdating = true;
+  const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), 'pyrocade-update-'));
+  try {
+    const info = await checkAppUpdate();
+    if (!info.available) throw new Error('PyroCade is already up to date.');
+    if (app.isPackaged) {
+      if (!info.canInstall) throw new Error('This release has no installer. Download it from the release page.');
+      return await installFromSetup(info, send);
+    }
+    // Source copy (npm start): replace the program files from the release's source zip.
+    send({ stage: `Downloading PyroCade ${info.latest}…`, pct: 0 });
+    const r = await fetch(info.zip, { headers: { 'User-Agent': UA['User-Agent'] } });
+    if (!r.ok) throw new Error(`Download failed: HTTP ${r.status}`);
+    const archive = path.join(tmp, 'pyrocade.zip');
+    let got = 0, last = 0;
+    const total = Number(r.headers.get('content-length')) || 0;
+    await downloadTo(r, archive, chunk => {
+      got += chunk.length;
+      if (Date.now() - last > 120) { last = Date.now(); send({ stage: `Downloading PyroCade ${info.latest}…`, pct: total ? got / total : 0, got, total }); }
+    });
+    send({ stage: 'Installing…', pct: 1 });
+    const stage = path.join(tmp, 'x');
+    await fsp.mkdir(stage);
+    await extract(archive, stage);
+    const top = fs.readdirSync(stage, { withFileTypes: true });
+    const src = top.length === 1 && top[0].isDirectory() ? path.join(stage, top[0].name) : stage;
+    if (!fs.existsSync(path.join(src, 'package.json')) || !fs.existsSync(path.join(src, 'main.js'))) throw new Error('The downloaded release does not look like PyroCade.');
+    const depsOf = p => JSON.stringify({ ...(p.dependencies || {}), ...(p.devDependencies || {}) });
+    const oldDeps = depsOf(require('./package.json'));
+    const newDeps = depsOf(JSON.parse(fs.readFileSync(path.join(src, 'package.json'), 'utf8')));
+    // Copy the new program files over the old ones. Your data (config, emulators, artwork) is untouched.
+    const keep = new Set(['data', 'node_modules', '.git']);
+    for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+      if (keep.has(e.name.toLowerCase())) continue;
+      await fsp.cp(path.join(src, e.name), path.join(ROOT, e.name), { recursive: true, force: true });
+    }
+    send({ stage: 'Restarting…', pct: 1, done: true });
+    return { version: info.latest, mode: 'source', needsNpmInstall: oldDeps !== newDeps };
+  } finally {
+    appUpdating = false;
+    fsp.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
-  return true;
 }
 
 // ---------- Window & IPC ----------
@@ -448,6 +593,7 @@ function createWindow() {
     webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, sandbox: false, autoplayPolicy:'no-user-gesture-required',offscreen: previewMode, backgroundThrottling: !previewMode },
   });
   win.loadFile(path.join(ROOT, 'renderer', 'index.html'));
+  if (configWarning) win.webContents.once('did-finish-load', () => win.webContents.send('toast', configWarning));
   win.webContents.on('before-input-event', (_, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen());
   });
@@ -458,9 +604,29 @@ const handle = (ch, fn) => ipcMain.handle(ch, async (_e, ...a) => {
 });
 
 handle('config:get', () => config);
-handle('config:set', cfg => { config = cfg; saveConfig(cfg); return config; });
+// Emulator links and custom emulators are owned by the main process (emu:* handlers), so a
+// renderer holding an older copy of the config can never overwrite them.
+handle('config:set', cfg => {
+  if (!cfg || !Array.isArray(cfg.systems)) throw new Error('Invalid settings');
+  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators };
+  saveConfig(config);
+  return config;
+});
 handle('library:scan', scanLibrary);
-handle('game:launch', (id, rom) => launchGame(id, rom));
+handle('app:version', () => APP_VERSION);
+handle('app:checkUpdate', checkAppUpdate);
+handle('app:installUpdate', async () => {
+  const result = await installAppUpdate(p => { if (win && !win.isDestroyed()) win.webContents.send('app:updateProgress', p); });
+  // Installer mode: just quit; the setup replaces the files and starts PyroCade again.
+  if (result.mode === 'installer') setTimeout(() => app.quit(), 800);
+  else if (!result.needsNpmInstall) setTimeout(() => { app.relaunch(); app.exit(0); }, 800);
+  return result;
+});
+handle('app:openRelease', url => {
+  if (!/^https:\/\/github\.com\//.test(String(url))) throw new Error('Not a GitHub link');
+  return shell.openExternal(url);
+});
+handle('game:launch', id => launchGame(id));
 handle('art:fetch', (sysId, base, options) => artwork.fetchArt(sysId, base, options));
 handle('art:start', options => artwork.start(options));
 handle('art:status', () => artwork.status());

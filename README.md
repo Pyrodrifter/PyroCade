@@ -8,9 +8,19 @@ A glass-styled emulator front end with a 3D library, animated physical media, fo
 
 **[Watch the 35-second demo](docs/media/pyrocade-demo.mp4)** · [Appearance & sound](#library-appearance-and-sound) · [Controller support](#button-prompts)
 
-## Run
+## Install
+Download **PyroCade-Setup-x.y.z.exe** from the [latest release](https://github.com/Pyrodrifter/PyroCade/releases/latest) and run it. The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC": click **More info → Run anyway**.
+
+Installed copies keep their settings, emulators and artwork in `%APPDATA%\PyroCade\data`. PyroCade checks for new releases when it starts and can update itself from the banner or **Settings → PyroCade updates**.
+
+## Run from source
     npm ci
     npm start
+
+Build the installer with `npm run dist` (output in `dist/`).
+
+## Releasing an update
+Raise `version` in `package.json`, run `npm run dist`, then publish a GitHub release tagged `v<version>` with `dist/PyroCade-Setup-<version>.exe` attached. Installed copies offer the update on their next start.
 
 ## Brand assets
 The flame and play-button mark, glass app icon, wordmark and banner are in `renderer/assets/brand/`. The set includes SVG masters, PNG icons from 16 to 1024px, a transparent wordmark and a multi-resolution Windows `.ico`. The header mark follows the selected colour theme. Rebuild the complete set with `npm run brand:build`.
