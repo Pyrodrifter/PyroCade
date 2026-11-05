@@ -1,4 +1,5 @@
-// Exercise the real renderer in an isolated Electron window, with no user-data writes.
+// This fixture targets shared-renderer behavior only; Electron is not the Tauri host.
+// Treating a passing result as Tauri validation tests the wrong WebView.
 const {app,BrowserWindow} = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');

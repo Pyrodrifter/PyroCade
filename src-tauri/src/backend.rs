@@ -1053,6 +1053,30 @@ mod library_tests {
     }
 
     #[test]
+    fn game_serialization_preserves_the_renderer_payload_contract() {
+        let game = Game {
+            id: "snes:game".to_owned(),
+            system: "snes".to_owned(),
+            rom_path: "/roms/game.sfc".to_owned(),
+            base: "game".to_owned(),
+            title: "Game".to_owned(),
+            info: serde_json::json!({"year":"1998"}),
+            media: HashMap::from([
+                ("front".to_owned(), "file:///media/front.png".to_owned()),
+                ("manual".to_owned(), "/media/manual.pdf".to_owned()),
+            ]),
+        };
+
+        let payload = serde_json::to_value(game).unwrap();
+
+        assert_eq!(payload["id"], "snes:game");
+        assert_eq!(payload["romPath"], "/roms/game.sfc");
+        assert_eq!(payload["info"]["year"], "1998");
+        assert_eq!(payload["media"]["front"], "file:///media/front.png");
+        assert_eq!(payload["media"]["manual"], "/media/manual.pdf");
+    }
+
+    #[test]
     fn local_media_aliases_and_video_files_are_indexable() {
         assert_eq!(
             media_kind_folder("images").map(|(kind, _)| kind),

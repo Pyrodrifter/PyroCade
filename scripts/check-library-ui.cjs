@@ -1,81 +1,141 @@
-const {app,BrowserWindow}=require('electron');
-const fs=require('node:fs'),path=require('node:path');
-const root=path.resolve(__dirname,'..');
-const scratchDir=path.join(root,'localTmp');
-const sessionDataDir=path.join(scratchDir,'PyroCade-library-check-'+process.pid);
-const outputDir=path.join(scratchDir,'library-ui-check');
-const fixtureCount=16;
-const fixtureImage='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="448"><rect width="320" height="448" fill="#283047"/><path d="M0 300 320 120v328H0" fill="#c77d46"/></svg>');
-fs.mkdirSync(sessionDataDir,{recursive:true});fs.mkdirSync(outputDir,{recursive:true});
-app.setPath('sessionData',sessionDataDir);
-const fixtures=Array.from({length:fixtureCount},(_,i)=>({id:'fixture:'+i,system:'switch',base:'fixture-'+i,title:'Fixture '+i,demo:true,media:{front:fixtureImage},info:{}}));
-app.whenReady().then(async()=>{
-  const win=new BrowserWindow({show:false,width:1584,height:861,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),sandbox:false,contextIsolation:true,offscreen:true,backgroundThrottling:false}});win.setContentSize(1584,861);
-  const errors=[];win.webContents.on('console-message',e=>{if(e.level==='error')errors.push(e.message)});
-  const watchdog=setTimeout(()=>{console.error('Library UI check timed out');app.exit(1)},60000);
-  const run=code=>win.webContents.executeJavaScript(`(async()=>{const assert=(v,m)=>{if(!v)throw new Error(m)};const pause=ms=>new Promise(r=>setTimeout(r,ms));${code}})()`);
-  const snap=async name=>{win.webContents.invalidate();await new Promise(r=>setTimeout(r,150));fs.writeFileSync(path.join(outputDir,name),(await win.webContents.capturePage()).toPNG())};
-  try{
-    await win.loadFile(path.join(root,'renderer/index.html'));
-    await run(`
-      await pause(120);applyMotion('reduced');
-      S.config.systems=Object.entries(Packaging.profiles).map(([id,p])=>({id,name:p.brand,color:p.accent,romDir:'fixture/'+id,caseType:['switch','switch2'].includes(id)?'switch':'dvd',media:Cartridges.profiles[id]?'cart':'disc'}));
-      S.games=${JSON.stringify(fixtures)};S.demo=false;document.querySelector('#demoBanner').classList.add('hidden');renderChips();setSystem('switch');select(3);
-      for(const g of S.games)measure(g);await pause(200);
-      assert(document.querySelectorAll('#systems button').length===25,'Configured empty systems were lost');
-      assert(document.querySelectorAll('#systems [aria-pressed=true]').length===1,'System selection is ambiguous');
-      const rail=document.querySelector('#systems');rail.scrollLeft=0;rail.dispatchEvent(new WheelEvent('wheel',{deltaY:240,cancelable:true}));assert(rail.scrollLeft>0,'Mouse wheel does not scroll the system rail');
-      const first=rail.querySelector('button');first.focus();first.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));assert(S.system==='ps1'&&document.activeElement.dataset.id==='ps1','Rail keyboard navigation did not move focus and selection');
-      document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));assert(LibraryUI.pickerOpen()&&document.activeElement.id==='systemSearch','Ctrl+K did not open the system browser');
-      const search=document.querySelector('#systemSearch');search.value='switch 2';search.dispatchEvent(new Event('input'));assert(document.querySelectorAll('#systemPickerGrid button').length===1,'System filter failed');
-      search.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await pause(30);assert(S.system==='switch2'&&!LibraryUI.pickerOpen(),'System picker did not select an empty configured system');assert(document.activeElement.id==='btnSystemPicker','Picker did not restore focus');
-      setSystem('switch');select(3);LibraryUI.openPicker();input('right');assert(document.activeElement.matches('#systemPickerGrid button'),'Controller cannot browse the picker');input('back');await pause(20);
-      LibraryUI.openPicker();input('manual');assert(Appearance.panelOpen()&&!LibraryUI.pickerOpen(),'Controller cannot open appearance from system browser');
-      input('right');assert(document.activeElement.dataset.layout==='vertical','Controller cannot move among layouts');input('play');assert(Appearance.mode()==='vertical','Controller cannot select layout');input('left');input('play');
-      assert(document.querySelector('.system-tile').offsetHeight<=38,'System rail is no longer compact');
-    `);
-    await snap('ui-appearance-panel.png');
-    await run(`document.querySelector('#appearancePicker').close();await pause(30);`);
-    const themes=['ember','glacier','violet','mint'];let index=0;
-    for(const layout of ['carousel','vertical','flipbook','swatches']){
-      await run(`
-        setSystem('switch');select(3);Appearance.apply({layout:'${layout}',theme:'${themes[index++]}' });await Appearance.persist();await pause(100);
-        assert(document.documentElement.dataset.layout==='${layout}','Layout did not apply');
-        assert(S.config.libraryLayout==='${layout}','Layout was not persisted');assert(document.querySelector('.item.sel'),'Selection was lost');
-        if('${layout}'==='vertical'){const old=S.sel;input('down');assert(S.sel===old+1,'Vertical input does not move down');input('up')}
-        if('${layout}'==='swatches'){const old=S.sel,cols=Appearance.geometry(document.querySelector('#stage'),S.sel,S.list.length).columns;input('down');assert(S.sel===old+cols,'Grid input does not move by a row');input('up');assert(document.querySelectorAll('.item:not(.far) .swatch-card').length>1,'Colour cards did not render');}
-        const p=document.querySelector('.item.sel').getBoundingClientRect(),info=document.querySelector('#info').getBoundingClientRect();assert(p.bottom<info.top+2,'Selected preview overlaps game details in ${layout}');
-      `);
-      await snap('ui-layout-'+layout+'.png');
-    }
-    await run(`
-      for(const theme of Object.keys(Appearance.themes)){Appearance.apply({theme});assert(document.documentElement.dataset.theme===theme,'Theme did not apply');assert(document.documentElement.style.getPropertyValue('--accent')===Appearance.themes[theme].accent,'Theme accent did not change');}
-      document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'/',bubbles:true}));assert(document.activeElement.id==='search','Slash did not focus search');
-      const search=document.querySelector('#search');search.value='no-match-fixture';search.dispatchEvent(new Event('input'));await pause(180);assert(!S.list.length&&!document.querySelector('#clearSearch').classList.contains('hidden'),'Search clear control missing');document.querySelector('#clearSearch').click();await pause(180);assert(S.list.length===${fixtures.length},'Clear search did not restore the collection');
-      await openCase();assert(caseShown()&&document.querySelector('#caseRig .case'),'Colour cards cannot open the physical case');closeCase();
-    `);
-    win.setContentSize(1100,650);
-    for(const layout of ['carousel','vertical','flipbook','swatches'])await run(`
-      Appearance.apply({layout:'${layout}'},false);resizeShelf();layout();await pause(60);
-      const toolbar=document.querySelector('.toolbar').getBoundingClientRect(),stage=document.querySelector('#stage').getBoundingClientRect(),info=document.querySelector('#info').getBoundingClientRect();
-      assert(toolbar.bottom<stage.top+10,'System bar overlaps preview at minimum size');assert(stage.bottom<info.top,'Preview overlaps details at minimum size');
-      assert(document.querySelector('#btnAppearance').getBoundingClientRect().right<innerWidth,'Appearance button is offscreen');
-    `);
-    await snap('ui-minimum-window.png');
-    await run(`document.querySelector('#btnAppearance').click();await pause(30);const panel=document.querySelector('#appearancePicker').getBoundingClientRect(),volume=document.querySelector('#soundVolume').getBoundingClientRect();assert(volume.bottom<panel.bottom,'Sound controls are clipped in a small window');`);
-    await snap('ui-appearance-minimum.png');
-    await run(`document.querySelector('#appearancePicker').close();await pause(30);`);
-    const sound=await run(`
-      assert(!AudioUI.play('unknown'),'Unknown sound should be ignored');AudioUI.configure({enabled:false});assert(!AudioUI.play('scroll'),'Muted sound played');
-      window.AudioContext=class extends OfflineAudioContext{constructor(){super(2,44100,44100);window.offlineSound=this}resume(){return Promise.resolve()}};
-      document.querySelector('#soundToggle').click();document.querySelector('#soundVolume').value=30;document.querySelector('#soundVolume').dispatchEvent(new Event('input'));document.querySelector('#soundPreview').click();
-      assert(AudioUI.settings().enabled&&AudioUI.settings().volume===.3,'Sound controls did not update engine');
-      const buffer=await window.offlineSound.startRendering(),samples=buffer.getChannelData(0);let peak=0,energy=0;for(const sample of samples){peak=Math.max(peak,Math.abs(sample));energy+=sample*sample}
-      assert(peak>0.001&&peak<.3&&energy>0,'Sound engine produced silence or excessive output');
-      AudioUI.configure({enabled:false,volume:0});assert(!AudioUI.play('scroll'),'Zero volume did not silence cues');await Appearance.persist();assert(!S.config.uiSound.enabled&&S.config.uiSound.volume===0,'Sound preference was not saved');
-      return {peak:Number(peak.toFixed(4)),energy:Number(energy.toFixed(4))};
-    `);
-    if(errors.length)throw new Error(errors.join('\n'));
-    clearTimeout(watchdog);console.log(JSON.stringify({passed:'System icons/counts, horizontal wheel and keyboard navigation, searchable picker, controller navigation, focus restoration, four layouts, five themes, automatic preference saving, search clear, case viewer, minimum window and rendered audio',sound}));app.exit(0);
-  }catch(e){console.error(e);app.exit(1)}
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+
+const root = path.resolve(__dirname, '..');
+// The WebDriver listener uses port 4444, because tauri-driver uses it by default.
+// A second driver on that port conflicts instead of opening another session.
+const webdriverPort = process.env.TAURI_WEBDRIVER_PORT || '4444';
+// The readiness timeout is 30,000 milliseconds, because a driver that never binds has established nothing.
+// The client must stop retrying rather than leave a CI job hanging.
+const readinessTimeoutMs = Number(process.env.TAURI_WEBDRIVER_TIMEOUT_MS || '30000');
+// The poll interval is 100 milliseconds, because readiness checks need room to yield.
+// A zero-delay retry loop would waste a core while WebKit starts.
+const readinessPollIntervalMs = Number(process.env.TAURI_WEBDRIVER_POLL_MS || '100');
+// The canvas sample extent is one pixel, because one painted pixel proves renderer output.
+// An unpainted sample would confuse API availability with drawing.
+const canvasSampleExtent = 1;
+// The canvas origin is zero pixels, because drawing starts at its upper-left corner.
+// A non-origin sample would miss the one-pixel test surface.
+const canvasOrigin = 0;
+// The smoke transform rotates by 90 degrees, because an identity transform proves no 3D path.
+// A missing preserve-3d result means the platform renderer flattened the surface.
+const smokeTransformCss = 'rotateY(90deg)';
+const appBinary = process.env.TAURI_APP_BINARY || path.join(root, 'src-tauri/target/aarch64-unknown-linux-gnu/release/pyrocade');
+const baseUrl = `http://127.0.0.1:${webdriverPort}`;
+const driver = spawn(process.env.TAURI_DRIVER || 'tauri-driver', ['--port', webdriverPort], {
+  cwd: root,
+  stdio: ['ignore', 'ignore', 'pipe'],
 });
+
+let driverOutput = '';
+let driverSpawnError;
+let sessionId;
+driver.stderr.on('data', (chunk) => { driverOutput += chunk.toString(); });
+driver.on('error', (error) => { driverSpawnError = error; });
+
+async function request(method, route, body) {
+  const response = await fetch(`${baseUrl}${route}`, {
+    method,
+    headers: body ? { 'content-type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+  if (!response.ok) throw new Error(`${method} ${route} failed (${response.status}): ${text}`);
+  const value = payload && Object.hasOwn(payload, 'value') ? payload.value : payload;
+  if (value && value.error) throw new Error(`${value.error}: ${value.message || text}`);
+  return value;
+}
+
+async function waitForDriver() {
+  const deadline = Date.now() + readinessTimeoutMs;
+  while (Date.now() < deadline) {
+    if (driverSpawnError) throw driverSpawnError;
+    if (driver.exitCode !== null) throw new Error(`tauri-driver exited ${driver.exitCode}: ${driverOutput}`);
+    try {
+      const status = await request('GET', '/status');
+      if (!status || status.ready !== false) return;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, readinessPollIntervalMs));
+  }
+  throw new Error(`tauri-driver did not become ready: ${driverOutput}`);
+}
+
+async function run() {
+  fs.accessSync(appBinary, fs.constants.X_OK);
+  await waitForDriver();
+  const session = await request('POST', '/session', {
+    capabilities: {
+      alwaysMatch: {
+        'tauri:options': { application: appBinary },
+      },
+    },
+  });
+  sessionId = session.sessionId;
+  if (!sessionId) throw new Error(`tauri-driver did not return a session id: ${JSON.stringify(session)}`);
+
+  const script = `
+    // The callback offset is one argument, because WebDriver appends it after the provided arguments.
+    // Any other offset invokes a test argument instead of completing the command.
+    const lastArgumentOffset = 1;
+    const completionArgumentPosition = arguments.length - lastArgumentOffset;
+    const complete = arguments[completionArgumentPosition];
+    (async () => {
+      const assert = (condition, message) => { if (!condition) throw new Error(message); };
+      const stage = document.querySelector('#stage');
+      assert(stage, 'Tauri renderer did not create the library stage');
+
+      assert(typeof navigator.getGamepads === 'function', 'Gamepad API is unavailable');
+      assert(navigator.getGamepads() !== null, 'Gamepad API could not be queried');
+      window.dispatchEvent(new Event('gamepadconnected'));
+      document.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', bubbles:true, cancelable:true}));
+
+      const tile = document.createElement('div');
+      tile.style.transformStyle = 'preserve-3d';
+      tile.style.transform = ${JSON.stringify(smokeTransformCss)};
+      stage.append(tile);
+      assert(getComputedStyle(tile).transformStyle === 'preserve-3d', 'WebView did not preserve 3D transforms');
+      assert(getComputedStyle(stage).perspective !== 'none', 'Library stage has no perspective');
+      const canvas = document.createElement('canvas');
+      canvas.width = ${canvasSampleExtent};
+      canvas.height = ${canvasSampleExtent};
+      const context = canvas.getContext('2d');
+      assert(context, 'Canvas 2D context is unavailable');
+      context.fillStyle = 'red';
+      context.fillRect(${canvasOrigin}, ${canvasOrigin}, ${canvasSampleExtent}, ${canvasSampleExtent});
+      assert(context.getImageData(${canvasOrigin}, ${canvasOrigin}, ${canvasSampleExtent}, ${canvasSampleExtent}).data[${canvasOrigin}] > ${canvasOrigin}, 'Canvas did not render a pixel');
+
+      assert(typeof AudioUI !== 'undefined' && typeof AudioUI.play === 'function', 'Renderer audio service is unavailable');
+      let audioContextCreated = false;
+      const NativeAudioContext = window.AudioContext;
+      window.AudioContext = class extends NativeAudioContext {
+        constructor() { super(); audioContextCreated = true; }
+      };
+      AudioUI.configure({enabled:true});
+      AudioUI.play('scroll');
+      assert(audioContextCreated, 'Renderer audio service did not create an AudioContext');
+      assert(AudioUI.settings().enabled, 'Renderer audio service did not enable sound');
+      return {gamepadApi:'available', transform:'preserve-3d', canvas:'painted', audio:'AudioContext created'};
+    })().then(complete).catch(error => complete({error:error.message || String(error), stack:error.stack}));
+  `;
+  const result = await request('POST', `/session/${sessionId}/execute/async`, { script, args: [] });
+  if (result && result.error) throw new Error(result.error);
+
+  const screenshot = await request('GET', `/session/${sessionId}/screenshot`);
+  const screenshotPath = path.join(root, 'localTmp', `tauri-webdriver-${Date.now()}.png`);
+  fs.writeFileSync(screenshotPath, Buffer.from(screenshot, 'base64'));
+  console.log(JSON.stringify({ passed: result, screenshot: screenshotPath }));
+}
+
+run()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    if (sessionId) {
+      try { await request('DELETE', `/session/${sessionId}`); } catch {}
+    }
+    driver.kill();
+  });

@@ -1,3 +1,5 @@
+// This fixture targets shared-renderer behavior only; Electron is not the Tauri host.
+// Treating a passing result as Tauri validation tests the wrong WebView.
 const {app,BrowserWindow}=require('electron');
 const path=require('node:path');
 const fs=require('node:fs');
