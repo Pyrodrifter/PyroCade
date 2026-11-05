@@ -4,6 +4,9 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+### Added
+- **An emulator per game:** the new **Emulator** button next to Play chooses the emulator for just that game, such as a fork made for one game, or **Run the file itself**. **Same as <system>** goes back to the system's emulator. The list shows the system's emulators first, then the ones you added or installed.
+
 ## [0.4.4] - 2026-11-05
 
 ### Added

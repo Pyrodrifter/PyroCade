@@ -37,6 +37,7 @@ An emulator front end for Windows, macOS and Linux that shows your games as real
   - Install and update DuckStation, PCSX2, RPCS3, shadPS4, PPSSPP, Cemu, Azahar, melonDS, mGBA, Flycast and xemu from their official GitHub releases.
   - Any emulator can download from a fork instead (**Source…**).
   - **Add your own emulator** accepts any GitHub repository, or a program you already have.
+  - **One game, its own emulator:** the **Emulator** button next to Play picks an emulator for just that game, for example a fork made for Ocarina of Time. Other games keep the system's emulator.
 - **Controllers:** Xbox, PlayStation, Nintendo and generic pads, with 283 matching button prompts that follow the last input you used.
 - **Ambient mode:** animated backgrounds (XMB ribbon, pixel-art day and night and more), and after a few idle minutes the interface fades into a screensaver.
 

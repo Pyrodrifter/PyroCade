@@ -338,7 +338,10 @@ async function scanLibrary() {
       });
     }
   }
-  for (const g of games) if (config.shellColors?.[g.id]) g.shellCustom = config.shellColors[g.id];
+  for (const g of games) {
+    if (config.shellColors?.[g.id]) g.shellCustom = config.shellColors[g.id];
+    if (config.gameEmulators?.[g.id]) g.emulator = config.gameEmulators[g.id];
+  }
   games.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   libraryGames = games;
   return games;
@@ -822,12 +825,16 @@ function launchGame(gameId) {
   if (!game) throw new Error('This game is no longer in your library. Rescan in Settings and try again.');
   const sys = config.systems.find(s => s.id === game.system);
   if (!sys) throw new Error('Unknown system');
-  if (sys.direct) return launchDirect(game);
-  const emuId = sys.emulator;
+  // A game can have its own emulator (a fork for one game, say); otherwise the system's is used.
+  const own = config.gameEmulators?.[game.id] || '';
+  if (own === '__direct' || (!own && sys.direct)) return launchDirect(game);
+  const emuId = own || sys.emulator;
   if (!emuId) throw new Error(`No emulator is set for ${sys.name}. Choose one in Settings.`);
+  if (!emuDef(emuId)) throw new Error(`The emulator chosen for ${game.title} is no longer set up. Choose another with the Emulator button.`);
   const exe = macAppBinary(resolveExe(emuId));
   if (!exe) throw new Error(`${emuDef(emuId)?.name || emuId} isn't installed yet. Install it from the Emulators tab.`);
-  const tpl = sys.args || emuDef(emuId).args || '{rom}';
+  // The system's custom arguments belong to the system's emulator; another emulator uses its own.
+  const tpl = (emuId === sys.emulator && sys.args) || emuDef(emuId).args || '{rom}';
   // split/join instead of replace(): "$&", "$$" etc. in a filename must stay literal.
   const args = splitArgs(tpl).map(a => a.split('{rom}').join(game.romPath));
   return new Promise((resolve, reject) => {
@@ -999,7 +1006,7 @@ handle('config:get', () => ({ ...config, screenscraper: undefined }));
 // renderer holding an older copy of the config can never overwrite them.
 handle('config:set', cfg => {
   if (!cfg || !Array.isArray(cfg.systems)) throw new Error('Invalid settings');
-  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames, shellColors: config.shellColors };
+  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames, shellColors: config.shellColors, gameEmulators: config.gameEmulators };
   saveConfig(config);
   return config;
 });
@@ -1091,6 +1098,18 @@ handle('game:setShell', ({ gameId, color }) => {
   saveConfig(config);
   game.shellCustom = color || undefined;
   return { gameId, media: {}, shellCustom: color || null };
+});
+// An emulator chosen for one game (an emulator id, or "__direct" to run the file itself),
+// or null to use the system's emulator again.
+handle('game:setEmulator', ({ gameId, emulator }) => {
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game) throw new Error('Select a game in your library first.');
+  if (emulator && emulator !== '__direct' && !emuDef(emulator)) throw new Error('That emulator is no longer set up.');
+  config.gameEmulators = { ...(config.gameEmulators || {}) };
+  if (emulator) config.gameEmulators[gameId] = emulator; else delete config.gameEmulators[gameId];
+  saveConfig(config);
+  game.emulator = emulator || undefined;
+  return { gameId, emulator: emulator || null };
 });
 handle('game:list', () => config.extraGames.map(x => ({ ...x, missing: !fs.existsSync(x.path) })));
 handle('art:fetch', (sysId, base, options) => artwork.fetchArt(sysId, base, options));

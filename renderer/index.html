@@ -66,6 +66,7 @@
           <button id="btnCase">⟲ Open case</button>
           <button id="btnManual">▤ Manual</button>
           <button id="btnArtwork">Artwork</button>
+          <button id="btnEmulator" title="Choose the emulator for this game">Emulator</button>
         </div>
       </div>
       <div id="gShot" class="shot"></div>
@@ -87,6 +88,13 @@
     <div class="appearance-label">Interface sound</div><div class="sound-controls"><button id="soundToggle" aria-pressed="true">Sound on</button><input id="soundVolume" aria-label="Interface sound volume" type="range" min="0" max="100" step="1" value="25" /><output id="soundVolumeValue">25%</output><button id="soundPreview" title="Preview sound">Test</button></div>
     <div class="appearance-label">Game details bar</div><div id="infoBarOptions" class="theme-options"><button type="button" class="theme-option" data-info-bar="large" aria-pressed="false">Large</button><button type="button" class="theme-option" data-info-bar="small" aria-pressed="true">Small</button><button type="button" class="theme-option" data-info-bar="compact" aria-pressed="false">Compact</button><button type="button" class="theme-option" data-info-bar="hidden" aria-pressed="false">Hidden</button></div>
     <div class="appearance-label">Background</div><div id="backgroundOptions" class="theme-options"></div>
+  </dialog>
+
+  <dialog id="emuChoice" aria-labelledby="emuChoiceTitle">
+    <div class="system-picker-heading"><div><h2 id="emuChoiceTitle">Emulator for this game</h2></div><button id="closeEmuChoice" aria-label="Close emulator choice">×</button></div>
+    <p id="emuChoiceGame" class="emu-choice-game"></p>
+    <div id="emuChoiceList" class="emu-choice-list"></div>
+    <p class="emu-choice-note">Add a fork or any other emulator in the Emulators tab, then choose it here.</p>
   </dialog>
 
   <!-- CASE VIEWER -->

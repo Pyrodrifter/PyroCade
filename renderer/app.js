@@ -329,6 +329,7 @@ async function showInfo(quiet) {
   $('#gMeta').innerHTML = [g.info.year, g.info.developer, g.info.genre, g.info.players && `${g.info.players} player${g.info.players === '1' ? '' : 's'}`, regionOf(g), ext]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
   $('#btnManual').disabled = !g.media.manual;
+  updateEmuButton();
   if (quiet) {
     const shot = $('#gShot');
     if (g.media.screenshot || g.media.title) { shot.style.backgroundImage = `url("${g.media.screenshot || g.media.title}")`; shot.style.display = ''; }
@@ -824,6 +825,53 @@ $('#btnPlay').onclick = () => play();
 $('#btnCase').onclick = openCase;
 $('#btnManual').onclick = () => manual();
 $('#btnArtwork').onclick = () => {showView('artwork');ArtworkUI.open('game');};
+$('#btnEmulator').onclick = () => openEmuChoice();
+$('#closeEmuChoice').onclick = () => $('#emuChoice').close();
+// One game can use its own emulator, for example a fork made for that game.
+const emuChoiceOpen = () => $('#emuChoice').open;
+function emuLabel(g) {
+  const sys = S.config.systems.find(s => s.id === g.system);
+  const name = id => id === '__direct' ? 'Run the file itself' : S.emus?.find(e => e.id === id)?.name || id;
+  return { own: g.emulator ? name(g.emulator) : null, system: sys?.direct ? 'Run the file itself' : sys?.emulator ? name(sys.emulator) : 'None set', sys };
+}
+async function openEmuChoice(g = S.list[S.sel]) {
+  if (!g) return;
+  if (!S.emus) try { S.emus = await api.emuList(); } catch (e) { return toast(e.message); }
+  const { system, sys } = emuLabel(g);
+  $('#emuChoiceGame').textContent = g.title;
+  const list = $('#emuChoiceList'); list.innerHTML = '';
+  const add = (id, title, note) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'emu-choice-option';
+    b.setAttribute('aria-pressed', String((g.emulator || '') === id));
+    b.innerHTML = `<span>${esc(title)}</span>${note ? `<small>${esc(note)}</small>` : ''}`;
+    b.onclick = () => chooseEmulator(g, id);
+    list.append(b);
+  };
+  add('', `Same as ${sys?.name || 'the system'}`, system);
+  // Emulators made for this system first, then ones you added or installed (a fork may not list its systems).
+  const fits = e => (e.systems || []).includes(g.system);
+  for (const e of [...S.emus.filter(fits), ...S.emus.filter(e => !fits(e) && (e.custom || e.exe || e.id === g.emulator))]) add(e.id, e.name, e.exe ? '' : 'not installed');
+  add('__direct', 'Run the file itself', 'no emulator');
+  AudioUI.play('open');
+  $('#emuChoice').showModal();
+  (list.querySelector('[aria-pressed=true]') || list.firstChild).focus();
+}
+async function chooseEmulator(g, id) {
+  try { await api.gameSetEmulator({ gameId: g.id, emulator: id || null }); }
+  catch (e) { return toast(e.message); }
+  for (const x of S.games) if (x.id === g.id) x.emulator = id || undefined;
+  $('#emuChoice').close();
+  updateEmuButton();
+  const { own, system } = emuLabel(g);
+  toast(own ? `${g.title} now starts with ${own}.` : `${g.title} uses the system's emulator again (${system}).`);
+}
+function updateEmuButton() {
+  const g = S.list[S.sel], b = $('#btnEmulator');
+  if (!g) return;
+  const { own } = emuLabel(g);
+  b.textContent = own ? `Emulator: ${own}` : 'Emulator';
+  b.classList.toggle('has-own', !!own);
+}
 $('#cvPlay').onclick = () => play(CV.game);
 $('#cvBack').onclick = closeCase;
 $('#cvToggle').onclick = () => setOpen(!CV.open);
@@ -856,6 +904,13 @@ const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
   if(document.querySelector('.launch-fx'))return; // a game is starting
   if(manualOpen()){if(action==='back'||action==='manual')closeManual();return;}
+  if(emuChoiceOpen()){
+    const opts=[...$$('#emuChoiceList button')],i=opts.indexOf(document.activeElement);
+    if(action==='back')$('#emuChoice').close();
+    else if(action==='play')document.activeElement?.click();
+    else if(['up','left','down','right'].includes(action))opts[Math.max(0,Math.min(opts.length-1,i+(['up','left'].includes(action)?-1:1)))]?.focus();
+    return;
+  }
   if(Appearance.panelOpen()){Appearance.controller(action);return;}
   if(LibraryUI.pickerOpen()){LibraryUI.controller(action);return;}
   if(action==='systems'&&libraryActive()&&!caseShown()){LibraryUI.openPicker();return;}
@@ -890,7 +945,7 @@ $('#search').addEventListener('keydown', e => {
 document.addEventListener('keydown', e => {
   usePromptInput('keyboard');
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&libraryActive()&&!caseShown()){e.preventDefault();LibraryUI.openPicker();return;}
-  if(LibraryUI.pickerOpen()||Appearance.panelOpen())return;
+  if(LibraryUI.pickerOpen()||Appearance.panelOpen()||emuChoiceOpen())return;
   if(e.key==='/'&&libraryActive()&&!caseShown()&&!e.target.matches?.('input,select,textarea')){e.preventDefault();$('#search').focus();return;}
   if (caseShown() && e.key === 'Tab') {
     const focusable = $$('#caseView button:not(:disabled)');
