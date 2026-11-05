@@ -1,30 +1,31 @@
 ---
-slice: P5
+slice: P6
 stateFile: docs/STATE.md
 donotCount: 3
-seededFrom: ff2ff8f
+seededFrom: 74bdbae
 reads:
-  - artwork.js
-  - renderer/artwork-ui.js
-  - renderer/art.js
-  - src-tauri/src/artwork.rs
-  - src-tauri/src/backend.rs
-allowanceTokens: 150000
+  - package.json
+  - package-lock.json
+  - .github/workflows/release.yml
+  - src-tauri/tauri.conf.json
+  - src-tauri/Cargo.toml
+allowanceTokens: 140000
 ---
 
 ## The next action — verbatim
 
-P5 — Port artwork download and import service. Port Libretro and Switch artwork lookup, cached indexes, image validation/conversion, safe non-overwriting downloads, import replacement, library media updates, cancellation, status snapshots, and progress events.
+P6 — Package macOS and Linux ARM64 builds. Configure Tauri bundles, icons, runtime dependencies, artifact names, app metadata, npm scripts, and target-specific build commands for macOS ARM64 and ARM64 Linux; keep the product build free of Electron runtime packaging.
 
 ## What is settled — do not re-derive
 
-- P1 / S01 through P4 / S04 are complete at `b9ce85e`, `bd4eb4f`, `d96b133`, and `ff2ff8f`.
-- The Rust format, test, and check gates passed for P4 (14 tests); the existing `merge_object` dead-code warning remains.
-- P4's `npm start` built and launched `target/debug/pyrocade`, then reached the 90-second tool timeout; no process remained afterward. Interactive workflows and visual WebView behavior were not verified.
+- P1 / S01 through P5 / S05 are complete at `b9ce85e`, `bd4eb4f`, `d96b133`, `ff2ff8f`, and `74bdbae`.
+- The Rust format, test, and check gates passed for P5 (17 tests); the existing `merge_object` dead-code warning remains.
+- P5's `npm start` was not run; runtime behavior was not exercised.
 - User data contracts distinguish filesystem paths for manuals from file URLs for artwork; preserve that distinction.
-- The private runtime spec requires managed macOS ARM64 and Linux ARM64 assets when upstream publishes compatible builds, preserving `.app` bundles through install and launch.
+- The private runtime spec requires macOS ARM64 and Linux ARM64 support on modern Snapdragon hardware; package the full Tauri app rather than a prototype.
+- Keep the product build free of Electron runtime packaging, but leave the `electron .` route in `package.json` for P9's runtime removal.
 - Updater-plugin initialization remains out until its plugin config is added in the later updater slice; current manual release commands remain.
-- `package.json:24` intentionally retains an `electron .` route resolving to `main.js` via `package.json:6` for the later Electron-removal slice. This is not a Do-Not fault.
+- P5 added provider-specific artwork retry/cache behavior, safe exclusive downloads, image conversion limits, and synchronized renderer/backend import replacement.
 
 ## Withdrawn — proven wrong, do not use
 
@@ -32,21 +33,21 @@ None.
 
 ## Code to touch
 
-- `artwork.js`
-- `renderer/artwork-ui.js`
-- `renderer/art.js`
-- `src-tauri/src/artwork.rs`
-- `src-tauri/src/backend.rs`
+- `package.json`
+- `package-lock.json`
+- `.github/workflows/release.yml`
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
 
 ## Read these first, and only these
 
 - `.operator/specs/desktop-runtime.md` — section `Desktop Runtime Direction`.
-- `.babysteps/tauri-migration.plan.md` — sections `Tauri v2 migration slices` and `Budget rows` (P5).
-- `.babysteps/tauri-migration.tasks.json` — task `S05`.
+- `.babysteps/tauri-migration.plan.md` — sections `Tauri v2 migration slices` and `Budget rows` (P6).
+- `.babysteps/tauri-migration.tasks.json` — task `S07`.
 
 ## Do-Not entries that apply here
 
-- #1
+None.
 
 Total Do-Not entries: 3.
 
@@ -59,4 +60,4 @@ Total Do-Not entries: 3.
 
 ## When this slice closes
 
-Closes when S05's stated contract is complete: Libretro and Switch artwork lookup, cached indexes, image validation/conversion, safe non-overwriting downloads, import replacement, library media updates, cancellation, status snapshots, and progress events are ported to Tauri.
+Closes when S07's stated contract is complete: Tauri bundles, icons, runtime dependencies, artifact names, app metadata, npm scripts, and target-specific build commands for macOS ARM64 and ARM64 Linux are configured, and the product build is free of Electron runtime packaging.

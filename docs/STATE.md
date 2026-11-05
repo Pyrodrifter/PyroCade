@@ -2,13 +2,13 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), and P4 / S04 (`ff2ff8f`) are complete; the next slice is P5.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), and P5 / S05 (`74bdbae`) are complete; the next slice is P6.
 
-**The next action is P5 / S05.**
+**The next action is P6 / S07.**
 
 ## Next action
 
-P5 — Port artwork download and import service. Port Libretro and Switch artwork lookup, cached indexes, image validation/conversion, safe non-overwriting downloads, import replacement, library media updates, cancellation, status snapshots, and progress events.
+P6 — Package macOS and Linux ARM64 builds. Configure Tauri bundles, icons, runtime dependencies, artifact names, app metadata, npm scripts, and target-specific build commands for macOS ARM64 and ARM64 Linux; keep the product build free of Electron runtime packaging.
 
 **The Do-Not list is `docs/donot.md`** — 3 entries, append-only. Never dropped, never trimmed.
 
@@ -41,13 +41,19 @@ P5 — Port artwork download and import service. Port Libretro and Switch artwor
   - Boundary linkage check found no new references to `main.js`, `preload.js`, or `artwork.js`; the slice changed only `src-tauri/src/backend.rs` and `src-tauri/src/emulators.rs`. The boundary note was absent.
   - Post-commit guard: WITHIN at 166,913/225,000 tokens (74%); session cost $0.13497802/$0.70. Do-Not count increased from 1 to 3; entries #2 and #3 record child reaping and unsafe ZIP-path rejection.
 
+- **P5 / S05 — Port artwork download and import service.** Source committed as `74bdbae` (`Port artwork service parity to Tauri`). The Rust service now refreshes cached indexes once per requested key when retrying, prefers Libretro's US then Europe/World matches, preserves non-overwriting writes across races, bounds converted image pixels, and updates backend game media when an import replaces an image.
+  - Close condition: Libretro and Switch artwork lookup, cached indexes, image validation/conversion, safe non-overwriting downloads, import replacement, library media updates, cancellation, status snapshots, and progress events are ported to Tauri.
+  - Rust gates passed: format check, 17 tests, and cargo check. The existing `merge_object` dead-code warning remains. `npm start` was not run; runtime behavior was not exercised.
+  - Boundary linkage and paths passed: the diff changed only `src-tauri/src/artwork.rs` and introduced no links to `main.js`, `preload.js`, or `artwork.js`. The boundary guide was absent.
+  - Post-commit guard: WITHIN at 169,518/225,000 tokens (75%); session cost $0.17537604/$0.70. The Do-Not count remains 3; #1 applies, no new fault was added, and no numbers were withdrawn.
+
 ### In progress
 
-- **P5 / S05 — Port artwork download and import service.** Port Libretro and Switch artwork lookup, cached indexes, image validation/conversion, safe non-overwriting downloads, import replacement, library media updates, cancellation, status snapshots, and progress events.
+- None.
 
 ### Queued
 
-- **P6 — Package macOS and Linux ARM64 builds.** Configure Tauri bundles, icons, dependencies, artifact names, and build commands.
+- **P6 / S07 — Package macOS and Linux ARM64 builds.** Configure Tauri bundles, icons, runtime dependencies, artifact names, app metadata, npm scripts, and target-specific build commands; keep the product build free of Electron runtime packaging.
 - **P7 — Port app update and release behavior.** Add release discovery and signed Tauri updater behavior where configured, with a manual fallback.
 - **P8 — Port validation and release automation.** Adapt checks, add ARM64 release jobs, and verify target behavior.
 - **P9 — Remove obsolete Electron application runtime.** Remove Electron runtime packaging after Tauri parity gates pass.
