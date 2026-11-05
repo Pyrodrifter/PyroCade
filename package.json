@@ -1,6 +1,6 @@
 {
   "name": "pyrocade",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "3D carousel front-end for emulators with built-in emulator downloader/updater",
   "license": "MIT",
   "main": "main.js",
@@ -16,6 +16,7 @@
     "brand:build": "electron scripts/build-brand.cjs",
     "brand:check": "electron scripts/check-brand.cjs",
     "demo:record": "electron scripts/record-reddit-demo.cjs",
+    "docs:screens": "electron scripts/capture-readme.cjs",
     "dist": "electron-builder --win nsis",
     "dist:linux": "electron-builder --linux AppImage deb rpm pacman"
   },

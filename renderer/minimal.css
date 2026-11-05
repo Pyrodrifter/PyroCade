@@ -198,3 +198,6 @@ select option, select optgroup { background-color: #151a22; color: #e8ebf2; }
 .manual-viewer-bar button { border-radius: 7px; padding: 6px 12px; font-size: 12px; background: #ffffff0a; border: 1px solid #ffffff18; }
 .manual-viewer-bar kbd { font-size: 10px; opacity: .7; margin-right: 4px; }
 #manualFrame { flex: 1; width: 100%; border: 0; background: #2a2d33; }
+
+/* Bookshelf and Spinner rack: the disc/cartridge stays in its case (it would cover the neighbours). */
+html:is([data-layout=bookshelf],[data-layout=spinner]) .item.sel.media-revealed .physical-media { visibility: hidden; transform: none; }
