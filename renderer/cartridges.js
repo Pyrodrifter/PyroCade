@@ -13,7 +13,9 @@ const Cartridges=(()=>{
     nes:{w:.64,h:.72,color:'#9a9b97',depth:9,outline:'3,0 97,0 100,3 100,100 0,100 0,3',label:[40,1,46.5,67],details:'M24 1V71H96 M7 33H20 M7 39H20 M7 45H20 M7 51H20 M7 57H20 M7 63H20 M5 76H95 M8 81H92 M8 86H92 M43 94L50 98L57 94'},
     snes:{w:.86,h:.55,color:'#acaab0',depth:10,outline:'4,0 96,0 100,7 100,88 95,88 95,100 5,100 5,88 0,88 0,7',label:[17,6,66,49],brand:'SUPER NINTENDO',brandY:70,details:'M4 20H12 M4 28H12 M4 36H12 M4 44H12 M88 20H96 M88 28H96 M88 36H96 M88 44H96 M12 60H88 M12 78H88 M6 89H94 M43 87L50 93L57 87'},
     // N64: wide body with a raised centre panel, recessed side wings with notched lower corners, near-square label.
-    n64:{w:1,h:.6,color:'#8f9097',depth:10,outline:'0,12 2,8 8,6 18,4 20,1 22,0 78,0 80,1 82,4 92,6 98,8 100,12 100,90 97,93 97,99 80,99 79,100 21,100 20,99 3,99 3,93 0,90',label:[25.5,10.5,49,74],details:'M20 4V99 M80 4V99 M4 93H18 M82 93H96'},
+    // N64, measured from a retail cartridge: one gently curved top, wings a little lower than the middle,
+    // seams between wings and middle, a small notch at each bottom corner, a tall rounded label.
+    n64:{w:.94,h:.65,color:'#8f9097',depth:10,outline:'0,10 1,7 4,5.5 11,4.5 18,3 19,1.5 30,.6 50,0 70,.6 81,1.5 82,3 89,4.5 96,5.5 99,7 100,10 100,70 97,75 97,98.5 95.5,100 4.5,100 3,98.5 3,75 0,70',label:[24,9,52,80],details:'M18.5 3V100 M81.5 3V100'},
     genesis:{w:.78,h:.56,color:'#252526',depth:9,outline:'0,15 9,7 27,1 73,1 91,7 100,15 100,95 95,100 5,100 0,95',label:[14.5,4,71,84],details:'M7 24V83 M11 19V83 M89 19V83 M93 24V83 M15 82H85 M44 88L50 94L56 88'},
     a2600:{w:.70,h:.80,color:'#302f2c',depth:10,outline:rect,label:[7,13,86,63],details:'M5 7H95 M4 82H96 M8 87H92 M8 92H92 M8 97H92'}
   };

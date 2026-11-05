@@ -226,3 +226,6 @@ html[data-motion=reduced] .brand-fold { transition: none; }
 .added-list small { display: block; color: var(--muted); font-size: 11px; word-break: break-all; }
 .added-list li.missing b { color: #ff9a9a; }
 .sys-remove { margin-left: 8px; padding: 2px 8px !important; font-size: 10px !important; }
+
+/* N64 labels have rounded corners. */
+.cartridge-n64 .cartridge-label { border-radius: 4%/5%; }
