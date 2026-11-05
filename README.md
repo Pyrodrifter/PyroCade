@@ -2,7 +2,7 @@
 
 ![PyroCade: your collection, a little more alive.](renderer/assets/brand/pyrocade-banner.png)
 
-An emulator front end that shows your games as real 3D boxes, with discs and cartridges, retail-style spines and manuals. It also installs and updates your emulators for you.
+An emulator front end for Windows, macOS and Linux that shows your games as real 3D boxes, with discs and cartridges, retail-style spines and manuals. It also installs and updates your emulators for you.
 
 ![The carousel: Jak II with its disc, clear logo, details and screenshot](docs/media/screen-carousel.jpg)
 
@@ -37,6 +37,12 @@ An emulator front end that shows your games as real 3D boxes, with discs and car
 
 ## Install
 **Windows:** download **PyroCade-Setup-x.y.z.exe** from the [latest release](https://github.com/Pyrodrifter/PyroCade/releases/latest) and run it. The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC": click **More info → Run anyway**. Settings, emulators and artwork are kept in `%APPDATA%\PyroCade\data`. PyroCade checks for new releases when it starts and can update itself.
+
+**macOS:** download **PyroCade-x.y.z-arm64.dmg** for Apple Silicon (M1 and newer), or **PyroCade-x.y.z-x64.dmg** for Intel Macs. Open it and drag PyroCade to Applications. PyroCade isn't notarized by Apple yet, so the first time you open it macOS blocks it.
+1. Open **System Settings → Privacy & Security**.
+2. Scroll down and click **Open Anyway** next to PyroCade.
+
+If macOS says the app is damaged, run `xattr -cr /Applications/PyroCade.app` in Terminal once. Data lives in `~/Library/Application Support/PyroCade/data`. On a Mac, link the emulators you already have with **Use existing .exe…**, which accepts `.app` bundles such as Dolphin.app. The automatic emulator downloads are Windows and Linux only for now.
 
 **Linux:** every release has 64-bit builds.
 

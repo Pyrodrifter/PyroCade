@@ -499,6 +499,13 @@ function guessAsset(assets) {
       if (/\.zip$|\.7z$/.test(n)) v += 2; // portable archives over installers
       if (/setup|install/.test(n)) v -= 3;
       if (/msvc|clang|mingw|llvm/.test(n)) v -= .5; // when a plain build sits next to compiler variants, take the plain one
+    } else if (process.platform === 'darwin') {
+      // Mac: archives that hold an .app (disk images can't be unpacked here).
+      if (/(windows|win64|win32|\.exe$|linux|appimage|android|\.deb$|\.rpm$|\.dmg$)/.test(n)) return -1;
+      if (!/\.(zip|tar\.(gz|xz|zst|bz2)|tgz)$/.test(n)) return -1;
+      if (/mac|macos|osx|darwin|apple/.test(n)) v += 5; else return -1;
+      if (/universal/.test(n)) v += 2;
+      else if (process.arch === 'arm64' ? /arm64|aarch64|apple/.test(n) : /x64|x86_64|intel/.test(n)) v += 2;
     } else {
       if (/(windows|win64|\.exe$|macos|osx|darwin|android)/.test(n)) return -1;
       if (/\.appimage$/.test(n)) v += 6;
@@ -522,6 +529,20 @@ function guessProgram(dir, repo) {
   }
   const win = process.platform === 'win32';
   const hint = String(repo || '').split('/').pop().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (process.platform === 'darwin') {
+    // Mac: the program is an .app bundle; pick the best-named one and start the binary inside.
+    const apps = [], walk = [dir];
+    while (walk.length) {
+      const d = walk.shift();
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        if (!e.isDirectory()) continue;
+        const p = path.join(d, e.name);
+        if (/\.app$/i.test(e.name)) apps.push(p); else walk.push(p);
+      }
+    }
+    const best = apps.sort((a, b) => Number(path.basename(b).toLowerCase().replace(/[^a-z0-9]/g, '').includes(hint)) - Number(path.basename(a).toLowerCase().replace(/[^a-z0-9]/g, '').includes(hint)))[0];
+    return best ? macAppBinary(best) : null;
+  }
   const candidates = files.filter(f => {
     const n = path.basename(f).toLowerCase();
     if (/unins|uninstall|update|crash|redist|vc_?redist|setup|installer|helper|elevate|dxwebsetup/.test(n)) return false;
@@ -590,7 +611,7 @@ async function findRelease(repo, { asset: pattern, prerelease }) {
       assetId: asset.id, assetName: asset.name, size: asset.size, url: asset.browser_download_url, notes: rel.body || '',
     };
   }
-  const platformName = process.platform === 'win32' ? 'Windows' : 'Linux';
+  const platformName = process.platform === 'win32' ? 'Windows' : process.platform === 'darwin' ? 'macOS' : 'Linux';
   throw new Error(re ? `No ${platformName} download matching /${pattern}/ found in recent releases of ${repo}.` : `No ${platformName} download found in recent releases of ${repo}. Set a download pattern under Source.`);
 }
 
@@ -614,7 +635,10 @@ function findFile(dir, re) {
 }
 
 // Linux programs (AppImages, binaries) usually have no .exe extension.
-const PROGRAM_FILTERS = process.platform === 'win32' ? [{ name: 'Programs', extensions: ['exe'] }] : [{ name: 'All files', extensions: ['*'] }];
+const PROGRAM_FILTERS = process.platform === 'win32' ? [{ name: 'Programs', extensions: ['exe'] }]
+  : process.platform === 'darwin' ? [{ name: 'Applications', extensions: ['app'] }, { name: 'All files', extensions: ['*'] }]
+  : [{ name: 'All files', extensions: ['*'] }];
+const PROGRAM_START = process.platform === 'darwin' ? { defaultPath: '/Applications' } : {};
 const ARCHIVE = /\.(zip|7z|tar|tgz|tar\.(gz|xz|zst|bz2))$/i;
 function run(cmd, args) {
   return new Promise((res, rej) => {
@@ -717,6 +741,18 @@ function splitArgs(s) {
 }
 
 let win;
+// On a Mac, emulators are .app bundles (folders). Start the program inside: Contents/MacOS/<CFBundleExecutable>.
+function macAppBinary(p) {
+  if (process.platform !== 'darwin' || !/\.app\/?$/i.test(p || '')) return p;
+  try {
+    const plist = fs.readFileSync(path.join(p, 'Contents', 'Info.plist'), 'utf8');
+    const name = plist.match(/<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/)?.[1];
+    if (name && fs.existsSync(path.join(p, 'Contents', 'MacOS', name))) return path.join(p, 'Contents', 'MacOS', name);
+    const first = fs.readdirSync(path.join(p, 'Contents', 'MacOS'))[0];
+    if (first) return path.join(p, 'Contents', 'MacOS', first);
+  } catch {}
+  return p;
+}
 function launchGame(gameId) {
   // The ROM path always comes from the scanned library, never from the renderer.
   const game = libraryGames.find(g => g.id === gameId);
@@ -725,7 +761,7 @@ function launchGame(gameId) {
   if (!sys) throw new Error('Unknown system');
   const emuId = sys.emulator;
   if (!emuId) throw new Error(`No emulator is set for ${sys.name}. Choose one in Settings.`);
-  const exe = resolveExe(emuId);
+  const exe = macAppBinary(resolveExe(emuId));
   if (!exe) throw new Error(`${emuDef(emuId)?.name || emuId} isn't installed yet. Install it from the Emulators tab.`);
   const tpl = sys.args || emuDef(emuId).args || '{rom}';
   // split/join instead of replace(): "$&", "$$" etc. in a filename must stay literal.
@@ -776,6 +812,7 @@ async function checkAppUpdate() {
     // Shown instead of "Update now" when this copy can't update itself.
     manualHint: !app.isPackaged ? 'This is a git copy, so update it with "git pull".'
       : process.platform === 'linux' && !appImage ? 'Install the new .deb, .rpm or Arch package from the release page.'
+      : process.platform === 'darwin' ? 'Download the new .dmg from the release page and drag PyroCade to Applications.'
       : 'Download it from the release page.',
   };
 }
@@ -1085,14 +1122,14 @@ handle('emu:install', id => installEmu(id, p => win.webContents.send('emu:progre
 handle('emu:uninstall', async id => { await fsp.rm(path.join(EMU_DIR, id), { recursive: true, force: true }); return emuStatus(id); });
 handle('emu:openFolder', id => { const exe = resolveExe(id); shell.openPath(exe ? path.dirname(exe) : EMU_DIR); });
 handle('emu:pickExe', async id => {
-  const r = await dialog.showOpenDialog(win, { title: 'Choose emulator program', filters: PROGRAM_FILTERS, properties: ['openFile'] });
+  const r = await dialog.showOpenDialog(win, { title: 'Choose emulator program', filters: PROGRAM_FILTERS, properties: ['openFile'], ...PROGRAM_START });
   if (r.canceled) return null;
   config.emulators[id] = { ...(config.emulators[id] || {}), exe: r.filePaths[0] };
   saveConfig(config);
   return emuStatus(id);
 });
 handle('emu:addCustom', async ({ name, systems, args }) => {
-  const r = await dialog.showOpenDialog(win, { title: `Choose ${name} program`, filters: PROGRAM_FILTERS, properties: ['openFile'] });
+  const r = await dialog.showOpenDialog(win, { title: `Choose ${name} program`, filters: PROGRAM_FILTERS, properties: ['openFile'], ...PROGRAM_START });
   if (r.canceled) return null;
   const id = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   config.customEmulators = config.customEmulators.filter(e => e.id !== id);

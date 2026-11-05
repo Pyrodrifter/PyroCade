@@ -2,6 +2,14 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
+## [0.4.2] - 2026-11-05
+
+### Added
+- **macOS:**
+  - Disk images (.dmg) and zips for Apple Silicon and Intel Macs, built and smoke-tested on every release.
+  - Emulators can be linked as `.app` bundles, and PyroCade starts the program inside.
+  - The release-file guess for custom emulator repositories also knows Mac downloads.
+
 ## [0.4.1] - 2026-11-05
 
 ### Changed
@@ -93,6 +101,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.4.2]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.2.1...v0.3.0

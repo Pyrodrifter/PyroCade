@@ -1,6 +1,6 @@
 {
   "name": "pyrocade",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "3D carousel front-end for emulators with built-in emulator downloader/updater",
   "license": "MIT",
   "main": "main.js",
@@ -18,7 +18,8 @@
     "demo:record": "electron scripts/record-reddit-demo.cjs",
     "docs:screens": "electron scripts/capture-readme.cjs",
     "dist": "electron-builder --win nsis",
-    "dist:linux": "electron-builder --linux AppImage deb rpm pacman"
+    "dist:linux": "electron-builder --linux AppImage deb rpm pacman",
+    "dist:mac": "electron-builder --mac"
   },
   "devDependencies": {
     "electron": "^39.0.0",
@@ -72,6 +73,34 @@
       "installerIcon": "renderer/assets/brand/pyrocade.ico",
       "uninstallerIcon": "renderer/assets/brand/pyrocade.ico",
       "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "renderer/assets/brand/pyrocade-icon-1024.png",
+      "category": "public.app-category.games",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "PyroCade-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "artifactName": "PyroCade-${version}-${arch}.dmg",
+      "title": "PyroCade ${version}"
     },
     "publish": null,
     "linux": {

@@ -1,4 +1,4 @@
-# Builds the Windows installer and the Linux packages, smoke-tests Linux, and attaches
+# Builds the Windows installer, the Linux packages and the Mac disk images, smoke-tests Linux and Mac, and attaches
 # everything to a *draft* GitHub release. Publish the draft when it looks right; installed
 # copies of PyroCade only see published releases.
 name: Release
@@ -74,8 +74,39 @@ jobs:
             ${{ runner.temp }}/*.png
           if-no-files-found: error
 
+  mac:
+    runs-on: macos-latest
+    env:
+      # Ad-hoc signed (no Apple developer certificate yet): skip looking for one.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ env.TAG }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx electron-builder --mac --publish never
+      - name: Check the signature
+        run: codesign --verify --deep --verbose=2 dist/mac-arm64/PyroCade.app
+      - name: Smoke test the app
+        env:
+          PYROCADE_SNAP: ${{ runner.temp }}/mac.png
+          PYROCADE_JS: (async()=>JSON.stringify({version:await api.appVersion(),demo:!document.getElementById('demoBanner').classList.contains('hidden')}))()
+        run: |
+          perl -e 'alarm 120; exec @ARGV' dist/mac-arm64/PyroCade.app/Contents/MacOS/PyroCade
+          cat "$PYROCADE_SNAP.txt"; echo
+          test -s "$PYROCADE_SNAP"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: |
+            dist/PyroCade-*.dmg
+            dist/PyroCade-*-mac-*.zip
+            ${{ runner.temp }}/mac.png
+          if-no-files-found: error
+
   release:
-    needs: [windows, linux]
+    needs: [windows, linux, mac]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -85,7 +116,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          files=$(find out -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' \))
+          files=$(find out -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*.dmg' -o -name '*-mac-*.zip' \))
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" $files --clobber
           else
