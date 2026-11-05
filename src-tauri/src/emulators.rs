@@ -1,0 +1,701 @@
+use crate::backend::AppState;
+use crate::config::save_config;
+use futures_util::StreamExt;
+use serde_json::{Value, json};
+use std::collections::HashSet;
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
+use tokio::io::AsyncWriteExt;
+
+const CATALOG: &str = include_str!("../../emulators.json");
+
+#[tauri::command]
+pub fn list_emulators(state: State<'_, AppState>) -> Result<Vec<Value>, String> {
+    let config = state.config();
+    let catalog: Vec<Value> = serde_json::from_str(CATALOG).map_err(|e| e.to_string())?;
+    let mut ids = HashSet::new();
+    let mut result = Vec::new();
+    for entry in catalog.iter().chain(
+        config
+            .get("customEmulators")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten(),
+    ) {
+        if let Some(id) = entry.get("id").and_then(Value::as_str) {
+            if ids.insert(id.to_owned()) {
+                result.push(emu_status(&state, entry, &config));
+            }
+        }
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn check_emulator_update(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Value, String> {
+    let config = state.config();
+    let latest = latest_release(&id, &config).await?;
+    let installed = read_manifest(&state.emu_dir, &id);
+    let update_available =
+        installed.as_ref().and_then(|m| m.get("assetId")) != latest.get("assetId");
+    Ok(json!({"latest":latest,"updateAvailable":update_available}))
+}
+
+#[tauri::command]
+pub async fn install_emulator(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Value, String> {
+    {
+        let mut guard = installing().lock().map_err(|e| e.to_string())?;
+        if !guard.insert(id.clone()) {
+            return Err("Already installing".to_owned());
+        }
+    }
+    let result = install_inner(&app, &state, &id).await;
+    if let Ok(mut guard) = installing().lock() {
+        guard.remove(&id);
+    }
+    result
+}
+
+static INSTALLING: std::sync::OnceLock<std::sync::Mutex<HashSet<String>>> =
+    std::sync::OnceLock::new();
+
+fn installing() -> &'static std::sync::Mutex<HashSet<String>> {
+    INSTALLING.get_or_init(|| std::sync::Mutex::new(HashSet::new()))
+}
+
+async fn install_inner(app: &AppHandle, state: &AppState, id: &str) -> Result<Value, String> {
+    let config = state.config();
+    let definition = find_definition(id, &config).ok_or_else(|| "Unknown emulator".to_owned())?;
+    let definition = selected_definition(&definition, &config, id);
+    definition
+        .get("source")
+        .filter(|v| !v.is_null())
+        .ok_or_else(|| {
+            "This emulator is not managed by the downloader on this platform and architecture."
+                .to_owned()
+        })?;
+    emit_progress(
+        app,
+        json!({"id":id,"stage":"Checking latest release…","pct":0}),
+    );
+    let release = latest_release_from_definition(&definition, &config, id).await?;
+    let url = release
+        .get("url")
+        .and_then(Value::as_str)
+        .ok_or("Release asset has no URL")?;
+    let asset_name = release
+        .get("assetName")
+        .and_then(Value::as_str)
+        .ok_or("Release asset has no filename")?;
+    let temp = std::env::temp_dir().join(format!("pyrocade-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&temp).map_err(|e| e.to_string())?;
+    let archive = temp.join(asset_name);
+    let result = async {
+        let response = reqwest::Client::builder().user_agent("PyroCade-Frontend").build().map_err(|e| e.to_string())?
+            .get(url).send().await.map_err(|e| e.to_string())?;
+        if !response.status().is_success() { return Err(format!("Download failed: HTTP {}", response.status())); }
+        let total = response.content_length().or_else(|| release.get("size").and_then(Value::as_u64)).unwrap_or_default();
+        let mut stream = response.bytes_stream();
+        let mut file = tokio::fs::File::create(&archive).await.map_err(|e| e.to_string())?;
+        let mut got = 0_u64;
+        let mut last = std::time::Instant::now();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| e.to_string())?;
+            file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+            got += chunk.len() as u64;
+            if last.elapsed() >= std::time::Duration::from_millis(120) {
+                emit_progress(app, json!({"id":id,"stage":format!("Downloading {asset_name}"),"pct":if total > 0 { got as f64 / total as f64 } else { 0.0 },"got":got,"total":total}));
+                last = std::time::Instant::now();
+            }
+        }
+        file.flush().await.map_err(|e| e.to_string())?;
+        let stage = temp.join("unpacked");
+        fs::create_dir_all(&stage).map_err(|e| e.to_string())?;
+        if is_archive(asset_name) {
+            emit_progress(app, json!({"id":id,"stage":"Extracting…","pct":1}));
+            extract_archive(&archive, &stage)?;
+        } else {
+            fs::rename(&archive, stage.join(asset_name)).map_err(|e| e.to_string())?;
+        }
+        let source_dir = one_wrapping_directory(&stage);
+        let exe_pattern = definition.get("exe").and_then(Value::as_str).ok_or("Emulator program pattern is missing")?;
+        let exe_regex = regex::Regex::new(&format!("(?i){exe_pattern}")).map_err(|e| e.to_string())?;
+        let found = find_program(&source_dir, &exe_regex).ok_or_else(|| format!("Downloaded, but couldn't find the program (/{exe_pattern}/) in it."))?;
+        let relative = found.strip_prefix(&source_dir).map_err(|e| e.to_string())?;
+        let destination = state.emu_dir.join(id);
+        copy_tree(&source_dir, &destination)?;
+        let executable = destination.join(relative);
+        set_executable(&executable)?;
+        let mut manifest = release.clone();
+        manifest["exe"] = Value::String(relative.to_string_lossy().replace('\\', "/"));
+        manifest["installedAt"] = Value::String(chrono::Utc::now().to_rfc3339());
+        if let Some(object) = manifest.as_object_mut() { object.remove("notes"); }
+        write_manifest(&state.emu_dir, id, &manifest)?;
+        emit_progress(app, json!({"id":id,"stage":"Done","pct":1,"done":true}));
+        Ok(emu_status(state, &find_definition(id, &config).ok_or("Unknown emulator")?, &config))
+    }.await;
+    let _ = fs::remove_dir_all(&temp);
+    result
+}
+
+#[tauri::command]
+pub fn uninstall_emulator(state: State<'_, AppState>, id: String) -> Result<Value, String> {
+    let config = state.config();
+    let definition = find_definition(&id, &config).ok_or_else(|| "Unknown emulator".to_owned())?;
+    let path = state.emu_dir.join(&id);
+    if path.exists() {
+        fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
+    }
+    Ok(emu_status(&state, &definition, &config))
+}
+
+#[tauri::command]
+pub fn open_emulator_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let config = state.config();
+    let definition = find_definition(&id, &config).ok_or_else(|| "Unknown emulator".to_owned())?;
+    let exe = resolve_exe(&state.emu_dir, &id, &definition, &config);
+    let path = exe
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| state.emu_dir.clone());
+    fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(path.to_string_lossy().into_owned(), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn pick_emulator_executable(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Option<Value>, String> {
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_title("Choose emulator program")
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let overrides = config["emulators"]
+        .as_object_mut()
+        .ok_or("Invalid emulator settings")?;
+    let current = overrides.entry(id.clone()).or_insert_with(|| json!({}));
+    current["exe"] = Value::String(path.to_string_lossy().to_string());
+    let next = config.clone();
+    save_config(&state.config_path, &next)?;
+    let definition = find_definition(&id, &next).ok_or_else(|| "Unknown emulator".to_owned())?;
+    Ok(Some(emu_status(&state, &definition, &next)))
+}
+
+#[tauri::command]
+pub fn add_custom_emulator(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    opts: Value,
+) -> Result<Option<Value>, String> {
+    let name = opts
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("Custom emulator")
+        .trim();
+    if name.is_empty() {
+        return Err("Enter an emulator name.".to_owned());
+    }
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_title(format!("Choose {name} program"))
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    let slug = name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect::<String>();
+    let id = format!(
+        "custom-{}",
+        slug.split('-')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("-")
+    );
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let custom = config["customEmulators"]
+        .as_array_mut()
+        .ok_or("Invalid emulator settings")?;
+    custom.retain(|entry| entry.get("id").and_then(Value::as_str) != Some(&id));
+    custom.push(json!({
+        "id": id, "name": name,
+        "systems": opts.get("systems").cloned().unwrap_or_else(|| json!([])),
+        "args": opts.get("args").and_then(Value::as_str).unwrap_or("{rom}"),
+        "exe": path.to_string_lossy()
+    }));
+    let next = config.clone();
+    save_config(&state.config_path, &next)?;
+    let definition =
+        find_definition(&id, &next).ok_or_else(|| "Could not save custom emulator".to_owned())?;
+    Ok(Some(emu_status(&state, &definition, &next)))
+}
+
+pub(crate) fn find_definition(id: &str, config: &Value) -> Option<Value> {
+    let catalog: Vec<Value> = serde_json::from_str(CATALOG).ok()?;
+    catalog
+        .into_iter()
+        .find(|e| e.get("id").and_then(Value::as_str) == Some(id))
+        .or_else(|| {
+            config
+                .get("customEmulators")
+                .and_then(Value::as_array)?
+                .iter()
+                .find(|e| e.get("id").and_then(Value::as_str) == Some(id))
+                .cloned()
+        })
+}
+
+pub(crate) fn selected_definition(base: &Value, config: &Value, id: &str) -> Value {
+    let custom = base.get("custom").and_then(Value::as_bool).unwrap_or(false)
+        || base
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|s| s.starts_with("custom-"));
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "windows"
+    };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else {
+        std::env::consts::ARCH
+    };
+    let specific = base
+        .get("platforms")
+        .and_then(|p| p.get(platform))
+        .and_then(|p| p.get(arch));
+    let legacy_linux = if platform == "linux" && arch == "x86_64" {
+        base.get("linux")
+    } else {
+        None
+    };
+    let platform_data = specific.or(legacy_linux);
+    let mut selected = base.clone();
+    if !custom {
+        if let Some(data) = platform_data {
+            if let Some(object) = selected.as_object_mut() {
+                for key in ["asset", "exe", "args", "source", "repo", "systems"] {
+                    if let Some(value) = data.get(key) {
+                        object.insert(key.to_owned(), value.clone());
+                    }
+                }
+                if data.get("repo").is_some() {
+                    let source = object.entry("source").or_insert_with(|| json!({}));
+                    source["repo"] = data["repo"].clone();
+                }
+            }
+        } else {
+            selected["source"] = Value::Null;
+            selected["asset"] = Value::Null;
+        }
+    }
+    if let Some(override_value) = config.get("emulators").and_then(|v| v.get(id)) {
+        if let Some(object) = selected.as_object_mut() {
+            for (key, value) in override_value.as_object().into_iter().flatten() {
+                if key != "exe" {
+                    object.insert(key.clone(), value.clone());
+                }
+            }
+            object.insert(
+                "exePath".to_owned(),
+                override_value.get("exe").cloned().unwrap_or(Value::Null),
+            );
+        }
+    }
+    selected["custom"] = Value::Bool(custom);
+    selected
+}
+
+fn emu_status(state: &AppState, base: &Value, config: &Value) -> Value {
+    let id = base.get("id").and_then(Value::as_str).unwrap_or_default();
+    let definition = selected_definition(base, config, id);
+    let manifest = read_manifest(&state.emu_dir, id);
+    let exe = resolve_exe(&state.emu_dir, id, &definition, config);
+    json!({
+        "id": id,
+        "name": definition.get("name").cloned().unwrap_or(Value::String(id.to_owned())),
+        "systems": definition.get("systems").cloned().unwrap_or_else(|| json!([])),
+        "repo": definition.pointer("/source/repo"),
+        "custom": definition.get("custom").and_then(Value::as_bool).unwrap_or(false),
+        "prerelease": definition.pointer("/source/prerelease").and_then(Value::as_bool).unwrap_or(false) || config.pointer(&format!("/emulators/{id}/prerelease")).and_then(Value::as_bool).unwrap_or(false),
+        "args": definition.get("args"),
+        "exe": exe.map(|p| p.to_string_lossy().to_string()),
+        "installed": manifest.as_ref().map(|m| json!({"version":m.get("tag"),"name":m.get("releaseName"),"date":m.get("publishedAt")})),
+        "managed": definition.pointer("/source/repo").and_then(Value::as_str).is_some() && definition.get("asset").and_then(Value::as_str).is_some()
+    })
+}
+
+pub(crate) fn resolve_exe(
+    emu_dir: &Path,
+    id: &str,
+    definition: &Value,
+    config: &Value,
+) -> Option<PathBuf> {
+    if let Some(path) = definition
+        .get("exePath")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+    {
+        let path = PathBuf::from(path);
+        if path.is_absolute() && path.is_file() {
+            return Some(path);
+        }
+    }
+    if let Some(exe) = read_manifest(emu_dir, id)
+        .and_then(|m| m.get("exe").and_then(Value::as_str).map(str::to_owned))
+    {
+        let path = emu_dir.join(id).join(exe);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+    config
+        .get("customEmulators")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|e| e.get("id").and_then(Value::as_str) == Some(id))
+        .and_then(|e| e.get("exe").and_then(Value::as_str))
+        .map(PathBuf::from)
+        .filter(|p| p.is_file())
+}
+
+fn manifest_path(emu_dir: &Path, id: &str) -> PathBuf {
+    emu_dir.join(id).join("manifest.json")
+}
+fn read_manifest(emu_dir: &Path, id: &str) -> Option<Value> {
+    fs::read_to_string(manifest_path(emu_dir, id))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+}
+fn write_manifest(emu_dir: &Path, id: &str, manifest: &Value) -> Result<(), String> {
+    let dir = emu_dir.join(id);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_vec_pretty(manifest).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
+}
+
+async fn latest_release(id: &str, config: &Value) -> Result<Value, String> {
+    let definition = find_definition(id, config).ok_or_else(|| "Unknown emulator".to_owned())?;
+    latest_release_from_definition(&selected_definition(&definition, config, id), config, id).await
+}
+
+async fn latest_release_from_definition(
+    definition: &Value,
+    config: &Value,
+    id: &str,
+) -> Result<Value, String> {
+    let source = definition
+        .get("source")
+        .filter(|v| !v.is_null())
+        .ok_or_else(|| {
+            "This emulator is not managed by the downloader on this platform and architecture."
+                .to_owned()
+        })?;
+    let repo = source
+        .get("repo")
+        .and_then(Value::as_str)
+        .ok_or("Emulator release repository is missing")?;
+    let pattern = definition
+        .get("asset")
+        .and_then(Value::as_str)
+        .ok_or("Emulator release asset pattern is missing")?;
+    let regex = regex::Regex::new(&format!("(?i){pattern}")).map_err(|e| e.to_string())?;
+    let prerelease = source
+        .get("prerelease")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || config
+            .pointer(&format!("/emulators/{id}/prerelease"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+    let client = reqwest::Client::builder()
+        .user_agent("PyroCade-Frontend")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let urls = if prerelease {
+        vec![format!(
+            "https://api.github.com/repos/{repo}/releases?per_page=15"
+        )]
+    } else {
+        vec![format!(
+            "https://api.github.com/repos/{repo}/releases/latest"
+        )]
+    };
+    let mut releases = Vec::new();
+    for url in urls {
+        let response = client
+            .get(url)
+            .header("Accept", "application/vnd.github+json")
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "GitHub {}: {}",
+                response.status(),
+                response
+                    .status()
+                    .canonical_reason()
+                    .unwrap_or("request failed")
+            ));
+        }
+        let value: Value = response.json().await.map_err(|e| e.to_string())?;
+        if prerelease {
+            releases.extend(value.as_array().cloned().unwrap_or_default());
+        } else {
+            releases.push(value);
+        }
+    }
+    for release in releases {
+        if release
+            .get("draft")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let Some(asset) = release
+            .get("assets")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .find(|asset| {
+                asset
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|n| regex.is_match(n))
+            })
+        else {
+            continue;
+        };
+        let tag = release
+            .get("tag_name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        return Ok(json!({
+            "tag": tag,
+            "releaseName": release.get("name").and_then(Value::as_str).filter(|s| !s.is_empty()).unwrap_or(tag),
+            "publishedAt": asset.get("updated_at").or_else(|| release.get("published_at")),
+            "assetId": asset.get("id"), "assetName": asset.get("name"),
+            "size": asset.get("size"), "url": asset.get("browser_download_url"),
+            "notes": release.get("body").and_then(Value::as_str).unwrap_or("")
+        }));
+    }
+    Err(format!(
+        "No {} download matching /{pattern}/ found in recent releases.",
+        if cfg!(target_os = "windows") {
+            "Windows"
+        } else {
+            "platform"
+        }
+    ))
+}
+
+fn emit_progress(app: &AppHandle, value: Value) {
+    let _ = app.emit("emu:progress", value);
+}
+
+fn is_archive(name: &str) -> bool {
+    regex::Regex::new(r"(?i)\.(zip|7z|tar|tgz|tar\.(gz|xz|zst|bz2))$")
+        .unwrap()
+        .is_match(name)
+}
+
+fn extract_archive(archive: &Path, destination: &Path) -> Result<(), String> {
+    let extension = archive
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    if extension.ends_with(".zip") {
+        return extract_zip(archive, destination);
+    }
+    let candidates: Vec<(&str, Vec<String>)> = if extension.ends_with(".7z") {
+        vec![
+            (
+                "7z",
+                vec![
+                    "x".into(),
+                    "-y".into(),
+                    format!("-o{}", destination.display()),
+                    archive.display().to_string(),
+                ],
+            ),
+            (
+                "7za",
+                vec![
+                    "x".into(),
+                    "-y".into(),
+                    format!("-o{}", destination.display()),
+                    archive.display().to_string(),
+                ],
+            ),
+        ]
+    } else {
+        vec![
+            (
+                "bsdtar",
+                vec![
+                    "-xf".into(),
+                    archive.display().to_string(),
+                    "-C".into(),
+                    destination.display().to_string(),
+                ],
+            ),
+            (
+                "tar",
+                vec![
+                    "-xf".into(),
+                    archive.display().to_string(),
+                    "-C".into(),
+                    destination.display().to_string(),
+                ],
+            ),
+        ]
+    };
+    for (command, args) in candidates {
+        match Command::new(command).args(args).status() {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(status) => {
+                return Err(format!(
+                    "{command} could not extract the archive (exit {}).",
+                    status.code().unwrap_or(-1)
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Err(format!(
+        "Can't unpack {}: install bsdtar or 7-Zip.",
+        archive
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("archive")
+    ))
+}
+
+fn extract_zip(archive: &Path, destination: &Path) -> Result<(), String> {
+    let file = File::open(archive).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    for index in 0..zip.len() {
+        let mut entry = zip.by_index(index).map_err(|e| e.to_string())?;
+        let Some(relative) = entry.enclosed_name() else {
+            continue;
+        };
+        let target = destination.join(relative);
+        if entry.is_dir() {
+            fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut output = File::create(target).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut output).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn one_wrapping_directory(path: &Path) -> PathBuf {
+    let Ok(entries) = fs::read_dir(path) else {
+        return path.to_path_buf();
+    };
+    let entries: Vec<_> = entries.filter_map(Result::ok).collect();
+    if entries.len() == 1 && entries[0].file_type().is_ok_and(|t| t.is_dir()) {
+        entries[0].path()
+    } else {
+        path.to_path_buf()
+    }
+}
+
+fn find_program(root: &Path, regex: &regex::Regex) -> Option<PathBuf> {
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(dir).ok()?.filter_map(Result::ok) {
+            let path = entry.path();
+            if entry.file_type().ok()?.is_dir() {
+                stack.push(path);
+            } else if path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| regex.is_match(n))
+            {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+fn copy_tree(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir_all(destination).map_err(|e| e.to_string())?;
+    for entry in walkdir::WalkDir::new(source).follow_links(false) {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let relative = entry
+            .path()
+            .strip_prefix(source)
+            .map_err(|e| e.to_string())?;
+        if relative.as_os_str().is_empty() {
+            continue;
+        }
+        let target = destination.join(relative);
+        if entry.file_type().is_dir() {
+            fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+        } else if entry.file_type().is_file() {
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            fs::copy(entry.path(), target).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+fn set_executable(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(path).map_err(|e| e.to_string())?.permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}

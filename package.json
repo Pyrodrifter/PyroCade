@@ -5,7 +5,12 @@
   "license": "MIT",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "tauri dev",
+    "tauri": "tauri",
+    "build": "tauri build",
+    "dist": "tauri build",
+    "dist:macos:arm64": "tauri build --target aarch64-apple-darwin --bundles app,dmg",
+    "dist:linux:arm64": "tauri build --target aarch64-unknown-linux-gnu --bundles appimage,deb,rpm",
     "prompts:build": "node scripts/build-prompts.js",
     "prompts:export": "electron scripts/export-prompts.cjs",
     "prompts:check": "electron scripts/check-prompts.cjs",
@@ -16,10 +21,10 @@
     "brand:build": "electron scripts/build-brand.cjs",
     "brand:check": "electron scripts/check-brand.cjs",
     "demo:record": "electron scripts/record-reddit-demo.cjs",
-    "dist": "electron-builder --win nsis",
-    "dist:linux": "electron-builder --linux AppImage deb rpm pacman"
+    "electron:start": "electron ."
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "electron": "^39.0.0",
     "electron-builder": "^26.18.0"
   },
