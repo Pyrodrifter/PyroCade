@@ -170,3 +170,8 @@ html[data-layout=spinner] .item.sel { filter: drop-shadow(0 18px 24px #000b); }
 @keyframes led-on { to { background: #34e07a; box-shadow: 0 0 12px #34e07a, 0 0 3px #b9ffd4; } }
 @keyframes launch-in { from { opacity: 0; } }
 @keyframes launch-out { to { opacity: 0; } }
+/* Dropdowns: the open list is drawn by the system from the select's own colours, so they must be
+   solid and dark (a see-through background left white text on a white list). */
+select { color-scheme: dark; background-color: #151a22; color: var(--text); }
+select option, select optgroup { background-color: #151a22; color: #e8ebf2; }
+.view:not(#view-library) select { background-color: #151a22; }
