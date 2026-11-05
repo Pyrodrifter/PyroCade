@@ -1,7 +1,7 @@
 const Appearance=(()=>{
   const $=s=>document.querySelector(s);
   const themes={ember:{name:'Ember',accent:'#ff752e',light:'#ffc074'},glacier:{name:'Glacier',accent:'#37bfe6',light:'#9defff'},violet:{name:'Violet',accent:'#a685ff',light:'#ebafff'},mint:{name:'Mint',accent:'#4dc59c',light:'#c3f59f'},rose:{name:'Rose',accent:'#f46e9b',light:'#ffc2a5'}};
-  const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Page through'},swatches:{name:'Colour cards',note:'Colour grid'}};
+  const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Page through'},bookshelf:{name:'Bookshelf',note:'Spines on a shelf'},spinner:{name:'Spinner rack',note:'Rotating store tower'},swatches:{name:'Colour cards',note:'Colour grid'}};
   let theme='ember',mode='carousel',infoBar='small',context,saves=Promise.resolve(),volumeTimer;
   function persist(){
     const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.uiSound=AudioUI.settings();state.config.libraryInfoBar=infoBar;
@@ -50,14 +50,34 @@ const Appearance=(()=>{
     $('#appearancePicker').addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&!e.target.matches('input')){e.preventDefault();controller(e.key.slice(5).toLowerCase())}});
   }
   function syncBackground(){const current=Ambient.settings().background;for(const b of document.querySelectorAll('#backgroundOptions button'))b.setAttribute('aria-pressed',String(b.dataset.background===current))}
+  const RACK_TIERS=3;
   function geometry(stage,selected,length){
+    if(mode==='bookshelf')return {lo:selected-26,hi:selected+26};
+    if(mode==='spinner'){const col=Math.floor(selected/RACK_TIERS);return {lo:(col-4)*RACK_TIERS,hi:(col+4)*RACK_TIERS+RACK_TIERS-1}}
     if(mode!=='swatches')return {lo:selected-8,hi:selected+8};
     const columns=Math.max(1,Math.min(stage.clientWidth>=1400?4:3,length||1)),rows=stage.clientHeight>=260?2:1,cells=columns*rows;
     const start=Math.floor(selected/cells)*cells,width=Math.min(300,(stage.clientWidth-180-(columns-1)*16)/columns),height=Math.min(133,Math.max(78,(stage.clientHeight-58-(rows-1)*14)/rows));
     return {lo:start,hi:Math.min(length-1,start+cells-1),columns,rows,width,height,start};
   }
-  function position(i,sel,scale,itemScale,stage,view){
+  // size(i) gives the [width, height, depth] of case i, so spines can stand side by side.
+  function position(i,sel,scale,itemScale,stage,view,size=()=>[230,323,24]){
     const d=i-sel,a=Math.abs(d),s=Math.sign(d);
+    if(mode==='bookshelf') {
+      // Cases stand spine-out on one shelf, bottoms on the plank; the selected one slides out to face you.
+      const k=itemScale*.6,ks=itemScale*.82,base=323*k/2;
+      if(d===0){const [,H]=size(i);return {transform:`translate3d(0px,${base-H*ks/2-34*scale}px,150px) scale3d(${ks},${ks},${ks})`,hidden:false,shelf:base}}
+      const [Ws]=size(sel);let x=Ws*ks/2+18*scale;
+      for(let j=sel+s;j!==i;j+=s)x+=size(j)[2]*k+1.5;
+      const [,H,D]=size(i);x+=D*k/2;
+      return {transform:`translate3d(${s*x}px,${base-H*k/2}px,0px) rotateY(90deg) scale3d(${k},${k},${k})`,hidden:x>stage.clientWidth/2+40};
+    }
+    if(mode==='spinner') {
+      // A store tower: columns of three cases around a turning post; the selected case pops out.
+      const k=itemScale*.4,col=Math.floor(i/RACK_TIERS),tier=i%RACK_TIERS,dc=col-Math.floor(sel/RACK_TIERS);
+      const angle=dc*38,radius=330*scale,pitch=Math.min(330*k+12*scale,(stage.clientHeight-40)/RACK_TIERS);
+      const pop=d===0?70*scale:0,ks=d===0?k*1.12:k;
+      return {transform:`translate3d(0px,${(tier-1)*pitch}px,${-radius}px) rotateY(${angle}deg) translateZ(${radius+pop}px) scale3d(${ks},${ks},${ks})`,hidden:Math.abs(angle)>115,shade:Math.min(.75,Math.abs(angle)/120)};
+    }
     if(mode==='swatches'){
       const col=(i-view.start)%view.columns,row=Math.floor((i-view.start)/view.columns);
       return {transform:`translate3d(${col*(view.width+16)-(view.columns*view.width+(view.columns-1)*16)/2}px,${row*(view.height+14)-(view.rows*view.height+(view.rows-1)*14)/2}px,0)`,hidden:i<view.lo||i>view.hi,width:view.width,height:view.height};
@@ -80,7 +100,7 @@ const Appearance=(()=>{
     if(action==='play'||action==='case'){if(active.matches('button'))active.click();return;}
     if(!['left','right','up','down'].includes(action))return;
     if(active.id==='soundVolume'&&['left','right'].includes(action)){active.value=Math.max(0,Math.min(100,Number(active.value)+(action==='left'?-5:5)));active.dispatchEvent(new Event('input'));AudioUI.play('scroll');return;}
-    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,2),layoutButtons.slice(2),[...document.querySelectorAll('#themeOptions button')],[...document.querySelectorAll('#backgroundOptions button')],[...document.querySelectorAll('#infoBarOptions button')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
+    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,3),layoutButtons.slice(3),[...document.querySelectorAll('#themeOptions button')],[...document.querySelectorAll('#backgroundOptions button')],[...document.querySelectorAll('#infoBarOptions button')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
     let row=rows.findIndex(r=>r.includes(active)),col=row<0?0:rows[row].indexOf(active);if(row<0){rows[0][0].focus();return;}
     if(action==='left'||action==='right')col=Math.max(0,Math.min(rows[row].length-1,col+(action==='left'?-1:1)));
     else{row=Math.max(0,Math.min(rows.length-1,row+(action==='up'?-1:1)));col=Math.min(col,rows[row].length-1)}

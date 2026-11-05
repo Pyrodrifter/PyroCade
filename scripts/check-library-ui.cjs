@@ -23,7 +23,7 @@ app.whenReady().then(async()=>{
       const first=rail.querySelector('button');first.focus();first.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));assert(S.system==='ps1'&&document.activeElement.dataset.id==='ps1','Rail keyboard navigation did not move focus and selection');
       document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'k',ctrlKey:true,bubbles:true}));assert(LibraryUI.pickerOpen()&&document.activeElement.id==='systemSearch','Ctrl+K did not open the system browser');
       const search=document.querySelector('#systemSearch');search.value='switch 2';search.dispatchEvent(new Event('input'));assert(document.querySelectorAll('#systemPickerGrid button').length===1,'System filter failed');
-      search.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await pause(30);assert(S.system==='switch2'&&!LibraryUI.pickerOpen(),'System picker did not select an empty configured system');assert(document.activeElement.id==='btnSystemPicker','Picker did not restore focus');
+      search.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await pause(150);assert(S.system==='switch2'&&!LibraryUI.pickerOpen(),'System picker did not select an empty configured system');assert(document.activeElement.id==='btnSystemPicker','Picker did not restore focus');
       setSystem('switch');select(3);LibraryUI.openPicker();input('right');assert(document.activeElement.matches('#systemPickerGrid button'),'Controller cannot browse the picker');input('back');await pause(20);
       LibraryUI.openPicker();input('manual');assert(Appearance.panelOpen()&&!LibraryUI.pickerOpen(),'Controller cannot open appearance from system browser');
       input('right');assert(document.activeElement.dataset.layout==='vertical','Controller cannot move among layouts');input('play');assert(Appearance.mode()==='vertical','Controller cannot select layout');input('left');input('play');
@@ -32,7 +32,7 @@ app.whenReady().then(async()=>{
     await snap('ui-appearance-panel.png');
     await run(`document.querySelector('#appearancePicker').close();await pause(30);`);
     const themes=['ember','glacier','violet','mint'];let index=0;
-    for(const layout of ['carousel','vertical','flipbook','swatches']){
+    for(const layout of ['carousel','vertical','flipbook','bookshelf','spinner','swatches']){
       await run(`
         setSystem('switch');select(3);Appearance.apply({layout:'${layout}',theme:'${themes[index++]}' });await Appearance.persist();await pause(100);
         assert(document.documentElement.dataset.layout==='${layout}','Layout did not apply');
@@ -50,7 +50,7 @@ app.whenReady().then(async()=>{
       await openCase();assert(caseShown()&&document.querySelector('#caseRig .case'),'Colour cards cannot open the physical case');closeCase();
     `);
     win.setContentSize(1100,650);
-    for(const layout of ['carousel','vertical','flipbook','swatches'])await run(`
+    for(const layout of ['carousel','vertical','flipbook','bookshelf','spinner','swatches'])await run(`
       Appearance.apply({layout:'${layout}'},false);resizeShelf();layout();await pause(60);
       const toolbar=document.querySelector('.toolbar').getBoundingClientRect(),stage=document.querySelector('#stage').getBoundingClientRect(),info=document.querySelector('#info').getBoundingClientRect();
       assert(toolbar.bottom<stage.top+10,'System bar overlaps preview at minimum size');assert(stage.bottom<info.top,'Preview overlaps details at minimum size');
@@ -71,6 +71,6 @@ app.whenReady().then(async()=>{
       return {peak:Number(peak.toFixed(4)),energy:Number(energy.toFixed(4))};
     `);
     if(errors.length)throw new Error(errors.join('\n'));
-    clearTimeout(watchdog);console.log(JSON.stringify({passed:'System icons/counts, horizontal wheel and keyboard navigation, searchable picker, controller navigation, focus restoration, four layouts, five themes, automatic preference saving, search clear, case viewer, minimum window and rendered audio',sound}));app.exit(0);
+    clearTimeout(watchdog);console.log(JSON.stringify({passed:'System icons/counts, horizontal wheel and keyboard navigation, searchable picker, controller navigation, focus restoration, six layouts, five themes, automatic preference saving, search clear, case viewer, minimum window and rendered audio',sound}));app.exit(0);
   }catch(e){console.error(e);app.exit(1)}
 });

@@ -246,6 +246,12 @@ function updateArtwork(result) {
   measure(game);refreshGame(game);
 }
 
+// Physical case size of the game at a list position (no artwork work, unlike art()).
+function caseSize(i) {
+  const g = S.list[i]; if (!g) return [230, 323, 24];
+  const sys = sysOf(g.system);
+  return Packaging.profiles[sys.id]?.size || CASES[sys.caseType] || CASES.dvd;
+}
 function layout() {
   const stage = $('#stage');
   const scale = Math.max(.35,Math.min(1.16,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
@@ -257,7 +263,9 @@ function layout() {
     if (fresh) { e = makeItem(i); items.set(i, e); }
     const d = i - S.sel, a = Math.abs(d);
     const itemScale = scale * Number(e.dataset.displayScale || 1);
-    const placement=Appearance.position(i,S.sel,scale,itemScale,stage,view),t=placement.transform;
+    const placement=Appearance.position(i,S.sel,scale,itemScale,stage,view,caseSize),t=placement.transform;
+    if(placement.shelf!==undefined)stage.style.setProperty('--shelf-line',placement.shelf+'px');
+    e.style.setProperty('--rack-shade',placement.shade||0);
     if(placement.width){e.style.width=placement.width+'px';e.style.height=placement.height+'px'}else{e.style.removeProperty('width');e.style.removeProperty('height')}
     if (fresh) { e.style.transition = 'none'; e.style.transform = t + ' translateY(40px)'; e.offsetWidth; e.style.transition = ''; }
     e.style.transform = t;
@@ -346,11 +354,30 @@ function setGameBackground(layer,game,a) {
 }
 
 // ---------- actions ----------
+// Start animation: the disc spins into a drive slot, or the cartridge is pushed into its slot,
+// while the emulator starts. Skipped with reduced motion; removed at once if the launch fails.
+function launchFx(g) {
+  if (document.documentElement.dataset.motion === 'reduced') return null;
+  $('.launch-fx')?.remove();
+  const a = art(g), cart = a.sys.media === 'cart';
+  const media = createMedia(g, { ...a, W: a.W * (cart ? 1.35 : 1.2), H: a.H * 1.2 });
+  const fx = el('div', `launch-fx ${cart ? 'is-cart' : 'is-disc'}`);
+  fx.setAttribute('aria-hidden', 'true');
+  const view = el('div', 'launch-window'), mover = el('div', 'launch-mover'), deck = el('div', 'launch-console');
+  mover.append(media); view.append(mover);
+  deck.append(el('div', 'launch-slot'), el('i', 'launch-led'), el('span', 'launch-title', esc(g.title)));
+  fx.append(view, deck);
+  document.body.append(fx);
+  setTimeout(() => fx.classList.add('out'), 2000);
+  setTimeout(() => fx.remove(), 2500);
+  return fx;
+}
 async function play(g = S.list[S.sel]) {
   if (!g) return;
   if (g.demo) return toast('This is a demo game — add your ROM folders in Settings to play for real.');
+  const fx = launchFx(g);
   try { await api.launch(g.id);AudioUI.play('launch'); toast(`Launching ${g.title}…`); }
-  catch (e) {AudioUI.play('error');toast(e.message, 5000); }
+  catch (e) { fx?.remove(); AudioUI.play('error');toast(e.message, 5000); }
 }
 function manual(g = S.list[S.sel]) {
   if (g?.media.manual) api.openManual(g.media.manual);
