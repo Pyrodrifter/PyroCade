@@ -12,7 +12,11 @@
     },
     "asset": "^duckstation-windows-x64-release\\.zip$",
     "exe": "^duckstation-qt.*\\.exe$",
-    "args": "-batch -fullscreen {rom}"
+    "args": "-batch -fullscreen {rom}",
+    "linux": {
+      "asset": "^DuckStation-x64.AppImage$",
+      "exe": "^DuckStation-x64.AppImage$"
+    }
   },
   {
     "id": "pcsx2",
@@ -27,7 +31,11 @@
     },
     "asset": "windows-x64-Qt\\.7z$",
     "exe": "^pcsx2-qt\\.exe$",
-    "args": "-batch -fullscreen -- {rom}"
+    "args": "-batch -fullscreen -- {rom}",
+    "linux": {
+      "asset": "-linux-appimage-x64-Qt.AppImage$",
+      "exe": "-linux-appimage-x64-Qt.AppImage$"
+    }
   },
   {
     "id": "rpcs3",
@@ -42,7 +50,12 @@
     },
     "asset": "_win64\\.7z$",
     "exe": "^rpcs3\\.exe$",
-    "args": "--no-gui {rom}"
+    "args": "--no-gui {rom}",
+    "linux": {
+      "repo": "RPCS3/rpcs3-binaries-linux",
+      "asset": "_linux64.AppImage$",
+      "exe": "_linux64.AppImage$"
+    }
   },
   {
     "id": "shadps4",
@@ -57,7 +70,11 @@
     },
     "asset": "^shadps4-win64-sdl.*\\.zip$",
     "exe": "^shadps4\\.exe$",
-    "args": "-g {rom}"
+    "args": "-g {rom}",
+    "linux": {
+      "asset": "^shadps4-linux-sdl-.*.zip$",
+      "exe": "^shadps4.*.AppImage$"
+    }
   },
   {
     "id": "ppsspp",
@@ -72,7 +89,11 @@
     },
     "asset": "-Windows-x64\\.zip$",
     "exe": "^PPSSPPWindows64\\.exe$",
-    "args": "--fullscreen {rom}"
+    "args": "--fullscreen {rom}",
+    "linux": {
+      "asset": "-anylinux-x86_64.AppImage$",
+      "exe": "-anylinux-x86_64.AppImage$"
+    }
   },
   {
     "id": "cemu",
@@ -87,7 +108,11 @@
     },
     "asset": "windows-x64\\.zip$",
     "exe": "^Cemu\\.exe$",
-    "args": "-f -g {rom}"
+    "args": "-f -g {rom}",
+    "linux": {
+      "asset": "-x86_64.AppImage$",
+      "exe": "-x86_64.AppImage$"
+    }
   },
   {
     "id": "azahar",
@@ -102,7 +127,11 @@
     },
     "asset": "^azahar-windows-msvc-.*.zip$",
     "exe": "^azahar\\.exe$",
-    "args": "{rom}"
+    "args": "{rom}",
+    "linux": {
+      "asset": "^azahar.AppImage$",
+      "exe": "^azahar.AppImage$"
+    }
   },
   {
     "id": "melonds",
@@ -117,7 +146,11 @@
     },
     "asset": "windows-x86_64\\.zip$",
     "exe": "^melonDS\\.exe$",
-    "args": "{rom}"
+    "args": "{rom}",
+    "linux": {
+      "asset": "-appimage-x86_64.zip$",
+      "exe": "^melonDS.*.AppImage$"
+    }
   },
   {
     "id": "mgba",
@@ -133,7 +166,11 @@
     },
     "asset": "-win64\\.7z$",
     "exe": "^mGBA\\.exe$",
-    "args": "-f {rom}"
+    "args": "-f {rom}",
+    "linux": {
+      "asset": "-appimage-x64.appimage$",
+      "exe": "-appimage-x64.appimage$"
+    }
   },
   {
     "id": "flycast",
@@ -148,7 +185,11 @@
     },
     "asset": "^flycast-win64-.*\\.zip$",
     "exe": "^flycast\\.exe$",
-    "args": "{rom}"
+    "args": "{rom}",
+    "linux": {
+      "asset": "^flycast-x86_64-.*.AppImage$",
+      "exe": "^flycast-x86_64-.*.AppImage$"
+    }
   },
   {
     "id": "xemu",
@@ -163,6 +204,10 @@
     },
     "asset": "^(?!.*-dbg-)(?!.*pdb).*-windows-x86_64\\.zip$",
     "exe": "^xemu\\.exe$",
-    "args": "-full-screen -dvd_path {rom}"
+    "args": "-full-screen -dvd_path {rom}",
+    "linux": {
+      "asset": "^xemu-(?!.*-dbg-).*-x86_64.AppImage$",
+      "exe": "^xemu-.*-x86_64.AppImage$"
+    }
   }
 ]

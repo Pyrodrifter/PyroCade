@@ -1,6 +1,6 @@
 {
   "name": "pyrocade",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "3D carousel front-end for emulators with built-in emulator downloader/updater",
   "license": "MIT",
   "main": "main.js",
@@ -16,14 +16,18 @@
     "brand:build": "electron scripts/build-brand.cjs",
     "brand:check": "electron scripts/check-brand.cjs",
     "demo:record": "electron scripts/record-reddit-demo.cjs",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "dist:linux": "electron-builder --linux AppImage deb rpm pacman"
   },
   "devDependencies": {
     "electron": "^39.0.0",
     "electron-builder": "^26.18.0"
   },
   "productName": "PyroCade",
-  "author": "Pyrodrifter",
+  "author": {
+    "name": "Pyrodrifter",
+    "email": "151417494+Pyrodrifter@users.noreply.github.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Pyrodrifter/PyroCade.git"
@@ -66,6 +70,40 @@
       "uninstallerIcon": "renderer/assets/brand/pyrocade.ico",
       "deleteAppDataOnUninstall": false
     },
-    "publish": null
-  }
+    "publish": null,
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm",
+        "pacman"
+      ],
+      "executableName": "pyrocade",
+      "icon": "renderer/assets/brand/pyrocade-icon-512.png",
+      "category": "Game",
+      "synopsis": "3D carousel front end for emulators",
+      "maintainer": "Pyrodrifter <151417494+Pyrodrifter@users.noreply.github.com>",
+      "desktop": {
+        "entry": {
+          "Name": "PyroCade",
+          "Comment": "3D carousel front end for emulators",
+          "Categories": "Game;Emulator;",
+          "Keywords": "emulator;games;launcher;"
+        }
+      }
+    },
+    "appImage": {
+      "artifactName": "PyroCade-${version}-x86_64.AppImage"
+    },
+    "deb": {
+      "artifactName": "pyrocade_${version}_amd64.deb"
+    },
+    "rpm": {
+      "artifactName": "pyrocade-${version}.x86_64.rpm"
+    },
+    "pacman": {
+      "artifactName": "pyrocade-${version}-x86_64.pkg.tar.zst"
+    }
+  },
+  "homepage": "https://github.com/Pyrodrifter/PyroCade"
 }

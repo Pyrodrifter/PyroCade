@@ -308,9 +308,18 @@ function emuDef(id) {
   const base = catalog || config.customEmulators.find(e => e.id === id);
   if (!base) return null;
   const override = config.emulators[id] || {};
+  // On Linux the catalog's "linux" block replaces the Windows download rules. Catalog emulators
+  // without one aren't managed by the downloader there (they can still be linked by hand).
+  let platform = base;
+  if (catalog && process.platform !== 'win32') {
+    platform = catalog.linux && process.platform === 'linux'
+      ? { ...catalog, asset: catalog.linux.asset, exe: catalog.linux.exe, source: { ...catalog.source, repo: catalog.linux.repo || catalog.source.repo } }
+      : { ...catalog, source: undefined };
+  }
   // For catalog emulators `exe` is a filename regex used after installing; a program the user
   // linked with "Use existing .exe…" is kept separately as exePath so the two never mix.
-  return { ...base, ...override, exe: base.exe, exePath: override.exe || (catalog ? null : base.exe), custom: !catalog };
+  return { ...platform, ...override, exe: platform.exe, source: platform.source, asset: platform.asset,
+    exePath: override.exe || (catalog ? null : base.exe), custom: !catalog };
 }
 function manifestPath(id) { return path.join(EMU_DIR, id, '.pyrocade.json'); }
 function readManifest(id) { try { return JSON.parse(fs.readFileSync(manifestPath(id), 'utf8')); } catch { return null; } }
@@ -379,15 +388,30 @@ function findFile(dir, re) {
   return null;
 }
 
-function extract(archive, dest) {
-  const tar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+// Linux programs (AppImages, binaries) usually have no .exe extension.
+const PROGRAM_FILTERS = process.platform === 'win32' ? [{ name: 'Programs', extensions: ['exe'] }] : [{ name: 'All files', extensions: ['*'] }];
+const ARCHIVE = /\.(zip|7z|tar|tgz|tar\.(gz|xz|zst|bz2))$/i;
+function run(cmd, args) {
   return new Promise((res, rej) => {
-    const p = spawn(tar, ['-xf', archive, '-C', dest], { windowsHide: true });
+    const p = spawn(cmd, args, { windowsHide: true });
     let err = '';
     p.stderr.on('data', d => (err += d));
     p.on('error', rej);
     p.on('close', c => (c === 0 ? res() : rej(new Error(`Extract failed: ${err.trim() || 'exit ' + c}`))));
   });
+}
+// Windows has bsdtar built in (handles zip and 7z). On Linux try the usual tools in turn:
+// bsdtar (Arch/SteamOS), unzip / 7z, then GNU tar for tarballs.
+async function extract(archive, dest) {
+  if (process.platform === 'win32') return run(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe'), ['-xf', archive, '-C', dest]);
+  const tries = [['bsdtar', ['-xf', archive, '-C', dest]]];
+  if (/\.zip$/i.test(archive)) tries.push(['unzip', ['-o', '-q', archive, '-d', dest]], ['7z', ['x', '-y', `-o${dest}`, archive]]);
+  else if (/\.7z$/i.test(archive)) tries.push(['7z', ['x', '-y', `-o${dest}`, archive]], ['7za', ['x', '-y', `-o${dest}`, archive]]);
+  else tries.push(['tar', ['-xf', archive, '-C', dest]]);
+  for (const [cmd, args] of tries) {
+    try { return await run(cmd, args); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  }
+  throw new Error(`Can't unpack ${path.basename(archive)}: install bsdtar (libarchive) or ${/\.zip$/i.test(archive) ? 'unzip' : '7-Zip'}.`);
 }
 
 // Stream a fetch() response to a file, calling onChunk for progress.
@@ -417,22 +441,34 @@ async function installEmu(id, send) {
       if (Date.now() - last > 120) { last = Date.now(); send({ id, stage: `Downloading ${rel.assetName}`, pct: total ? got / total : 0, got, total }); }
     });
 
-    send({ id, stage: 'Extracting…', pct: 1 });
     const stage = path.join(tmp, 'x');
     await fsp.mkdir(stage);
-    await extract(archive, stage);
+    if (ARCHIVE.test(rel.assetName)) {
+      send({ id, stage: 'Extracting…', pct: 1 });
+      await extract(archive, stage);
+    } else {
+      // A single program file (e.g. a Linux AppImage) is used as downloaded.
+      await fsp.rename(archive, path.join(stage, rel.assetName));
+    }
     // Flatten a single wrapping folder.
     let src = stage;
     const top = fs.readdirSync(stage, { withFileTypes: true });
     if (top.length === 1 && top[0].isDirectory()) src = path.join(stage, top[0].name);
 
+    // Look for the program in the new files only, so an old version left in the folder is never picked.
+    const found = findFile(src, new RegExp(def.exe, 'i'));
+    if (!found) throw new Error(`Downloaded, but couldn't find the program (/${def.exe}/) in it.`);
+    const exeRel = path.relative(src, found);
     const dest = path.join(EMU_DIR, id);
     await fsp.mkdir(dest, { recursive: true });
     // Copy over the top so emulator settings / portable folders survive updates.
     await fsp.cp(src, dest, { recursive: true, force: true });
-    const exe = findFile(dest, new RegExp(def.exe, 'i'));
-    if (!exe) throw new Error(`Installed, but couldn't find the program (/${def.exe}/) in the download.`);
-    const man = { ...rel, exe: path.relative(dest, exe), installedAt: new Date().toISOString() };
+    const exe = path.join(dest, exeRel);
+    if (process.platform !== 'win32') await fsp.chmod(exe, 0o755);
+    // Versioned single-file programs (pcsx2-v2.8.2-….AppImage) would otherwise pile up.
+    const old = readManifest(id)?.exe;
+    if (old && old !== exeRel && !/[\\/]/.test(old) && /\.appimage$/i.test(old)) await fsp.rm(path.join(dest, old), { force: true });
+    const man = { ...rel, exe: exeRel, installedAt: new Date().toISOString() };
     delete man.notes;
     fs.writeFileSync(manifestPath(id), JSON.stringify(man, null, 2));
     send({ id, stage: 'Done', pct: 1, done: true });
@@ -502,16 +538,44 @@ async function checkAppUpdate() {
   if (r.status === 404) return { current: APP_VERSION, available: false }; // no releases published yet
   if (!r.ok) throw new Error(`GitHub ${r.status}: ${r.statusText}${r.status === 403 ? ' (rate limited — try again later)' : ''}`);
   const rel = await r.json();
-  // Installed builds update by running the new release's setup .exe.
-  const installer = (rel.assets || []).find(a => /^PyroCade-Setup-.*\.exe$/i.test(a.name));
+  // Installed builds update from a release file: the setup .exe on Windows, the AppImage on Linux.
+  // deb / rpm / pacman installs belong to the system package manager, so those update by hand.
+  const appImage = process.platform === 'linux' && process.env.APPIMAGE;
+  const pattern = process.platform === 'win32' ? /^PyroCade-Setup-.*\.exe$/i : appImage ? /^PyroCade-.*\.AppImage$/i : null;
+  const installer = pattern && (rel.assets || []).find(a => pattern.test(a.name));
   return {
     current: APP_VERSION, latest: rel.tag_name.replace(/^v/i, ''), available: isNewer(rel.tag_name, APP_VERSION),
     name: rel.name || rel.tag_name, notes: rel.body || '', url: rel.html_url, zip: rel.zipball_url,
     installer: installer ? { url: installer.browser_download_url, name: installer.name, size: installer.size } : null,
     canInstall: app.isPackaged ? !!installer && !process.env.PORTABLE_EXECUTABLE_DIR : !isDevCheckout(),
     // Shown instead of "Update now" when this copy can't update itself.
-    manualHint: app.isPackaged ? 'Download it from the release page.' : 'This is a git copy, so update it with "git pull".',
+    manualHint: !app.isPackaged ? 'This is a git copy, so update it with "git pull".'
+      : process.platform === 'linux' && !appImage ? 'Install the new .deb, .rpm or Arch package from the release page.'
+      : 'Download it from the release page.',
   };
+}
+
+// Linux AppImage: download the new AppImage, swap it in place of the running one and restart it.
+async function installAppImage(info, send) {
+  const target = process.env.APPIMAGE;
+  const next = `${target}.new`;
+  const r = await fetch(info.installer.url, { headers: { 'User-Agent': UA['User-Agent'] } });
+  if (!r.ok) throw new Error(`Download failed: HTTP ${r.status}`);
+  const total = Number(r.headers.get('content-length')) || info.installer.size || 0;
+  let got = 0, last = 0;
+  try {
+    await downloadTo(r, next, chunk => {
+      got += chunk.length;
+      if (Date.now() - last > 120) { last = Date.now(); send({ stage: `Downloading PyroCade ${info.latest}…`, pct: total ? got / total : 0, got, total }); }
+    });
+    await fsp.chmod(next, 0o755);
+    await fsp.rename(next, target); // the running copy keeps its open file; the new one takes the name
+  } catch (e) {
+    await fsp.rm(next, { force: true });
+    throw new Error(e.code === 'EACCES' ? `PyroCade can't write to ${path.dirname(target)}. Move the AppImage to a folder you own.` : e.message);
+  }
+  send({ stage: 'Restarting…', pct: 1, done: true });
+  return { version: info.latest, mode: 'appimage' };
 }
 
 // Installed build: download the new setup .exe, run it silently and quit so it can replace us.
@@ -546,7 +610,7 @@ async function installAppUpdate(send) {
     if (!info.available) throw new Error('PyroCade is already up to date.');
     if (app.isPackaged) {
       if (!info.canInstall) throw new Error('This release has no installer. Download it from the release page.');
-      return await installFromSetup(info, send);
+      return process.platform === 'win32' ? await installFromSetup(info, send) : await installAppImage(info, send);
     }
     // Source copy (npm start): replace the program files from the release's source zip.
     send({ stage: `Downloading PyroCade ${info.latest}…`, pct: 0 });
@@ -619,6 +683,7 @@ handle('app:installUpdate', async () => {
   const result = await installAppUpdate(p => { if (win && !win.isDestroyed()) win.webContents.send('app:updateProgress', p); });
   // Installer mode: just quit; the setup replaces the files and starts PyroCade again.
   if (result.mode === 'installer') setTimeout(() => app.quit(), 800);
+  else if (result.mode === 'appimage') setTimeout(() => { app.relaunch({ execPath: process.env.APPIMAGE }); app.exit(0); }, 800);
   else if (!result.needsNpmInstall) setTimeout(() => { app.relaunch(); app.exit(0); }, 800);
   return result;
 });
@@ -655,14 +720,14 @@ handle('emu:install', id => installEmu(id, p => win.webContents.send('emu:progre
 handle('emu:uninstall', async id => { await fsp.rm(path.join(EMU_DIR, id), { recursive: true, force: true }); return emuStatus(id); });
 handle('emu:openFolder', id => { const exe = resolveExe(id); shell.openPath(exe ? path.dirname(exe) : EMU_DIR); });
 handle('emu:pickExe', async id => {
-  const r = await dialog.showOpenDialog(win, { title: 'Choose emulator program', filters: [{ name: 'Programs', extensions: ['exe'] }], properties: ['openFile'] });
+  const r = await dialog.showOpenDialog(win, { title: 'Choose emulator program', filters: PROGRAM_FILTERS, properties: ['openFile'] });
   if (r.canceled) return null;
   config.emulators[id] = { ...(config.emulators[id] || {}), exe: r.filePaths[0] };
   saveConfig(config);
   return emuStatus(id);
 });
 handle('emu:addCustom', async ({ name, systems, args }) => {
-  const r = await dialog.showOpenDialog(win, { title: `Choose ${name} program`, filters: [{ name: 'Programs', extensions: ['exe'] }], properties: ['openFile'] });
+  const r = await dialog.showOpenDialog(win, { title: `Choose ${name} program`, filters: PROGRAM_FILTERS, properties: ['openFile'] });
   if (r.canceled) return null;
   const id = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   config.customEmulators = config.customEmulators.filter(e => e.id !== id);

@@ -13,6 +13,20 @@ Download **PyroCade-Setup-x.y.z.exe** from the [latest release](https://github.c
 
 Installed copies keep their settings, emulators and artwork in `%APPDATA%\PyroCade\data`. PyroCade checks for new releases when it starts and can update itself from the banner or **Settings → PyroCade updates**.
 
+### Linux
+Every release has 64-bit (x86_64) Linux builds:
+
+| Distribution | Download | Install |
+| --- | --- | --- |
+| **SteamOS** (Steam Deck) and any distro | `PyroCade-x.y.z-x86_64.AppImage` | In Desktop Mode, right-click the file → Properties → Permissions → *Is executable*, then open it. To play from Game Mode, add it in Steam with *Add a Non-Steam Game*. |
+| **Ubuntu**, Debian, Linux Mint, Pop!_OS | `pyrocade_x.y.z_amd64.deb` | `sudo apt install ./pyrocade_x.y.z_amd64.deb` |
+| **Fedora**, Nobara, openSUSE | `pyrocade-x.y.z.x86_64.rpm` | `sudo dnf install ./pyrocade-x.y.z.x86_64.rpm` |
+| **Arch**, Manjaro, EndeavourOS, CachyOS | `pyrocade-x.y.z-x86_64.pkg.tar.zst` | `sudo pacman -U ./pyrocade-x.y.z-x86_64.pkg.tar.zst` |
+
+On Linux, settings and emulators are kept in `~/.config/PyroCade/data`. The emulator downloader installs the official Linux AppImages. The AppImage updates itself; the .deb, .rpm and Arch packages show the update banner and are updated by installing the new package.
+
+On Ubuntu 24.04 and newer, prefer the .deb: AppImages built with Electron need to be started with `--no-sandbox` there because of Ubuntu's AppArmor rules.
+
 ## Run from source
     npm ci
     npm start
@@ -20,7 +34,7 @@ Installed copies keep their settings, emulators and artwork in `%APPDATA%\PyroCa
 Build the installer with `npm run dist` (output in `dist/`).
 
 ## Releasing an update
-Raise `version` in `package.json`, run `npm run dist`, then publish a GitHub release tagged `v<version>` with `dist/PyroCade-Setup-<version>.exe` attached. Installed copies offer the update on their next start.
+Raise `version` in `package.json`, commit, then push a tag `v<version>` (for example `git tag v0.3.0 && git push origin v0.3.0`). The **Release** GitHub Action builds the Windows installer and the Linux packages, smoke-tests Linux, and attaches them to a draft release. Publish the draft, and installed copies offer the update on their next start.
 
 ## Brand assets
 The flame and play-button mark, glass app icon, wordmark and banner are in `renderer/assets/brand/`. The set includes SVG masters, PNG icons from 16 to 1024px, a transparent wordmark and a multi-resolution Windows `.ico`. The header mark follows the selected colour theme. Rebuild the complete set with `npm run brand:build`.
