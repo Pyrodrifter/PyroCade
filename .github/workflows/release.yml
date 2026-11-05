@@ -34,7 +34,7 @@ jobs:
       - name: Build macOS ARM64 release
         run: |
           if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -n "$TAURI_UPDATER_PUBLIC_KEY" ]; then
-            export TAURI_CONFIG="$(python3 - <<'PY'
+            TAURI_CONFIG="$(python3 - <<'PY'
           import json, os
           print(json.dumps({
               "bundle": {"createUpdaterArtifacts": True},
@@ -45,6 +45,7 @@ jobs:
           }))
           PY
           )"
+            export TAURI_CONFIG
           fi
           npm run dist:macos:arm64
       - uses: actions/upload-artifact@v4
@@ -75,7 +76,7 @@ jobs:
       - name: Build Linux ARM64 release
         run: |
           if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -n "$TAURI_UPDATER_PUBLIC_KEY" ]; then
-            export TAURI_CONFIG="$(python3 - <<'PY'
+            TAURI_CONFIG="$(python3 - <<'PY'
           import json, os
           print(json.dumps({
               "bundle": {"createUpdaterArtifacts": True},
@@ -86,6 +87,7 @@ jobs:
           }))
           PY
           )"
+            export TAURI_CONFIG
           fi
           npm run dist:linux:arm64
       - uses: actions/upload-artifact@v4
@@ -148,9 +150,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          files=$(find out -type f)
+          mapfile -d '' files < <(find out -type f -print0)
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" $files --clobber
+            gh release upload "$TAG" "${files[@]}" --clobber
           else
-            gh release create "$TAG" $files --draft --title "PyroCade ${TAG#v}" --generate-notes
+            gh release create "$TAG" "${files[@]}" --draft --title "PyroCade ${TAG#v}" --generate-notes
           fi
