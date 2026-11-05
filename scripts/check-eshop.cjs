@@ -7,14 +7,27 @@ const {pathToFileURL}=require('node:url');
 const {createHash}=require('node:crypto');
 const root=path.resolve(__dirname,'..');
 const coverDir=path.join(root,'data/media/switch/covers');
-const files=fs.readdirSync(coverDir).filter(f=>f.endsWith('.png'));
+// Local fixtures from data/media. Files may be PNG or JPG (large ones are re-encoded as JPG).
+const image=/\.(png|jpe?g)$/i,stemOf=name=>name.replace(image,'');
+function size(file){
+  const b=fs.readFileSync(file);
+  if(b.subarray(1,4).toString()==='PNG')return [b.readUInt32BE(16),b.readUInt32BE(20)];
+  for(let i=2;i+9<b.length;){if(b[i]!==0xff){i++;continue}const m=b[i+1];if(m>=0xc0&&m<=0xcf&&![0xc4,0xc8,0xcc].includes(m))return [b.readUInt16BE(i+7),b.readUInt16BE(i+5)];i+=2+b.readUInt16BE(i+2)}
+  return [0,0];
+}
+const files=fs.readdirSync(coverDir).filter(f=>image.test(f));
 const expected=['Asterix','Cato Buttered Cat','Neko Bento','Suika Game [','Suika Game Planet','Suika Game v'];
+const hqDir=path.join(root,'data/media/switch/cover-hq'),hqFiles=fs.existsSync(hqDir)?fs.readdirSync(hqDir).filter(f=>image.test(f)):[];
 const fixtures=files.map((name,i)=>{
-  const hq=path.join(root,'data/media/switch/cover-hq',name);
-  return {id:`switch:cover-${i}`,system:'switch',base:name.slice(0,-4),title:name.replace(/\[[^\]]*\]|\([^)]*\)|\.png$/g,'').trim(),media:{front:pathToFileURL(path.join(coverDir,name)).href,...(fs.existsSync(hq)?{frontHQ:pathToFileURL(hq).href}:{})},info:{}};
+  const hqName=hqFiles.find(f=>stemOf(f)===stemOf(name)),hq=hqName&&path.join(hqDir,hqName);
+  return {id:`switch:cover-${i}`,system:'switch',base:stemOf(name),title:stemOf(name).replace(/\[[^\]]*\]|\([^)]*\)/g,'').trim(),media:{front:pathToFileURL(path.join(coverDir,name)).href,...(hq?{frontHQ:pathToFileURL(hq).href}:{})},info:{}};
 });
+// Switch 2 eShop packshots are square images with white margins; retail box scans are left out.
 const packshotDir=path.join(root,'data/media/switch2/covers');
-for(const name of fs.readdirSync(packshotDir).filter(f=>f.endsWith('.png')))fixtures.push({id:`switch2:${name}`,system:'switch2',base:name.slice(0,-4),title:name.replace(/\[[^\]]*\]|\.png$/g,'').trim(),media:{front:pathToFileURL(path.join(packshotDir,name)).href},info:{}});
+for(const name of fs.readdirSync(packshotDir).filter(f=>image.test(f))){
+  const [w,h]=size(path.join(packshotDir,name));if(!w||w!==h)continue;
+  fixtures.push({id:`switch2:${name}`,system:'switch2',base:stemOf(name),title:stemOf(name).replace(/\[[^\]]*\]/g,'').trim(),media:{front:pathToFileURL(path.join(packshotDir,name)).href},info:{}});
+}
 const digest=()=>createHash('sha256').update(Buffer.concat(files.map(f=>fs.readFileSync(path.join(coverDir,f))))).digest('hex');
 const before=digest();
 app.whenReady().then(async()=>{

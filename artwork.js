@@ -12,14 +12,31 @@ const TYPES = {
   title:{folder:'titlescreens',remote:'Named_Titles'},
   disc:{folder:'physicalmedia'},
   back:{folder:'backcovers'},
+  spine:{folder:'spines'},
+  logo:{folder:'logos'},
+  fanart:{folder:'fanart'},
 };
+const IMAGE_EXTS = ['.png','.jpg','.jpeg','.webp'];
 // Kinds worth replacing when a sharper copy turns up, and the width that counts as sharp enough.
-const UPGRADE_WIDTH = {front:700,frontHQ:700,back:700};
-const pngWidth = bytes => bytes?.length>=24&&bytes.subarray(1,4).toString()==='PNG' ? bytes.readUInt32BE(16) : 0;
-function fileWidth(file) {
-  try {const fd=fs.openSync(file,'r');try{const b=Buffer.alloc(24);fs.readSync(fd,b,0,24,0);return pngWidth(b)}finally{fs.closeSync(fd)}}catch{return 0}
+const UPGRADE_WIDTH = {front:700,frontHQ:700,back:700,spine:120};
+// Width from a PNG or JPEG header, without decoding the picture.
+function imageWidth(b) {
+  if(!b||b.length<24)return 0;
+  if(b.subarray(1,4).toString()==='PNG')return b.readUInt32BE(16);
+  if(b[0]===0xff&&b[1]===0xd8) {
+    for(let i=2;i+9<b.length;) {
+      if(b[i]!==0xff){i++;continue}
+      const marker=b[i+1];
+      if(marker>=0xc0&&marker<=0xcf&&![0xc4,0xc8,0xcc].includes(marker))return b.readUInt16BE(i+7);
+      i+=2+b.readUInt16BE(i+2);
+    }
+  }
+  return 0;
 }
-function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=fetch,onProgress=()=>{},source='https://thumbnails.libretro.com',decodeImage,launchbox=null,screenscraper=null,cartridgeLabel=null,
+function fileWidth(file) {
+  try {const fd=fs.openSync(file,'r');try{const b=Buffer.alloc(65536);const n=fs.readSync(fd,b,0,b.length,0);return imageWidth(b.subarray(0,n))}finally{fs.closeSync(fd)}}catch{return 0}
+}
+function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=fetch,onProgress=()=>{},source='https://thumbnails.libretro.com',decodeImage,launchbox=null,screenscraper=null,cartridgeLabel=null,encodeImage=null,
   switchDatabase='https://www.gametdb.com/switchtdb.txt?LANG=EN',switchImages='https://art.gametdb.com/switch'}) {
   const indexes=new Map(), unavailable=new Set(), inflight=new Map();
   let switchIndex;
@@ -67,12 +84,14 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     },signal);
   }
   // Streams a large file (the LaunchBox database) straight to disk.
-  async function download(url,file) {
+  async function download(url,file,onBytes=()=>{}) {
     const response=await fetchImpl(url,{headers:{'User-Agent':'PyroCade-Frontend'},signal:AbortSignal.timeout(15*60e3)});
     if(!response.ok||!response.body)throw new Error(`Database download failed (HTTP ${response.status})`);
     if(Number(response.headers.get('content-length'))>600*1024*1024)throw new Error('Database download is unexpectedly large');
     const tmp=file+'.part';
-    try {await pipeline(Readable.fromWeb(response.body),fs.createWriteStream(tmp));await fs.promises.rename(tmp,file)}
+    const total=Number(response.headers.get('content-length'))||0;let got=0;
+    const counter=async function*(source){for await(const chunk of source){got+=chunk.length;onBytes(got,total);yield chunk}};
+    try {await pipeline(Readable.fromWeb(response.body),counter,fs.createWriteStream(tmp));await fs.promises.rename(tmp,file)}
     catch(e){await fs.promises.unlink(tmp).catch(()=>{});throw e}
   }
   function switchNames(refresh=false) {
@@ -113,14 +132,15 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
   }
   // Tries each source in order. A source that fails is skipped for the rest of the run;
   // an error is only reported when no source could even be asked.
-  async function remoteImage(game,sys,type,{signal,retryMissing,refreshed,failures=new Map(),hqOnly=false}) {
+  async function remoteImage(game,sys,type,{signal,retryMissing,refreshed,failures=new Map(),hqOnly=false,background=false}) {
     const steps=[],refreshOnce=key=>{const r=retryMissing&&refreshed&&!refreshed.has(key);if(r)refreshed.add(key);return r};
     const gametdb=()=>switchImage(game,hqOnly&&type==='front'?'frontHQ':type,{signal,retryMissing,refreshed,failures});
     const isSwitch=sys.artworkProvider==='gametdb-switch';
     if(isSwitch&&type==='disc')steps.push(['gametdb-switch',gametdb]); // GameTDB has flat cartridge labels; keep them first
     // Photos of whole cartridges are cut down to their sticker; systems without a measured label are skipped.
     const photo=bytes=>bytes&&type==='disc'&&sys.media==='cart' ? (cartridgeLabel?.(bytes,sys.id)||null) : bytes;
-    if(launchbox)steps.push(['launchbox',async()=>photo(await firstImage(await launchbox.find(sys.id,titleKeys(game),type,{refresh:refreshOnce('launchbox')}),signal))]);
+    // Automatic lookups never start the large LaunchBox download; a download from the Artwork page does.
+    if(launchbox&&(!background||launchbox.available()))steps.push(['launchbox',async()=>photo(await firstImage(await launchbox.find(sys.id,titleKeys(game),type,{refresh:refreshOnce('launchbox')}),signal))]);
     if(screenscraper?.configured())steps.push(['screenscraper',async()=>photo(await firstImage(await screenscraper.find(game,type,{signal,refresh:refreshOnce('screenscraper')}),signal))]);
     if(isSwitch&&type!=='disc')steps.push(['gametdb-switch',gametdb]);
     if(!hqOnly&&sys.libretro&&TYPES[type].remote)steps.push([`${sys.id}/${type}`,()=>libretroImage(sys,type,game,{signal,retryMissing,refreshed,failures})]);
@@ -197,20 +217,28 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     if(!match)return null;
     return request(`${source}/${encodeURIComponent(sys.libretro)}/${TYPES[type].remote}/${encodeURIComponent(match)}`,'image',signal);
   }
-  // Path of an image PyroCade keeps in its own media folder, so it may be replaced by a sharper copy.
-  function ownedFile(url) {
+  // Path of an image PyroCade downloaded itself (media/<system>/<type folder>/), so it may be replaced
+  // by a sharper copy. Images people chose themselves live elsewhere and are never touched.
+  function ownedFile(url,sys,type) {
     if(typeof url!=='string'||!url.startsWith('file:'))return null;
     try {
-      const file=fileURLToPath(url.split('?')[0]),root=path.join(dataDir,'media')+path.sep;
-      return file.toLowerCase().startsWith(root.toLowerCase())&&/\.png$/i.test(file)&&fs.existsSync(file)?file:null;
+      const file=fileURLToPath(url.split('?')[0]),folder=path.join(dataDir,'media',sys.id,TYPES[type].folder)+path.sep;
+      return file.toLowerCase().startsWith(folder.toLowerCase())&&!file.slice(folder.length).includes(path.sep)&&IMAGE_EXTS.includes(path.extname(file).toLowerCase())&&fs.existsSync(file)?file:null;
     } catch {return null}
   }
-  async function one(game,type,{signal,retryMissing=false,upgrade=false,refreshed,failures}={}) {
+  // A downloaded image in this game's type folder, whatever format it was saved in.
+  function savedFile(sys,type,base) {
+    const dir=path.join(dataDir,'media',sys.id,TYPES[type].folder);
+    for(const ext of IMAGE_EXTS){const file=path.join(dir,base+ext);try{if(fs.statSync(file).size>0)return file}catch{}}
+    return null;
+  }
+  // Large photos are scaled down and stored as JPEG; see encodeArtwork in main.js.
+  const encode=async(bytes,type)=>encodeImage ? encodeImage(bytes,type) : {bytes,ext:'png'};
+  async function one(game,type,{signal,retryMissing=false,upgrade=false,background=false,refreshed,failures}={}) {
     aborted(signal);
     const sys=getSystems().find(s=>s.id===game.system);
     const base=safeBase(game.base);
-    const file=path.join(dataDir,'media',sys.id,TYPES[type].folder,base+'.png');
-    const kept=game.media?.[type] ? ownedFile(game.media[type]) : (fs.existsSync(file)&&fs.statSync(file).size>0 ? file : null);
+    const kept=game.media?.[type] ? ownedFile(game.media[type],sys,type) : savedFile(sys,type,base);
     const keptUrl=game.media?.[type]||(kept&&pathToFileURL(kept).href);
     if(keptUrl) {
       const oldWidth=kept&&upgrade&&UPGRADE_WIDTH[type] ? fileWidth(kept) : 0;
@@ -219,13 +247,17 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
       if(inflight.has(key))return waitFor(inflight.get(key),signal);
       const task=(async()=>{
         let bytes;
-        try {bytes=await remoteImage(game,sys,type,{signal,retryMissing,refreshed,failures,hqOnly:true})}catch(e){if(signal?.aborted)throw e;return {existing:1,media:{[type]:keptUrl}}}
-        if(!bytes||pngWidth(bytes)<=oldWidth)return {existing:1,media:{[type]:keptUrl}};
+        try {bytes=await remoteImage(game,sys,type,{signal,retryMissing,refreshed,failures,hqOnly:true,background})}catch(e){if(signal?.aborted)throw e;return {existing:1,media:{[type]:keptUrl}}}
+        if(!bytes)return {existing:1,media:{[type]:keptUrl}};
+        const saved=await encode(bytes,type);
+        if(imageWidth(saved.bytes)<=oldWidth)return {existing:1,media:{[type]:keptUrl}};
         aborted(signal);
-        const tmp=`${kept}.${randomUUID()}.tmp`;
-        try {await fs.promises.writeFile(tmp,bytes);await fs.promises.rename(tmp,kept)}catch(e){await fs.promises.unlink(tmp).catch(()=>{});throw e}
+        const target=path.join(path.dirname(kept),path.basename(kept,path.extname(kept))+'.'+saved.ext);
+        const tmp=`${target}.${randomUUID()}.tmp`;
+        try {await fs.promises.writeFile(tmp,saved.bytes);await fs.promises.rename(tmp,target)}catch(e){await fs.promises.unlink(tmp).catch(()=>{});throw e}
+        if(target!==kept)await fs.promises.unlink(kept).catch(()=>{});
         // A new query string makes the window load the new picture instead of its cached copy.
-        return {downloaded:1,upgraded:1,media:{[type]:`${pathToFileURL(kept).href}?v=${Date.now()}`}};
+        return {downloaded:1,upgraded:1,media:{[type]:`${pathToFileURL(target).href}?v=${Date.now()}`}};
       })();
       inflight.set(key,task);
       try{return await task}finally{if(inflight.get(key)===task)inflight.delete(key)}
@@ -237,15 +269,17 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
       return shared.downloaded ? {...shared,downloaded:0,existing:1}:shared;
     }
     const task=(async()=>{
-      const bytes=await remoteImage(game,sys,type,{signal,retryMissing,refreshed,failures});
+      const bytes=await remoteImage(game,sys,type,{signal,retryMissing,refreshed,failures,background});
       if(!bytes){unavailable.add(key);return {missing:1,media:{}}}
+      const saved=await encode(bytes,type);
       aborted(signal);
+      const file=path.join(dataDir,'media',sys.id,TYPES[type].folder,base+'.'+saved.ext);
       await fs.promises.mkdir(path.dirname(file),{recursive:true});
       // Exclusive creation preserves files added by another download or by the user.
       let handle;
       try {
         handle=await fs.promises.open(file,'wx');
-        try {await handle.writeFile(bytes)}catch(e){await handle.close();handle=null;await fs.promises.unlink(file).catch(()=>{});throw e}
+        try {await handle.writeFile(saved.bytes)}catch(e){await handle.close();handle=null;await fs.promises.unlink(file).catch(()=>{});throw e}
       } catch(e) {if(e.code==='EEXIST')return {existing:1,media:{[type]:pathToFileURL(file).href}};throw e}
       finally {await handle?.close()}
       unavailable.delete(key);
@@ -308,12 +342,63 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
   async function fetchArt(systemId,base,options={}) {
     const game=getGames().find(g=>g.system===systemId&&g.base===base);
     if(!game)return null;
-    const result=await downloadGame(game,options.hq?['frontHQ']:['front','screenshot']);
+    const result=await downloadGame(game,options.hq?['frontHQ']:['front','screenshot'],{background:true});
     for(const [kind,url]of Object.entries(result.media))if(!game.media[kind])game.media[kind]=url;
     return result.media;
   }
+  // Every version the online sources have of one image, for the "choose another" picker.
+  async function candidates(game,type,{signal}={}) {
+    const sys=getSystems().find(s=>s.id===game.system);
+    if(!sys||!TYPES[type])return [];
+    const urls=[];
+    if(launchbox)try{urls.push(...await launchbox.find(sys.id,titleKeys(game),type))}catch{}
+    if(screenscraper?.configured())try{urls.push(...await screenscraper.find(game,type,{signal}))}catch{}
+    const found=[];
+    for(const url of [...new Set(urls)].slice(0,8)) {
+      try {let bytes=await request(url,'image',signal);if(bytes&&type==='disc'&&sys.media==='cart')bytes=cartridgeLabel?.(bytes,sys.id)||null;if(bytes)found.push(bytes)}
+      catch(e){if(signal?.aborted)throw e}
+    }
+    return found;
+  }
+  // Saves the version someone picked, replacing what PyroCade downloaded before.
+  async function choose(game,type,bytes) {
+    const sys=getSystems().find(s=>s.id===game.system);
+    const base=safeBase(game.base),saved=await encode(bytes,type);
+    const dir=path.join(dataDir,'media',sys.id,TYPES[type].folder),target=path.join(dir,base+'.'+saved.ext);
+    await fs.promises.mkdir(dir,{recursive:true});
+    const tmp=`${target}.${randomUUID()}.tmp`;
+    await fs.promises.writeFile(tmp,saved.bytes);await fs.promises.rename(tmp,target);
+    for(const ext of IMAGE_EXTS){const other=path.join(dir,base+ext);if(other!==target)await fs.promises.unlink(other).catch(()=>{})}
+    unavailable.delete(`${sys.id}/${base}/${type}`);
+    const url=`${pathToFileURL(target).href}?v=${Date.now()}`;game.media[type]=url;
+    return {gameId:game.id,media:{[type]:url},replace:true};
+  }
+  // PyroCade 0.3.0 saved full-size scans as PNG (often 10-15 MB each). Re-encode those in place.
+  // Calls onChange(system, type, base, newUrl) for every file that was replaced.
+  async function compact(onChange=()=>{}) {
+    if(!encodeImage)return 0;
+    const media=path.join(dataDir,'media');let changed=0;
+    let systems=[];try{systems=fs.readdirSync(media,{withFileTypes:true}).filter(d=>d.isDirectory()&&!d.name.startsWith('_')).map(d=>d.name)}catch{return 0}
+    for(const sysId of systems)for(const [type,{folder}] of Object.entries(TYPES)) {
+      const dir=path.join(media,sysId,folder);let files=[];
+      try{files=fs.readdirSync(dir).filter(n=>/\.png$/i.test(n))}catch{continue}
+      for(const name of files) {
+        const file=path.join(dir,name);
+        try {
+          if(fs.statSync(file).size<2.5*1024*1024)continue;
+          const saved=await encode(await fs.promises.readFile(file),type);
+          const base=name.slice(0,-4),target=path.join(dir,base+'.'+saved.ext),tmp=target+'.'+randomUUID()+'.tmp';
+          await fs.promises.writeFile(tmp,saved.bytes);await fs.promises.rename(tmp,target);
+          if(target!==file)await fs.promises.unlink(file);
+          changed++;onChange(sysId,type,base,`${pathToFileURL(target).href}?v=${Date.now()}`);
+        } catch {}
+        await new Promise(r=>setImmediate(r)); // keep the app responsive between files
+      }
+    }
+    return changed;
+  }
   // Lets a source show what it is doing (e.g. preparing the LaunchBox database) in the progress panel.
   function note(message) {if(job?.status==='running'){job.lastTitle=message;emit(null,true)}}
-  return {fetchArt,start,cancel,status:snapshot,downloadGame,download,note};
+  return {fetchArt,start,cancel,status:snapshot,downloadGame,download,note,compact,titleKeys,candidates,choose};
 }
 module.exports={createArtworkService,TYPES};

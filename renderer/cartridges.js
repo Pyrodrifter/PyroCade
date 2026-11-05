@@ -10,10 +10,10 @@ const Cartridges=(()=>{
     gb:{w:.59,h:.66,color:'#a8a9a0',depth:7,outline:'3,0 86,0 86,8 100,8 100,95 95,100 3,100 0,97 0,3',label:[12,28,76,54],brand:'Nintendo GAME BOY',brandY:17,details:'M8 7H79 M8 23H91 M9 86H91 M10 91H87 M10 95H77 M4 34V78 M96 34V78'},
     gbc:{w:.59,h:.66,color:'#484650',depth:7,outline:'0,11 6,5 19,1 38,0 65,0 82,2 94,7 100,13 100,95 95,100 3,100 0,97',label:[12,29,76,52],brand:'GAME BOY COLOR',brandY:19,details:'M12 24H88 M9 86H91 M10 91H87 M10 95H77 M5 35V77 M95 35V77'},
     gba:{w:.76,h:.43,color:'#55506f',depth:6,outline:'3,0 97,0 100,5 100,23 94,23 94,91 87,100 13,100 6,91 6,23 0,23 0,5',label:[14,31,72,55],brand:'GAME BOY ADVANCE',brandY:20,details:'M8 6H92 M9 25H91 M10 31V78 M90 31V78 M16 92H84'},
-    nes:{w:.64,h:.72,color:'#9a9b97',depth:9,outline:'3,0 97,0 100,3 100,100 0,100 0,3',label:[29,4,61,62],details:'M24 1V71H96 M7 33H20 M7 39H20 M7 45H20 M7 51H20 M7 57H20 M7 63H20 M5 76H95 M8 81H92 M8 86H92 M43 94L50 98L57 94'},
+    nes:{w:.64,h:.72,color:'#9a9b97',depth:9,outline:'3,0 97,0 100,3 100,100 0,100 0,3',label:[40,1,46.5,67],details:'M24 1V71H96 M7 33H20 M7 39H20 M7 45H20 M7 51H20 M7 57H20 M7 63H20 M5 76H95 M8 81H92 M8 86H92 M43 94L50 98L57 94'},
     snes:{w:.86,h:.55,color:'#acaab0',depth:10,outline:'4,0 96,0 100,7 100,88 95,88 95,100 5,100 5,88 0,88 0,7',label:[17,6,66,49],brand:'SUPER NINTENDO',brandY:70,details:'M4 20H12 M4 28H12 M4 36H12 M4 44H12 M88 20H96 M88 28H96 M88 36H96 M88 44H96 M12 60H88 M12 78H88 M6 89H94 M43 87L50 93L57 87'},
-    n64:{w:.86,h:.65,color:'#858681',depth:10,outline:'0,24 4,16 11,10 23,5 37,1 50,0 63,1 77,5 89,10 96,16 100,24 100,94 96,100 4,100 0,94',label:[20,19,60,48],brand:'Nintendo',brandY:81,details:'M8 30V86 M92 30V86 M14 72H86 M44 89L50 94L56 89'},
-    genesis:{w:.78,h:.56,color:'#252526',depth:9,outline:'0,15 9,7 27,1 73,1 91,7 100,15 100,95 95,100 5,100 0,95',label:[17,14,66,60],details:'M7 24V83 M11 19V83 M89 19V83 M93 24V83 M15 82H85 M44 88L50 94L56 88'},
+    n64:{w:.86,h:.65,color:'#858681',depth:10,outline:'0,24 4,16 11,10 23,5 37,1 50,0 63,1 77,5 89,10 96,16 100,24 100,94 96,100 4,100 0,94',label:[25.3,10.4,49.4,74.9],details:'M8 30V86 M92 30V86 M14 72H86 M44 89L50 94L56 89'},
+    genesis:{w:.78,h:.56,color:'#252526',depth:9,outline:'0,15 9,7 27,1 73,1 91,7 100,15 100,95 95,100 5,100 0,95',label:[14.5,4,71,84],details:'M7 24V83 M11 19V83 M89 19V83 M93 24V83 M15 82H85 M44 88L50 94L56 88'},
     a2600:{w:.70,h:.80,color:'#302f2c',depth:10,outline:rect,label:[7,13,86,63],details:'M5 7H95 M4 82H96 M8 87H92 M8 92H92 M8 97H92'}
   };
   const fallback={w:.65,h:.62,color:'#5c6170',depth:7,outline:rect,label:[12,13,76,69],details:'M10 89H90'};

@@ -2,6 +2,26 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
+## [Unreleased]
+
+### Added
+- **Game details** from the LaunchBox database: description, year, developer, publisher, genre and players. They fill only empty fields and need no extra downloads.
+- **Clear logos** in place of the game title, **real spine scans** on the shelf, and **background fanart** behind the selected game.
+- **Other versions…** in Artwork → Change an image: pick a different cover, spine, disc, logo or background from the online sources.
+- Real cartridge labels for NES, SNES, N64, Genesis, DS and 3DS. The 3D NES, N64 and Genesis cartridges place their label where the real one sits.
+- Download progress for the LaunchBox database.
+- Automatic checks on every pull request.
+
+### Changed
+- **Much smaller artwork:** images are capped (covers at 1600 px) and photos are stored as JPEG, about 0.2–0.8 MB each instead of 10–15 MB. Oversized images saved by 0.3.0 are shrunk once, in the background.
+- **Generated spines follow each system's retail design:** a logo band in the system's colours (red Switch band over a white spine, green Xbox band, blue Wii U band, PlayStation logo running down a black spine) instead of borrowing the cover's colours.
+- Emulators, Artwork and Settings use the same calm style as the top bar.
+- Automatic artwork lookups no longer start the 100 MB LaunchBox download; only a download you start does.
+
+### Fixed
+- **Sharper covers no longer replace images you chose yourself.**
+- The emulator Source form keeps what you typed while an install is running.
+
 ## [0.3.0] - 2026-11-05
 
 ### Added

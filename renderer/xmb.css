@@ -43,10 +43,7 @@ html.ambient .item.sel .sway { animation-duration: 12s; }
 .box[data-material] .f-back .case-surface-finish::before { left: auto; right: .6%; box-shadow: -.6px 0 0 #ffffff28; }
 .box[data-material='jewel'] .case-surface-finish::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg,#0000 0 93%,#00000030 96%,#0000 98%),linear-gradient(#0000 0 4%,#ffffff35 5%,#0000 7%); }
 
-/* Generated spines borrow the cover's colours. */
-.spine-insert { border-bottom: 3px solid var(--spine-tint, transparent); transition: border-color .6s; }
-.spine-wrap-cover { opacity: .85; filter: none; }
-.spine-wrap-cover::after { background: linear-gradient(#0a0c10bb 0 9%,#0a0c1055 24% 78%,#0a0c10dd 100%); }
+
 
 /* Demo hint fades away on its own. */
 #demoBanner:not(.hidden) { animation: banner-fade 1.2s ease 9s forwards; }

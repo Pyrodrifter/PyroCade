@@ -28,6 +28,35 @@ const Packaging=(()=>{
     a2600:p([230,310,42],'#bdb09d','cardboard','#a94123','#fff','ATARI 2600','#eb9d39'),
     arcade:p([318,225,52],'#b8ad98','cardboard','#28262c','#fff','ARCADE','#bc8b29')
   };
+  // Generated spines follow each system's retail layout: a logo band at the top in the system's
+  // colours, the title running down the spine, the publisher at the foot. Real scans always win.
+  const spines={
+    ps1:{band:'#0d0d0f',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['PlayStation'],style:'ps',vertical:true},
+    ps2:{band:'#0d0d0f',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['PlayStation 2'],style:'ps',vertical:true},
+    ps3:{band:'#0d0d0f',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['PS3'],style:'ps'},
+    ps4:{band:'#003791',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['PS4'],style:'ps'},
+    psp:{band:'#0d0d0f',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['PSP'],style:'ps'},
+    switch:{band:'#e60012',ink:'#fff',body:'#f4f4f2',text:'#151515',mark:['NINTENDO','SWITCH'],style:'switch'},
+    switch2:{band:'#e60012',ink:'#fff',body:'#f4f4f2',text:'#151515',mark:['NINTENDO','SWITCH 2'],style:'switch'},
+    nds:{band:'#f4f4f2',ink:'#2b2b2b',body:'#f4f4f2',text:'#151515',mark:['NINTENDO','DS'],style:'nintendo',rule:'#2b2b2b'},
+    '3ds':{band:'#f4f4f2',ink:'#ce1a2a',body:'#f4f4f2',text:'#151515',mark:['NINTENDO','3DS'],style:'nintendo',rule:'#ce1a2a'},
+    wii:{band:'#f4f4f2',ink:'#8d9298',body:'#f4f4f2',text:'#2d3035',mark:['Wii'],style:'wii',rule:'#c5c9cc'},
+    wiiu:{band:'#009ac7',ink:'#fff',body:'#f4f4f2',text:'#2d3035',mark:['Wii U'],style:'wii'},
+    gc:{band:'#0d0d0f',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['NINTENDO','GAMECUBE'],style:'nintendo',accent:'#6a5acd'},
+    dreamcast:{band:'#f4f4f2',ink:'#e8591a',body:'#f4f4f2',text:'#151515',mark:['Dreamcast'],style:'dc'},
+    xbox:{band:'#5aa02c',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['XBOX'],style:'xbox'},
+    x360:{band:'#5aa02c',ink:'#fff',body:'#f4f4f2',text:'#151515',mark:['XBOX','360'],style:'xbox'},
+    genesis:{band:'#0d0d0f',ink:'#e41b23',body:'#0d0d0f',text:'#fff',mark:['GENESIS'],style:'sega'},
+    gb:{band:'#e9e6dc',ink:'#33337a',body:'#e9e6dc',text:'#1d1d1d',mark:['GAME BOY'],style:'gb',rule:'#33337a'},
+    gbc:{band:'#e9e6dc',ink:'#33337a',body:'#e9e6dc',text:'#1d1d1d',mark:['GAME BOY','COLOR'],style:'gb',rule:'#f3b62c'},
+    gba:{band:'#f2f2ee',ink:'#4b3f8f',body:'#f2f2ee',text:'#1d1d1d',mark:['GAME BOY','ADVANCE'],style:'gb',rule:'#4b3f8f'},
+    nes:{band:'#0d0d0f',ink:'#e4002b',body:'#0d0d0f',text:'#fff',mark:['Nintendo'],style:'nintendo'},
+    snes:{band:'#2b2b30',ink:'#fff',body:'#2b2b30',text:'#fff',mark:['SUPER','NINTENDO'],style:'nintendo',rule:'#7b5aa6'},
+    n64:{band:'#0d0d0f',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['NINTENDO','64'],style:'nintendo',accent:'#1aa34a'},
+    a2600:{band:'#a94123',ink:'#fff',body:'#151515',text:'#fff',mark:['ATARI','2600'],style:'sega'},
+    arcade:{band:'#28262c',ink:'#ffcc33',body:'#28262c',text:'#fff',mark:['ARCADE'],style:'sega'},
+  };
+  const spineDesign=sys=>spines[sys.id]||{band:sys.color||'#333',ink:'#fff',body:'#151515',text:'#fff',mark:[sys.name],style:'plain'};
   function profile(sys){return profiles[sys.id]||p([230,323,24],'#292a31','plastic','#252631','#fff',sys.name,sys.color||'#444')}
   // Corners describe the moulded shell, not a rounded card laid over the cover.
   function geometry(v,sys){
@@ -71,37 +100,41 @@ const Packaging=(()=>{
     }
   }
   function brand(sys,D,height){
-    const n=node('spine-brand'),v=profile(sys);
+    const n=node('spine-brand'),v=profile(sys),design=spineDesign(sys);
+    n.dataset.style=design.style;
     if(sys.id==='switch'||sys.id==='switch2'){
       const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 60 76');
       svg.innerHTML='<path d="M26 5H17C9 5 6 9 6 16V42C6 49 10 53 17 53H26Z" fill="none" stroke="currentColor" stroke-width="4"/><path d="M34 3H43C51 3 55 8 55 16V42C55 50 51 55 43 55H34Z" fill="currentColor"/><circle cx="17" cy="19" r="5" fill="currentColor"/><circle cx="44" cy="37" r="5" fill="'+v.bg+'"/><text x="30" y="69" fill="currentColor" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold">SWITCH'+(sys.id==='switch2'?' 2':'')+'</text>';
       n.append(svg);
     }else{
-      const short={ps1:'PS',ps2:'PS2',ps3:'PS3',ps4:'PS4',psp:'PSP',nds:'DS','3ds':'3DS',wii:'Wii',wiiu:'Wii U',gc:'GC',dreamcast:'◉',xbox:'X',x360:'XBOX',genesis:'SEGA',gb:'GB',gbc:'GBC',gba:'GBA',nes:'NES',snes:'SNES',n64:'N64',a2600:'ATARI',arcade:'ARCADE'};
-      const mark=node('spine-brand-mark',short[sys.id]||v.brand);mark.style.fontSize=fitText(mark.textContent,D*.83,Math.min(D*.60,height*.43))+'px';
-      n.append(mark,node('spine-brand-caption',v.brand));
+      // The system's wordmark, one line per word group, each sized to the spine's width.
+      const lines=design.mark,lineHeight=Math.min(height*.8/lines.length,D*.62);
+      if(design.vertical){
+        // PlayStation spines print the logo running down the spine.
+        const line=node('spine-brand-mark vertical',lines[0]);line.style.fontSize=fitText(lines[0],height*.86,D*.5,900)+'px';n.append(line);return n;
+      }
+      for(const [i,text] of lines.entries()){
+        const line=node('spine-brand-mark',text);
+        // The last line of a two-line mark (DS, 64, COLOR…) is the emphasised part.
+        const emphasis=lines.length>1&&i===lines.length-1;
+        line.style.fontSize=fitText(text,D*.8,lineHeight*(emphasis?1:.62),900)+'px';
+        if(emphasis)line.classList.add('emphasis');
+        n.append(line);
+      }
+      if(design.accent){const dot=node('spine-brand-accent');n.prepend(dot)}
     }return n;
   }
-  function fitText(text,maxWidth,fontSize){
-    const ctx=document.createElement('canvas').getContext('2d');ctx.font=`600 ${fontSize}px Arial`;
-    return Math.min(fontSize,fontSize*maxWidth/Math.max(1,ctx.measureText(text).width));
+  function fitText(text,maxWidth,fontSize,weight=600){
+    // Measured at the heaviest weight used, with room for letter spacing, so marks never spill over.
+    const ctx=document.createElement('canvas').getContext('2d');ctx.font=`${weight} ${fontSize}px Arial`;
+    return Math.min(fontSize,fontSize*maxWidth/Math.max(1,ctx.measureText(text).width*(weight>600?1.1:1)));
   }
   function spine(game,a){
     const face=node('face f-left');
     if(game.media.spine){face.style.backgroundImage=`url("${game.media.spine}")`;face.dataset.spine='scan';return face}
-    face.dataset.spine='generated';let v=profile(a.sys);const insert=node('spine-insert');
-    if(a.sys.id==='ps2'&&/\((USA|Japan)\)|\[(US|JP)\]/i.test(game.base||''))v={...v,bg:'#18191d',ink:'#fff'};
-    const header=Math.min(a.D*1.8,a.H*.18),footerHeight=Math.min(a.D*1.8,a.H*.12);
-    insert.style.cssText=`--spine-paper:${v.bg};--spine-ink:${v.ink};--spine-accent:${v.accent};--spine-header:${header}px;--spine-footer:${footerHeight}px`;
-    if(a.sys.id==='switch2'&&game.media.front){
-      const art=node('spine-wrap-art');EshopCovers.background(art,a.front,a.packshot||{x:0,y:0,w:1,h:1});insert.append(art);
-    }
-    else if(game.media.front&&!a.digital){
-      // No spine scan: wrap the cover's edge colours around the spine so it belongs to this game.
-      const dark=v.ink==='#fff'||v.ink==='#f4f4f4';
-      if(dark){const art=node('spine-wrap-art spine-wrap-cover');EshopCovers.background(art,a.front,a.packshot||{x:0,y:0,w:.14,h:1});insert.append(art)}
-      Art.tint(a.front,a.packshot).then(color=>insert.style.setProperty('--spine-tint',color));
-    }
+    face.dataset.spine='generated';const v=profile(a.sys),design=spineDesign(a.sys);const insert=node('spine-insert');
+    const header=design.vertical?a.H*.22:Math.min(a.D*(design.mark.length>1?2.2:1.8),a.H*.2),footerHeight=Math.min(a.D*1.8,a.H*.12);
+    insert.style.cssText=`--spine-paper:${design.body};--spine-ink:${design.text};--spine-band:${design.band};--spine-band-ink:${design.ink};--spine-rule:${design.rule||'transparent'};--spine-brand-accent:${design.accent||'transparent'};--spine-header:${header}px;--spine-footer:${footerHeight}px`;
     const title=node('spine-game-title',game.title.replace(/\bv?\d+(?:\.\d+)+\b/gi,'').replace(/\s+/g,' ').trim());
     title.style.fontSize=fitText(title.textContent,a.H-header-footerHeight-a.D*.6,a.D*(v.material==='cardboard'?.43:.47))+'px';
     const titleArea=node('spine-title-area');titleArea.append(title);

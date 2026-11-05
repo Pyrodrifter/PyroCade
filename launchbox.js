@@ -20,10 +20,13 @@ const IMAGE_TYPES = {
   disc:['Disc','Cart - Front'],
   screenshot:['Screenshot - Gameplay'],
   title:['Screenshot - Game Title'],
+  spine:['Box - Spine'],
+  logo:['Clear Logo'],
+  fanart:['Fanart - Background'],
 };
 const TYPE_OF = new Map(Object.entries(IMAGE_TYPES).filter(([k])=>k!=='frontHQ').flatMap(([kind,list])=>list.map((t,i)=>[t,[kind,i]])));
 const REGION_RANK = r => !r ? 1 : /North America|United States|World|Canada/.test(r) ? 0 : /Europe|United Kingdom|Australia|Oceania/.test(r) ? 2 : 3;
-const INDEX_VERSION = 1, MAX_AGE = 30*864e5, KEEP = 3;
+const INDEX_VERSION = 2, MAX_AGE = 30*864e5, KEEP = 6, OVERVIEW_LIMIT = 1200;
 
 const decodeXml = s => s.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, (_, e) =>
   e[0]==='#' ? String.fromCodePoint(e[1].toLowerCase()==='x' ? parseInt(e.slice(2),16) : +e.slice(1)) : ({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'"})[e.toLowerCase()]);
@@ -62,7 +65,7 @@ async function zipEntryStream(zipPath, name) {
 // Streams Metadata.xml once and keeps only the platforms and image kinds PyroCade uses.
 async function buildIndex(zipPath, normalize) {
   const wanted = new Set(Object.values(PLATFORMS));
-  const dict = () => Object.create(null), platformOf = new Map(), names = dict(), images = dict();
+  const dict = () => Object.create(null), platformOf = new Map(), names = dict(), images = dict(), meta = dict();
   const addName = (platform, name, id) => {
     const key = normalize(name);if(!key)return;
     const map = names[platform] ||= dict();const list = map[key] ||= [];if(!list.includes(id))list.push(id);
@@ -78,6 +81,14 @@ async function buildIndex(zipPath, normalize) {
       if (m[1] === 'Game') {
         const platform = field(record, 'Platform');if(!wanted.has(platform))continue;
         platformOf.set(id, platform);addName(platform, field(record, 'Name'), id);
+        // Game details shown under the shelf (only what PyroCade displays).
+        let description = field(record, 'Overview').replace(/\r/g, '').trim();
+        if (description.length > OVERVIEW_LIMIT) description = description.slice(0, OVERVIEW_LIMIT).replace(/\s+\S*$/, '') + '…';
+        const year = (field(record, 'ReleaseDate') || field(record, 'ReleaseYear')).slice(0, 4);
+        const info = {description, year, developer: field(record, 'Developer'), publisher: field(record, 'Publisher'),
+          genre: field(record, 'Genres').split(';').map(g => g.trim()).filter(Boolean).slice(0, 2).join(', '), players: field(record, 'MaxPlayers')};
+        for (const k of Object.keys(info)) if (!info[k] || info[k] === '0') delete info[k];
+        if (Object.keys(info).length) (meta[platform] ||= dict())[id] = info;
       } else if (m[1] === 'GameAlternateName') {
         const platform = platformOf.get(id);if(platform)addName(platform, field(record, 'AlternateName'), id);
       } else {
@@ -93,13 +104,14 @@ async function buildIndex(zipPath, normalize) {
   for (const byId of Object.values(images)) for (const kinds of Object.values(byId))
     for (const kind of Object.keys(kinds)) kinds[kind] = kinds[kind].sort((a,b)=>a[1]-b[1]).slice(0, KEEP).map(x=>x[0]);
   if (!platformOf.size) throw new Error('Could not read any games from the LaunchBox database');
-  return {version:INDEX_VERSION, built:Date.now(), names, images};
+  return {version:INDEX_VERSION, built:Date.now(), names, images, meta};
 }
 
+const slug = platform => platform.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 function createLaunchBox({dataDir, normalize, download, onStatus=()=>{},
   metadataUrl='https://gamesdb.launchbox-app.com/Metadata.zip', imageUrl='https://images.launchbox-app.com'}) {
-  const dir = path.join(dataDir, 'media', '_index'), indexFile = path.join(dir, 'launchbox-index.json');
-  let pending = null;
+  const dir = path.join(dataDir, 'media', '_index'), indexFile = path.join(dir, 'launchbox-index.json'), metaDir = path.join(dir, 'launchbox-meta');
+  let pending = null;const metaCache = new Map();
   function load(refresh = false) {
     if (pending && !refresh) return pending;
     const promise = (async () => {
@@ -111,10 +123,18 @@ function createLaunchBox({dataDir, normalize, download, onStatus=()=>{},
       } catch {}
       const zip = path.join(dir, 'launchbox-metadata.zip');
       await fs.promises.mkdir(dir, {recursive:true});
-      onStatus('Downloading the LaunchBox games database (about 100 MB, only now and then)…');
-      await download(metadataUrl, zip);
+      onStatus('Downloading the LaunchBox games database (about 100 MB, once a month)…');
+      let shown = 0;
+      await download(metadataUrl, zip, (got, total) => {
+        if (Date.now() - shown < 400) return;shown = Date.now();
+        onStatus(`Downloading the LaunchBox games database: ${(got/1048576).toFixed(0)}${total ? ` of ${(total/1048576).toFixed(0)}` : ''} MB (once a month)…`);
+      });
       onStatus('Reading the LaunchBox games database…');
-      const index = await buildIndex(zip, normalize);
+      const {meta, ...index} = await buildIndex(zip, normalize);
+      // Game details are large, so each system gets its own file, read only when needed.
+      await fs.promises.mkdir(metaDir, {recursive:true});
+      for (const [platform, byId] of Object.entries(meta)) await fs.promises.writeFile(path.join(metaDir, slug(platform) + '.json'), JSON.stringify(byId));
+      metaCache.clear();
       await fs.promises.writeFile(indexFile + '.tmp', JSON.stringify(index));
       await fs.promises.rename(indexFile + '.tmp', indexFile);
       await fs.promises.unlink(zip).catch(()=>{});
@@ -136,7 +156,24 @@ function createLaunchBox({dataDir, normalize, download, onStatus=()=>{},
     }
     return [];
   }
-  return {find, load, platforms:PLATFORMS};
+  // True once the database has been prepared, so lookups need no download.
+  const available = () => { try { return JSON.parse(fs.readFileSync(indexFile, 'utf8').slice(0, 40).match(/"version":(\d+)/)?.[1]) === INDEX_VERSION; } catch { return false; } };
+  // Description, year, developer, publisher, genre and players for one game, or null.
+  async function details(sysId, keys) {
+    const platform = PLATFORMS[sysId];if(!platform)return null;
+    const index = await load();
+    const names = index.names[platform] || {};
+    const ids = [...new Set(keys.filter(Boolean).flatMap(k => Object.hasOwn(names, k) && Array.isArray(names[k]) ? names[k] : []))];
+    if (!ids.length) return null;
+    if (!metaCache.has(platform)) {
+      let byId = {};try { byId = JSON.parse(await fs.promises.readFile(path.join(metaDir, slug(platform) + '.json'), 'utf8')); } catch {}
+      metaCache.set(platform, byId);
+    }
+    const byId = metaCache.get(platform);
+    for (const id of ids) if (Object.hasOwn(byId, id)) return byId[id];
+    return null;
+  }
+  return {find, load, details, available, platforms:PLATFORMS};
 }
 
 module.exports = {createLaunchBox, buildIndex, zipEntryStream, PLATFORMS};

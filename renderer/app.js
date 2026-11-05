@@ -64,6 +64,8 @@ async function boot() {
   api.onToast(toast);
   api.onProgress(onProgress);
   ArtworkUI.init({getGames:()=>S.games,getSystems:()=>S.config.systems,getSelected:()=>S.list[S.sel],updateGame:updateArtwork});
+  api.onArtMedia?.(updateArtwork); // background re-encoding of oversized images
+  api.onLibraryInfo?.(list => { for (const {gameId, info} of list) { const g = S.games.find(x => x.id === gameId); if (g) g.info = info; } showInfo(); });
   await loadLibrary();
   initAppUpdates();
   new ResizeObserver(resizeShelf).observe($('#info'));
@@ -302,7 +304,11 @@ async function showInfo(quiet) {
   $('#gFormat').textContent = format;
   $('#mediaType').textContent = `${format} collection`;
   $('#gSystem').textContent = a.sys.name;
-  $('#gTitle').textContent = g.title;
+  // A clear logo replaces the title text when there is one; the text stays for screen readers.
+  const titleEl = $('#gTitle');
+  titleEl.textContent = g.title;
+  titleEl.classList.toggle('has-logo', !!g.media.logo);
+  titleEl.style.setProperty('--logo', g.media.logo ? `url("${g.media.logo}")` : 'none');
   const ext = !g.romPath ? null : /[\\/]exefs[\\/]main$/i.test(g.romPath) ? 'FOLDER DUMP' : g.romPath.split('.').pop().toUpperCase();
   $('#gMeta').innerHTML = [g.info.year, g.info.developer, g.info.genre, g.info.players && `${g.info.players} player${g.info.players === '1' ? '' : 's'}`, regionOf(g), ext]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
@@ -474,7 +480,7 @@ async function renderEmus() {
     if (e.exe) btn('Open folder', () => api.emuOpenFolder(e.id));
     btn(e.exe && !e.installed ? 'Change .exe…' : 'Use existing .exe…', async () => { if (await api.emuPickExe(e.id)) { S.config = await api.getConfig(); renderEmus(); } });
     if (e.installed) btn('Uninstall', async () => { if (confirm(`Remove ${e.name} and its files from PyroCade’s emulators folder?`)) { await api.emuUninstall(e.id); delete S.latest[e.id]; renderEmus(); } });
-    if (e.officialRepo || e.managed) btn(S.sourceOpen === e.id ? 'Close source' : 'Source…', () => { S.sourceOpen = S.sourceOpen === e.id ? null : e.id; renderEmus(); });
+    if (e.officialRepo || e.managed) btn(S.sourceOpen === e.id ? 'Close source' : 'Source…', () => { if (S.sourceOpen === e.id) delete S.sourceDraft?.[e.id]; S.sourceOpen = S.sourceOpen === e.id ? null : e.id; renderEmus(); });
     if (e.custom) btn('Remove', async () => { if (confirm(`Remove ${e.name} from PyroCade? Downloaded files stay in the emulators folder until you uninstall them.`)) { await api.emuRemove(e.id); S.config = await api.getConfig(); renderEmus(); } });
     if (S.sourceOpen === e.id) card.append(sourceEditor(e));
     grid.append(card);
@@ -482,18 +488,22 @@ async function renderEmus() {
 }
 // Choose where an emulator downloads from: its official project, a fork, or any GitHub repository.
 function sourceEditor(e) {
+  // The page redraws during installs; what was typed is kept in S.sourceDraft until saved or closed.
+  S.sourceDraft ||= {};
+  const d = S.sourceDraft[e.id] || { repo: e.forked || e.custom ? e.repo || '' : '', prerelease: e.prerelease, assetPattern: e.assetPattern || '', exePattern: e.exePattern || '' };
   const box = el('form', 'emu-source', `
-    <label>GitHub repository<input name="repo" spellcheck="false" placeholder="${esc(e.officialRepo || 'owner/name')}" value="${esc(e.forked || e.custom ? e.repo || '' : '')}" /></label>
-    <label class="emu-check"><input type="checkbox" name="prerelease" ${e.prerelease ? 'checked' : ''} /> Include dev builds (pre-releases)</label>
-    <details ${e.assetPattern || e.exePattern ? 'open' : ''}><summary>File patterns (optional)</summary>
-      <label>Download file pattern<input name="assetPattern" spellcheck="false" placeholder="Guessed automatically" value="${esc(e.assetPattern || '')}" /></label>
-      <label>Program pattern<input name="exePattern" spellcheck="false" placeholder="Guessed automatically" value="${esc(e.exePattern || '')}" /></label>
+    <label>GitHub repository<input name="repo" spellcheck="false" placeholder="${esc(e.officialRepo || 'owner/name')}" value="${esc(d.repo)}" /></label>
+    <label class="emu-check"><input type="checkbox" name="prerelease" ${d.prerelease ? 'checked' : ''} /> Include dev builds (pre-releases)</label>
+    <details ${d.assetPattern || d.exePattern ? 'open' : ''}><summary>File patterns (optional)</summary>
+      <label>Download file pattern<input name="assetPattern" spellcheck="false" placeholder="Guessed automatically" value="${esc(d.assetPattern)}" /></label>
+      <label>Program pattern<input name="exePattern" spellcheck="false" placeholder="Guessed automatically" value="${esc(d.exePattern)}" /></label>
     </details>
     <div class="result" role="status" aria-live="polite">${e.officialRepo ? `Official: github.com/${esc(e.officialRepo)}. Leave empty to use it.` : ''}</div>
     <div class="actions"><button type="button" data-act="test">Check repo</button><button class="primary" type="submit">Save source</button>${e.forked ? '<button type="button" data-act="official">Use official</button>' : ''}</div>`);
   const result = box.querySelector('.result');
   const values = () => { const f = new FormData(box); return { id: e.id, repo: String(f.get('repo') || '').trim(), prerelease: !!f.get('prerelease'), assetPattern: String(f.get('assetPattern') || '').trim(), exePattern: String(f.get('exePattern') || '').trim() }; };
   const say = (text, bad = false) => { result.textContent = text; result.classList.toggle('bad', bad); };
+  box.oninput = () => { S.sourceDraft[e.id] = values(); };
   box.querySelector('[data-act=test]').onclick = async () => {
     const v = values(), repo = v.repo || e.officialRepo || e.repo;
     say('Looking up releases…');
@@ -501,12 +511,12 @@ function sourceEditor(e) {
     catch (err) { say(err.message, true); }
   };
   const official = box.querySelector('[data-act=official]');
-  if (official) official.onclick = async () => { await api.emuSetSource({ id: e.id, repo: '' }); delete S.latest[e.id]; S.sourceOpen = null; toast(`${e.name} downloads from the official project again.`); renderEmus(); };
+  if (official) official.onclick = async () => { await api.emuSetSource({ id: e.id, repo: '' }); delete S.latest[e.id]; delete S.sourceDraft[e.id]; S.sourceOpen = null; toast(`${e.name} downloads from the official project again.`); renderEmus(); };
   box.onsubmit = async ev => {
     ev.preventDefault();
     try {
       await api.emuSetSource(values());
-      delete S.latest[e.id]; S.sourceOpen = null;
+      delete S.latest[e.id]; delete S.sourceDraft[e.id]; S.sourceOpen = null;
       toast(`${e.name} source saved. Use Check for update to install from it.`);
       renderEmus();
     } catch (err) { say(err.message, true); }

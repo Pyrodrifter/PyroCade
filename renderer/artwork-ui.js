@@ -31,7 +31,8 @@ const ArtworkUI = (()=>{
     const selected=context.getGames().find(g=>g.id===gameId);
     q('#artImportGame').textContent=selected&&!selected.demo?`${selected.title} · ${systems.find(s=>s.id===selected.system)?.name||selected.system}`:'Select a game in Library, then use its Artwork button.';
     q('#artImport').disabled=importPending||!selected||selected.demo;q('#artImportKind').disabled=importPending||!selected||selected.demo;
-    q('#artImport').textContent=importPending?'Applying…':'Choose image…';
+    q('#artImport').textContent=importPending?'Applying…':'Your own image…';
+    q('#artVersions').disabled=importPending||!selected||selected.demo;
     q('#artSourceLabel').textContent='Sources · LaunchBox, ScreenScraper, GameTDB, Libretro';
     q('#artSourceDetails').textContent='Each image comes from the first source that has it, in this order. Availability varies by game.';
     q('#artScopeSummary').textContent=(scope==='game'?(selected&&!selected.demo?selected.title:'Select a game in your library first.'):`${games.length.toLocaleString()} games`)+(unavailable?` · ${unavailable.toLocaleString()} skipped: no artwork source for ${[...new Set(games.filter(g=>!supports(systems.find(s=>s.id===g.system))).map(g=>systems.find(s=>s.id===g.system)?.name||g.system))].join(', ')}. Use “Use your own image” instead.`:'');
@@ -120,6 +121,30 @@ const ArtworkUI = (()=>{
     };
     q('#artCancel').onclick=async()=>{try{accept(await api.artCancel())}catch(e){error(e.message)}};
     q('#artOpenFolder').onclick=async()=>{try{const message=await api.artOpenFolder();if(message)error(message)}catch(e){error(e.message)}};
+    q('#artImportKind').addEventListener('change',()=>{q('#artVersionGrid').classList.add('hidden');q('#artVersionGrid').replaceChildren()});
+    q('#artVersions').onclick=async()=>{
+      error();const grid=q('#artVersionGrid'),kind=q('#artImportKind').value;
+      importPending=true;options();q('#artImportStatus').textContent='Looking up other versions… (the first time can take a minute)';
+      try {
+        const found=await api.artCandidates({gameId,kind});
+        grid.replaceChildren();
+        for(const [i,c] of found.entries()) {
+          const b=document.createElement('button');b.type='button';b.setAttribute('role','option');
+          const img=document.createElement('img');img.src=c.preview;img.alt=`Version ${i+1}`;
+          const size=document.createElement('span');size.textContent=`${c.width} × ${c.height}`;
+          b.append(img,size);
+          b.onclick=async()=>{
+            importPending=true;options();
+            try {const result=await api.artChoose({token:c.token});context.updateGame(result);grid.classList.add('hidden');q('#artImportStatus').textContent='Version applied. You can see it in Library and the case viewer.'}
+            catch(e){error(e.message)} finally{importPending=false;options()}
+          };
+          grid.append(b);
+        }
+        grid.classList.toggle('hidden',!found.length);
+        q('#artImportStatus').textContent=found.length?`${found.length} version${found.length===1?'':'s'} found. Pick one to use it.`:'No other versions found for this game.';
+        grid.querySelector('button')?.focus();
+      } catch(e){q('#artImportStatus').textContent='';error(e.message)} finally{importPending=false;options()}
+    };
     q('#artImport').onclick=async()=>{
       error();importPending=true;options();
       try {

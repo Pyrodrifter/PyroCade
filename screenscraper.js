@@ -75,7 +75,7 @@ function createScreenScraper({getCredentials, fetchImpl = fetch, softname = 'Pyr
     return medias
       .filter(m => MEDIA[kind].includes(m?.type) && typeof m.url === 'string' && /^https:\/\/[\w.-]*screenscraper\.fr\//.test(m.url))
       .sort((a, b) => MEDIA[kind].indexOf(a.type) - MEDIA[kind].indexOf(b.type) || regionRank(a.region) - regionRank(b.region))
-      .slice(0, 3).map(m => m.url);
+      .slice(0, 6).map(m => m.url);
   }
   return {find, configured, reset: () => { blocked = null; games.clear(); }, systems: SYSTEMS};
 }

@@ -145,6 +145,9 @@
           <label><input type="checkbox" value="title" /> <span>Title screens<small>An extra preview when no screenshot is available</small></span></label>
           <label><input type="checkbox" value="disc" /> <span>Cartridge &amp; disc art<small>Disc scans, Game Boy and Switch cartridge labels</small></span></label>
           <label><input type="checkbox" value="back" /> <span>Back covers<small>The back of the case in the case viewer</small></span></label>
+          <label><input type="checkbox" value="spine" checked /> <span>Spines<small>Real box spines on the shelf</small></span></label>
+          <label><input type="checkbox" value="logo" checked /> <span>Logos<small>The game's logo in place of its title</small></span></label>
+          <label><input type="checkbox" value="fanart" /> <span>Backgrounds<small>Artwork behind the selected game</small></span></label>
         </fieldset>
         <label class="art-retry"><input id="artUpgrade" type="checkbox" checked /> Replace low-resolution covers with sharper copies</label>
         <label class="art-retry"><input id="artRetry" type="checkbox" /> Refresh matches and retry missing artwork</label>
@@ -165,7 +168,7 @@
           <p id="artUnsupported" class="sub hidden"></p>
           <ul id="artActivity" class="art-activity" aria-label="Recent artwork results"></ul>
         </section>
-        <section class="panel art-source" aria-labelledby="artImportTitle"><h2 id="artImportTitle">Use your own image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="fanart">Background</option></select><button id="artImport">Choose image…</button></div><p>PNG, JPG or WebP. Only the chosen type is replaced.</p><p id="artImportStatus" role="status" aria-live="polite"></p></section>
+        <section class="panel art-source" aria-labelledby="artImportTitle"><h2 id="artImportTitle">Change an image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="logo">Logo</option><option value="fanart">Background</option></select><button id="artVersions">Other versions…</button><button id="artImport">Your own image…</button></div><p>Pick another online version, or use a PNG, JPG or WebP of your own. Only the chosen type is replaced.</p><div id="artVersionGrid" class="art-version-grid hidden" role="listbox" aria-label="Other versions"></div><p id="artImportStatus" role="status" aria-live="polite"></p></section>
         <section class="panel art-source"><span id="artSourceLabel" class="hidden"></span><h2>Sources</h2><p id="artSourceDetails"></p>
           <ol class="art-source-list">
             <li><strong>LaunchBox Games Database</strong><span>Full-size box scans, discs, cartridges and screenshots. No account needed.</span><small id="artLaunchBoxState"></small></li>

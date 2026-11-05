@@ -328,10 +328,34 @@ function artworkPng(bytes) {
   if(image.isEmpty()||size.width>16384||size.height>16384||size.width*size.height>40e6)throw new Error('Choose a valid image smaller than 40 megapixels.');
   return image.toPNG();
 }
+// Downloaded artwork is kept at a sensible size: full-size scans are scaled to fit these limits
+// (longest side, in pixels) and photos are saved as JPEG. Small pixel art and anything with
+// transparency (discs, logos) stays PNG so it keeps crisp edges.
+const ARTWORK_LIMITS = { front: 1600, frontHQ: 2000, back: 1600, spine: 1600, screenshot: 1920, title: 1920, disc: 1200, logo: 1000, fanart: 1920 };
+function hasTransparency(image) {
+  const { width, height } = image.getSize(), px = image.toBitmap();
+  const step = Math.max(1, Math.floor(width * height / 40000)); // sample ~40k pixels
+  for (let i = 0; i < width * height; i += step) if (px[i * 4 + 3] < 250) return true;
+  return false;
+}
+function encodeArtwork(png, type) {
+  let image = nativeImage.createFromBuffer(png);
+  const { width, height } = image.getSize(), limit = ARTWORK_LIMITS[type] || 1600;
+  if (image.isEmpty()) return { bytes: png, ext: 'png' };
+  if (Math.max(width, height) > limit) image = image.resize(width >= height ? { width: limit, quality: 'best' } : { height: limit, quality: 'best' });
+  const size = image.getSize();
+  if (Math.max(size.width, size.height) < 400 || hasTransparency(image)) return { bytes: image.toPNG(), ext: 'png' };
+  return { bytes: image.toJPEG(88), ext: 'jpg' };
+}
+
 // Cartridge photos (LaunchBox, ScreenScraper) show the whole plastic shell, but PyroCade draws its own
 // shell and only needs the sticker. Trim the transparent margin, then cut out the label area,
 // measured on real scans (percent of the cartridge: left, top, width, height).
-const CART_LABELS = { gb:[12.5,28,75,59], gbc:[14,33,73,57], gba:[13.5,22.5,73,65.5] };
+const CART_LABELS = {
+  gb:[12.5,28,75,59], gbc:[14,33,73,57], gba:[13.5,22.5,73,65.5],
+  nes:[40,1,46.5,67], snes:[18.7,1,62,43], n64:[25.3,10.4,49.4,74.9], genesis:[14.5,2.6,71.3,86],
+  nds:[10,5.5,80.5,82.5], '3ds':[8.3,7.5,77.5,83.3],
+};
 function cartridgeLabel(bytes, systemId) {
   const area = CART_LABELS[systemId];
   if (!area) return null; // no measured label for this cartridge yet: keep the generated label
@@ -372,19 +396,26 @@ const screenscraper = createScreenScraper({ getCredentials: screenScraperCredent
 const launchbox = createLaunchBox({
   dataDir: DATA,
   normalize: looseKey,
-  download: (url, file) => artwork.download(url, file),
+  download: (url, file, onBytes) => artwork.download(url, file, onBytes),
   onStatus: message => artwork.note(message),
 });
 const artwork = createArtworkService({
   launchbox,
   screenscraper,
   cartridgeLabel,
+  encodeImage: encodeArtwork,
   dataDir: DATA,
   getSystems: () => config.systems,
   getGames: () => libraryGames,
   normalize: looseKey,
   decodeImage: artworkPng,
-  onProgress: progress => { if (win && !win.isDestroyed()) win.webContents.send('art:progress', progress); },
+  onProgress: progress => {
+    if (win && !win.isDestroyed()) win.webContents.send('art:progress', progress);
+    // The first download builds the LaunchBox database; fill in game details right away.
+    if (progress.status === 'complete') fillGameDetails(libraryGames).then(changed => {
+      if (changed.length && win && !win.isDestroyed()) win.webContents.send('library:info', changed);
+    }).catch(() => {});
+  },
 });
 
 // ---------- Emulators ----------
@@ -848,7 +879,43 @@ handle('config:set', cfg => {
   saveConfig(config);
   return config;
 });
-handle('library:scan', scanLibrary);
+// Game details (description, year, developer, publisher, genre, players) from the LaunchBox database.
+// Only empty fields are filled, so gamelist.xml and info.json always win. Needs no network.
+async function fillGameDetails(games) {
+  if (!launchbox.available()) return [];
+  const changed = [];
+  for (const game of games) {
+    if (game.demo || (game.info?.description && game.info?.year)) continue;
+    let details = null;
+    try { details = await launchbox.details(game.system, artwork.titleKeys(game)); } catch { return changed; }
+    if (!details) continue;
+    const added = {};
+    for (const [k, v] of Object.entries(details)) if (!game.info?.[k]) added[k] = v;
+    if (!Object.keys(added).length) continue;
+    game.info = { ...(game.info || {}), ...added };
+    changed.push({ gameId: game.id, info: game.info });
+  }
+  return changed;
+}
+
+// After the first scan, shrink oversized images saved by 0.3.0 in the background and hand the
+// new files to the window as they are ready.
+let compacted = false;
+handle('library:scan', async () => {
+  const games = await scanLibrary();
+  await fillGameDetails(games).catch(() => {});
+  if (!compacted) {
+    compacted = true;
+    const marker = path.join(DATA, 'media', '_index', 'compacted-v1');
+    if (!fs.existsSync(marker)) artwork.compact((system, type, base, url) => {
+      const game = libraryGames.find(g => g.system === system && g.base === base);
+      if (!game) return;
+      game.media[type] = url;
+      if (win && !win.isDestroyed()) win.webContents.send('art:media', { gameId: game.id, media: { [type]: url }, replace: true });
+    }).then(() => { fs.mkdirSync(path.dirname(marker), { recursive: true }); fs.writeFileSync(marker, new Date().toISOString()); }).catch(() => {});
+  }
+  return games;
+});
 handle('app:version', () => APP_VERSION);
 handle('app:checkUpdate', checkAppUpdate);
 handle('app:installUpdate', async () => {
@@ -868,6 +935,30 @@ handle('art:fetch', (sysId, base, options) => artwork.fetchArt(sysId, base, opti
 handle('art:start', options => artwork.start(options));
 handle('art:status', () => artwork.status());
 handle('art:cancel', () => artwork.cancel());
+// "Choose another" picker: previews are made here, so the window never loads remote images.
+// The full images stay in the main process until one is chosen.
+let pickerChoices = new Map();
+handle('art:candidates', async ({ gameId, kind }) => {
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game) throw new Error('Select a game in your library first.');
+  if (!['front', 'back', 'spine', 'disc', 'screenshot', 'title', 'logo', 'fanart'].includes(kind)) throw new Error('Choose an artwork type.');
+  const found = await artwork.candidates(game, kind);
+  pickerChoices = new Map();
+  return found.map(bytes => {
+    const token = require('crypto').randomUUID(), image = nativeImage.createFromBuffer(bytes), size = image.getSize();
+    pickerChoices.set(token, { gameId, kind, bytes });
+    const preview = size.height > size.width ? image.resize({ height: 260, quality: 'good' }) : image.resize({ width: 260, quality: 'good' });
+    return { token, preview: preview.toDataURL(), width: size.width, height: size.height };
+  });
+});
+handle('art:choose', async ({ token }) => {
+  const choice = pickerChoices.get(token);
+  if (!choice) throw new Error('That choice has expired. Look up the versions again.');
+  const game = libraryGames.find(g => g.id === choice.gameId);
+  if (!game) throw new Error('This game is no longer in your library.');
+  pickerChoices = new Map();
+  return artwork.choose(game, choice.kind, choice.bytes);
+});
 // Artwork sources: which ones are ready, and the ScreenScraper login (passwords never go back to the window).
 function artSources() {
   const c = screenScraperCredentials();
