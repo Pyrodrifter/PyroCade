@@ -73,7 +73,7 @@ function defaultConfig() {
     promptFamily: 'auto',
     motion: 'auto',
     eShopStyle: 'enhanced',
-    libraryTheme:'ember',libraryLayout:'carousel',uiSound:{enabled:true,volume:.25},
+    libraryTheme:'ember',libraryLayout:'carousel',ambient:{idleMinutes:2,background:'ribbon'},uiSound:{enabled:true,volume:.25},
     systems: DEFAULT_SYSTEMS.map(s => ({ ...s, romDir: '' })),
     emulators: {},        // per catalog id: { exe, args, prerelease } overrides
     customEmulators: [],  // { id, name, exe, args, systems: [] }

@@ -2,21 +2,23 @@ const Appearance=(()=>{
   const $=s=>document.querySelector(s);
   const themes={ember:{name:'Ember',accent:'#ff752e',light:'#ffc074'},glacier:{name:'Glacier',accent:'#37bfe6',light:'#9defff'},violet:{name:'Violet',accent:'#a685ff',light:'#ebafff'},mint:{name:'Mint',accent:'#4dc59c',light:'#c3f59f'},rose:{name:'Rose',accent:'#f46e9b',light:'#ffc2a5'}};
   const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Page through'},swatches:{name:'Colour cards',note:'Colour grid'}};
-  let theme='ember',mode='carousel',context,saves=Promise.resolve(),volumeTimer;
+  let theme='ember',mode='carousel',infoBar='small',context,saves=Promise.resolve(),volumeTimer;
   function persist(){
-    const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.uiSound=AudioUI.settings();
+    const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.uiSound=AudioUI.settings();state.config.libraryInfoBar=infoBar;
     const snapshot=structuredClone(state.config);
     saves=saves.catch(()=>{}).then(()=>api.setConfig(snapshot)).catch(()=>context.toast('Appearance could not be saved. Try changing the option again.'));
     return saves;
   }
   function apply(next={},save=true){
-    const old=mode;if(themes[next.theme])theme=next.theme;if(layouts[next.layout])mode=next.layout;
+    const old=mode,oldInfo=infoBar;if(['large','small','compact','hidden'].includes(next.infoBar))infoBar=next.infoBar;if(themes[next.theme])theme=next.theme;if(layouts[next.layout])mode=next.layout;
+    document.documentElement.dataset.infoBar=infoBar;
+    for(const b of document.querySelectorAll('#infoBarOptions button'))b.setAttribute('aria-pressed',String(b.dataset.infoBar===infoBar));
     document.documentElement.dataset.theme=theme;document.documentElement.dataset.layout=mode;
     const palette=themes[theme];document.documentElement.style.setProperty('--accent',palette.accent);document.documentElement.style.setProperty('--accent2',palette.light);
     for(const b of document.querySelectorAll('#layoutOptions button'))b.setAttribute('aria-pressed',String(b.dataset.layout===mode));
     for(const b of document.querySelectorAll('#themeOptions button'))b.setAttribute('aria-pressed',String(b.dataset.theme===theme));
     $('#btnAppearance').title=`${layouts[mode].name} · ${themes[theme].name} · change appearance`;
-    if(context&&old!==mode)context.refresh();if(save){AudioUI.play('confirm');persist()}
+    if(context&&(old!==mode||oldInfo!==infoBar))context.refresh();if(save){AudioUI.play('confirm');persist()}
   }
   function init(options){
     context=options;const config=context.getState().config;
@@ -28,7 +30,15 @@ const Appearance=(()=>{
     for(const [id,v]of Object.entries(themes)){
       const b=document.createElement('button');b.className='theme-option';b.dataset.theme=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${v.light},${v.accent})`);b.innerHTML=`<i aria-hidden="true"></i>${v.name}`;b.onclick=()=>apply({theme:id});$('#themeOptions').append(b);
     }
-    apply({theme:config.libraryTheme||'ember',layout:config.libraryLayout||'carousel'},false);
+    const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
+    for(const id of Ambient.backgrounds()){
+      const b=document.createElement('button');b.className='theme-option';b.dataset.background=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${bgNames[id][1]})`);b.innerHTML=`<i aria-hidden="true"></i>${bgNames[id][0]}`;
+      b.onclick=()=>{Ambient.configure({background:id});const state=context.getState();state.config.ambient={...(state.config.ambient||{}),idleMinutes:Ambient.settings().idleMinutes,background:id};delete state.config.ambient.ribbon;syncBackground();const sel=$('#sBackground');if(sel)sel.value=id;AudioUI.play('confirm');persist()};
+      $('#backgroundOptions').append(b);
+    }
+    for(const b of document.querySelectorAll('#infoBarOptions button'))b.onclick=()=>apply({infoBar:b.dataset.infoBar});
+    syncBackground();
+    apply({infoBar:config.libraryInfoBar||'small',theme:config.libraryTheme||'ember',layout:config.libraryLayout||'carousel'},false);
     $('#btnAppearance').onclick=()=>{if($('#appearancePicker').open)return $('#appearancePicker').close();if($('#systemPicker').open)$('#systemPicker').close();AudioUI.play('open');$('#appearancePicker').showModal();$('#btnAppearance').setAttribute('aria-expanded','true');$('#layoutOptions [aria-pressed=true]').focus()};
     $('#closeAppearance').onclick=()=>$('#appearancePicker').close();
     $('#appearancePicker').addEventListener('close',()=>{$('#btnAppearance').setAttribute('aria-expanded','false');$('#btnAppearance').focus();AudioUI.play('back')});
@@ -39,6 +49,7 @@ const Appearance=(()=>{
     $('#soundVolume').onchange=()=>{clearTimeout(volumeTimer);persist();AudioUI.play('confirm')};$('#soundPreview').onclick=()=>AudioUI.play('system');
     $('#appearancePicker').addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&!e.target.matches('input')){e.preventDefault();controller(e.key.slice(5).toLowerCase())}});
   }
+  function syncBackground(){const current=Ambient.settings().background;for(const b of document.querySelectorAll('#backgroundOptions button'))b.setAttribute('aria-pressed',String(b.dataset.background===current))}
   function geometry(stage,selected,length){
     if(mode!=='swatches')return {lo:selected-8,hi:selected+8};
     const columns=Math.max(1,Math.min(stage.clientWidth>=1400?4:3,length||1)),rows=stage.clientHeight>=260?2:1,cells=columns*rows;
@@ -69,11 +80,11 @@ const Appearance=(()=>{
     if(action==='play'||action==='case'){if(active.matches('button'))active.click();return;}
     if(!['left','right','up','down'].includes(action))return;
     if(active.id==='soundVolume'&&['left','right'].includes(action)){active.value=Math.max(0,Math.min(100,Number(active.value)+(action==='left'?-5:5)));active.dispatchEvent(new Event('input'));AudioUI.play('scroll');return;}
-    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,2),layoutButtons.slice(2),[...document.querySelectorAll('#themeOptions button')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
+    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,2),layoutButtons.slice(2),[...document.querySelectorAll('#themeOptions button')],[...document.querySelectorAll('#backgroundOptions button')],[...document.querySelectorAll('#infoBarOptions button')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
     let row=rows.findIndex(r=>r.includes(active)),col=row<0?0:rows[row].indexOf(active);if(row<0){rows[0][0].focus();return;}
     if(action==='left'||action==='right')col=Math.max(0,Math.min(rows[row].length-1,col+(action==='left'?-1:1)));
     else{row=Math.max(0,Math.min(rows.length-1,row+(action==='up'?-1:1)));col=Math.min(col,rows[row].length-1)}
     rows[row][col].focus();
   }
-  return {init,apply,persist,geometry,position,card,controller,mode:()=>mode,theme:()=>theme,panelOpen:()=>!!$('#appearancePicker')?.open,layouts,themes};
+  return {init,apply,persist,syncBackground,geometry,position,card,controller,mode:()=>mode,theme:()=>theme,panelOpen:()=>!!$('#appearancePicker')?.open,layouts,themes};
 })();

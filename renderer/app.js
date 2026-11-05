@@ -32,8 +32,8 @@ const toast = (m, ms = 3200) => { const t = $('#toast'); t.textContent = m; t.cl
 function art(game) {
   const sys = sysOf(game.system);
   let [W, H, D] = Packaging.profiles[sys.id]?.size || CASES[sys.caseType] || CASES.dvd;
-  // Real box art: shape the box to the scan so nothing is stretched.
-  if (game._aspect) {
+  // Recognised systems retain their physical case proportions regardless of scan margins.
+  if (game._aspect && !Packaging.profiles[sys.id]) {
     const area = W * H, a = Math.max(.55, Math.min(1.6, game._aspect));
     W = Math.round(Math.sqrt(area * a)); H = Math.round(W / a);
   }
@@ -55,7 +55,8 @@ async function boot() {
   S.config = await api.getConfig();
   LibraryUI.init({getState:()=>S,select:setSystem});
   AudioUI.init(S.config.uiSound);
-  Appearance.init({getState:()=>S,toast,refresh:()=>{for(const it of items.values()){const game=S.games.find(g=>g.id===it.dataset.id);if(game)fillItem(it,game)}if(S.list.length)layout();promptFamilyRendered='';renderPrompts()}});
+  Ambient.init({initial:S.config.ambient,canRun:()=>libraryActive()&&!caseShown()&&!LibraryUI.pickerOpen()&&!Appearance.panelOpen()&&!document.activeElement?.matches?.('input,select,textarea'),advance:()=>select(S.sel+1>=S.list.length?0:S.sel+1)});
+  Appearance.init({getState:()=>S,toast,refresh:()=>{resizeShelf();for(const it of items.values()){const game=S.games.find(g=>g.id===it.dataset.id);if(game)fillItem(it,game)}if(S.list.length)layout();promptFamilyRendered='';renderPrompts()}});
   eShopStyle=S.config.eShopStyle==='original'?'original':'enhanced';
   promptPreference = validPromptPreference(S.config.promptFamily);
   applyMotion(S.config.motion || 'auto');
@@ -280,7 +281,7 @@ function select(i) {
   if (!S.list.length) return;
   const n = Math.max(0, Math.min(S.list.length - 1, i));
   if (n === S.sel) return;
-  AudioUI.play('scroll',Math.sign(n-S.sel));
+  if(!Ambient.active())AudioUI.play('scroll',Math.sign(n-S.sel));
   S.sel = n; layout(); showInfo();
 }
 
@@ -562,6 +563,8 @@ function renderSettings() {
   $('#sPrompts').value = promptPreference;
   $('#sMotion').value = motionPreference;
   $('#sEshop').value = eShopStyle;
+  $('#sAmbient').value = String(c.ambient?.idleMinutes ?? 2);
+  $('#sBackground').value = c.ambient?.background || (c.ambient?.ribbon === false ? 'off' : 'ribbon');
   $('#sMedia').value = c.mediaRoot || '';
   $('#sHide').checked = !!c.hideWhilePlaying;
   $('#sCheckUpdates').checked = c.checkUpdates !== false;
@@ -604,6 +607,7 @@ $('#btnSave').onclick = async () => {
   c.promptFamily = promptPreference;
   c.motion = motionPreference;
   c.eShopStyle = eShopStyle;
+  c.ambient = { idleMinutes: Number($('#sAmbient').value) || 0, background: $('#sBackground').value };
   $$('#sysTable tbody tr').forEach(tr => {
     const s = c.systems[tr.dataset.i];
     tr.querySelectorAll('[data-k]').forEach(inp => {
@@ -758,6 +762,8 @@ function applyMotion(value) {
 }
 motionQuery.addEventListener('change',() => applyMotion(motionPreference));
 $('#sMotion').addEventListener('change',e => applyMotion(e.target.value));
+const applyAmbient=()=>{Ambient.configure({idleMinutes:Number($('#sAmbient').value)||0,background:$('#sBackground').value});Appearance.syncBackground()};
+$('#sAmbient').addEventListener('change',applyAmbient);$('#sBackground').addEventListener('change',applyAmbient);
 $('#sEshop').addEventListener('change',e=>{
   eShopStyle=e.target.value==='original'?'original':'enhanced';
   for(const item of items.values()){const game=S.games.find(g=>g.id===item.dataset.id);if(game)fillItem(item,game);}
@@ -775,6 +781,7 @@ function pollPad(now) {
     if (!gp || !active(gp)) promptInput = 'keyboard';
     renderPrompts();
   }
+  const woke = gp && active(gp) ? Ambient.activity() : false;
   if (gp && active(gp)) usePromptInput(Prompts.detect(gp.id));
   if (gp) {
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, b = i => gp.buttons[i]?.pressed;
@@ -782,7 +789,7 @@ function pollPad(now) {
       play: b(0), back: b(1), manual: b(2), case: b(3), pgup: b(6), pgdn: b(7),systems:b(9) };
     for (const [k, v] of Object.entries(st)) {
       const repeat = ['left', 'right'].includes(k)||(['up','down'].includes(k)&&(LibraryUI.pickerOpen()||Appearance.panelOpen()||['vertical','swatches'].includes(Appearance.mode())));
-      if (v && (!pad.held[k] || (repeat && now > pad.next[k]))) { input(k); pad.next[k] = now + (pad.held[k] ? 90 : 380); }
+      if (v && !woke && (!pad.held[k] || (repeat && now > pad.next[k]))) { input(k); pad.next[k] = now + (pad.held[k] ? 90 : 380); }
       pad.held[k] = v;
     }
   }

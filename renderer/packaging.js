@@ -29,30 +29,38 @@ const Packaging=(()=>{
     arcade:p([318,225,52],'#b8ad98','cardboard','#28262c','#fff','ARCADE','#bc8b29')
   };
   function profile(sys){return profiles[sys.id]||p([230,323,24],'#292a31','plastic','#252631','#fff',sys.name,sys.color||'#444')}
+  // Corners describe the moulded shell, not a rounded card laid over the cover.
+  function geometry(v,sys){
+    if(v.material==='cardboard')return {radius:.25,rim:0,bevel:.45};
+    if(v.material==='jewel')return {radius:.6,rim:1.2,bevel:.7};
+    if(sys.id==='switch'||sys.id==='switch2')return {radius:2,rim:1.5,bevel:.9};
+    if(v.material==='clamshell')return {radius:2,rim:1.5,bevel:1};
+    return {radius:1.5,rim:1.2,bevel:.8};
+  }
   function decorate(box,a){
-    const v=profile(a.sys);box.dataset.packaging=a.sys.id;box.dataset.material=v.material;box.dataset.media=a.sys.media;
-    box.style.setProperty('--case-shell',v.shell);box.style.setProperty('--case-rim',v.material==='cardboard'?'0px':v.material==='jewel'?'3px':'2px');
+    const v=profile(a.sys),shape=geometry(v,a.sys);box.dataset.packaging=a.sys.id;box.dataset.material=v.material;box.dataset.media=a.sys.media;
+    box.style.setProperty('--case-shell',v.shell);box.style.setProperty('--case-rim',shape.rim+'px');
     box.style.setProperty('--case-print',v.bg);
     box.style.setProperty('--case-ink',v.ink);
-    box.style.setProperty('--case-radius',v.material==='cardboard'?'1px':v.material==='jewel'?'2px':'5px');
+    box.style.setProperty('--case-radius',shape.radius+'px');
   }
   function node(cls,text){const n=document.createElement('div');n.className=cls;if(text)n.textContent=text;return n}
   function finish(box,a){
-    const v=profile(a.sys),paper=v.material==='cardboard',glass=['clear','jewel'].includes(v.material);
-    box.style.setProperty('--bevel-width',paper?'1.1px':v.material==='jewel'?'2.2px':'2.7px');
-    box.style.setProperty('--surface-gloss',paper?'.045':glass?'.19':'.11');
-    const radius=paper?1:v.material==='jewel'?2.5:6;
+    const v=profile(a.sys),shape=geometry(v,a.sys),paper=v.material==='cardboard',glass=['clear','jewel'].includes(v.material);
+    box.style.setProperty('--bevel-width',shape.bevel+'px');
+    box.style.setProperty('--surface-gloss',paper?'.035':glass?'.10':'.065');
+    const radius=shape.radius;
     for(const face of box.querySelectorAll(':scope > .f-front,:scope > .f-back,:scope > .lid > .l-front')){
       if(paper&&face.classList.contains('l-front'))continue;
       const id='case-finish-'+(++finishId),frame=node('case-bezel');frame.setAttribute('aria-hidden','true');
       const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox',`0 0 ${a.W} ${a.H}`);svg.setAttribute('preserveAspectRatio','none');
-      const stroke=paper?1.2:glass?2.1:2.8;
-      svg.innerHTML=`<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2=".7"><stop stop-color="${paper?'#ede6d07a':'#ffffffc0'}"/><stop offset=".18" stop-color="${v.shell}"/><stop offset=".48" stop-color="${paper?'#35322b66':'#ffffff3b'}"/><stop offset=".72" stop-color="${v.shell}"/><stop offset="1" stop-color="#050709a0"/></linearGradient></defs><rect x="1.5" y="1.5" width="${a.W-3}" height="${a.H-3}" rx="${radius}" fill="none" stroke="url(#${id})" stroke-width="${stroke}"/><rect x="${paper?2.5:4}" y="${paper?2.5:4}" width="${a.W-(paper?5:8)}" height="${a.H-(paper?5:8)}" rx="${Math.max(1,radius-2)}" fill="none" stroke="#00000040" stroke-width="${paper?.5:.8}"/>`;
+      const stroke=paper?.5:glass?.85:1;
+      svg.innerHTML=`<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2=".7"><stop stop-color="${paper?'#ede6d07a':'#ffffffc0'}"/><stop offset=".18" stop-color="${v.shell}"/><stop offset=".48" stop-color="${paper?'#35322b66':'#ffffff3b'}"/><stop offset=".72" stop-color="${v.shell}"/><stop offset="1" stop-color="#050709a0"/></linearGradient></defs><rect x="1.5" y="1.5" width="${a.W-3}" height="${a.H-3}" rx="${radius}" fill="none" stroke="url(#${id})" stroke-width="${stroke}"/><rect x="${paper?2.5:4}" y="${paper?2.5:4}" width="${a.W-(paper?5:8)}" height="${a.H-(paper?5:8)}" rx="${Math.max(0,radius-1)}" fill="none" stroke="#00000040" stroke-width="${paper?.5:.8}"/>`;
       const surface=node('case-surface-finish');surface.setAttribute('aria-hidden','true');frame.append(svg);face.append(surface,frame);
     }
     const lid=box.querySelector(':scope > .lid');
     const edges=node('case-edge-set');edges.setAttribute('aria-hidden','true');
-    const bevelDepth=(paper?1.1:v.material==='jewel'?2.2:2.7)/Math.SQRT2+.15;
+    const bevelDepth=shape.bevel/Math.SQRT2+.15;
     edges.style.setProperty('--bevel-z',lid&&!paper?(.5+bevelDepth)+'px':`calc(var(--d) / 2 + ${bevelDepth}px)`);
     for(const side of ['top','bottom','left','right'])edges.append(node('case-bevel case-bevel-'+side));
     (lid&&!paper?lid:box).append(edges);
@@ -87,6 +95,12 @@ const Packaging=(()=>{
     insert.style.cssText=`--spine-paper:${v.bg};--spine-ink:${v.ink};--spine-accent:${v.accent};--spine-header:${header}px;--spine-footer:${footerHeight}px`;
     if(a.sys.id==='switch2'&&game.media.front){
       const art=node('spine-wrap-art');EshopCovers.background(art,a.front,a.packshot||{x:0,y:0,w:1,h:1});insert.append(art);
+    }
+    else if(game.media.front&&!a.digital){
+      // No spine scan: wrap the cover's edge colours around the spine so it belongs to this game.
+      const dark=v.ink==='#fff'||v.ink==='#f4f4f4';
+      if(dark){const art=node('spine-wrap-art spine-wrap-cover');EshopCovers.background(art,a.front,a.packshot||{x:0,y:0,w:.14,h:1});insert.append(art)}
+      Art.tint(a.front,a.packshot).then(color=>insert.style.setProperty('--spine-tint',color));
     }
     const title=node('spine-game-title',game.title.replace(/\bv?\d+(?:\.\d+)+\b/gi,'').replace(/\s+/g,' ').trim());
     title.style.fontSize=fitText(title.textContent,a.H-header-footerHeight-a.D*.6,a.D*(v.material==='cardboard'?.43:.47))+'px';
