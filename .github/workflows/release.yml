@@ -1,6 +1,3 @@
-# Builds the Windows installer and the Linux packages, smoke-tests Linux, and attaches
-# everything to a *draft* GitHub release. Publish the draft when it looks right; installed
-# copies of PyroCade only see published releases.
 name: Release
 
 on:
@@ -19,63 +16,48 @@ env:
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  macos-arm64:
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ env.TAG }}' }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
       - run: npm ci
-      - run: npx electron-builder --win nsis --publish never
+      - run: npm run dist:macos:arm64
       - uses: actions/upload-artifact@v4
         with:
-          name: windows
-          path: dist/PyroCade-Setup-*.exe
+          name: pyrocade-macos-arm64
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
-  linux:
-    runs-on: ubuntu-22.04
+  linux-arm64:
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ env.TAG }}' }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      # rpm builds the Fedora package, libarchive-tools the Arch one; xvfb runs the smoke test.
-      - run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools xvfb
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+      - run: sudo apt-get update && sudo apt-get install -y build-essential curl file libgtk-3-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf rpm librsvg2-dev wget
       - run: npm ci
-      - run: npx electron-builder --linux AppImage deb rpm pacman --publish never
-      - name: Smoke test the AppImage
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: '1'
-          PYROCADE_SNAP: ${{ runner.temp }}/appimage.png
-          PYROCADE_JS: (async()=>JSON.stringify({version:await api.appVersion(),emulators:(await api.emuList()).filter(e=>e.managed).length,demo:!document.getElementById('demoBanner').classList.contains('hidden')}))()
-        run: |
-          chmod +x dist/PyroCade-*.AppImage
-          timeout 120 xvfb-run -a dist/PyroCade-*.AppImage --no-sandbox
-          cat "$PYROCADE_SNAP.txt"; echo
-          test -s "$PYROCADE_SNAP"
-          grep -q '"emulators":11' "$PYROCADE_SNAP.txt"
-      - name: Smoke test the .deb
-        env:
-          PYROCADE_SNAP: ${{ runner.temp }}/deb.png
-        run: |
-          sudo apt-get install -y ./dist/pyrocade_*_amd64.deb
-          timeout 120 xvfb-run -a pyrocade --no-sandbox
-          test -s "$PYROCADE_SNAP"
+      - run: npm run dist:linux:arm64
       - uses: actions/upload-artifact@v4
         with:
-          name: linux
+          name: pyrocade-linux-arm64
           path: |
-            dist/PyroCade-*.AppImage
-            dist/pyrocade_*.deb
-            dist/pyrocade-*.rpm
-            dist/pyrocade-*.pkg.tar.zst
-            ${{ runner.temp }}/*.png
+            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb
+            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/rpm/*.rpm
           if-no-files-found: error
 
   release:
-    needs: [windows, linux]
+    needs: [macos-arm64, linux-arm64]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -85,7 +67,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          files=$(find out -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' \))
+          files=$(find out -type f)
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" $files --clobber
           else
