@@ -47,7 +47,7 @@
     <div id="stage">
       <div class="shelf-heading"><span id="shelfLabel"></span><span id="mediaType"></span></div>
             <div id="floor"></div>
-      <div id="shelfPlank" aria-hidden="true"></div><div id="rackPost" aria-hidden="true"></div>
+      <div id="rackPost" aria-hidden="true"></div>
       <div id="carousel" role="listbox" aria-label="Game collection" tabindex="0"></div>
       <div id="empty" class="hidden">No games for this system yet.</div>
       <button id="shelfPrev" class="shelf-arrow previous" aria-label="Previous game" title="Previous game"></button>
@@ -125,6 +125,16 @@
     </form>
     <div id="emuGrid" class="grid"></div>
   </main>
+
+  <!-- MANUAL VIEWER -->
+  <dialog id="manualViewer" aria-labelledby="manualViewerTitle">
+    <div class="manual-viewer-bar">
+      <strong id="manualViewerTitle"></strong>
+      <button id="manualExternal" type="button">Open in your PDF reader</button>
+      <button id="manualClose" type="button" aria-label="Close manual"><kbd>Esc</kbd> Close</button>
+    </div>
+    <iframe id="manualFrame" title="Game manual"></iframe>
+  </dialog>
 
   <!-- ARTWORK -->
   <main id="view-artwork" class="view">

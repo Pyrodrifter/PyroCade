@@ -394,10 +394,23 @@ async function play(g = S.list[S.sel]) {
   catch (e) { fx?.finish(false); AudioUI.play('error'); toast(e.message, 5000); }
   finally { launching = false; }
 }
-function manual(g = S.list[S.sel]) {
-  if (g?.media.manual) api.openManual(g.media.manual);
-  else toast('No manual found. Put a manual.pdf in this game’s artwork folder.');
+// Manuals open full screen inside PyroCade (Chromium's PDF viewer: zoom, pages, search).
+async function manual(g = S.list[S.sel]) {
+  if (!g?.media.manual) return toast('No manual yet. Add one in Artwork → Change an image → Manual (PDF), or with Find manuals in a folder.');
+  let url;
+  try { url = await api.manualUrl(g.media.manual); } catch (e) { return toast(e.message, 5000); }
+  const viewer = $('#manualViewer');
+  $('#manualViewerTitle').textContent = `${g.title} · Manual`;
+  $('#manualFrame').src = url + '#view=FitH';
+  $('#manualExternal').onclick = () => api.openManual(g.media.manual).catch(e => toast(e.message, 5000));
+  AudioUI.play('open');
+  viewer.showModal();
+  $('#manualClose').focus();
 }
+const manualOpen = () => $('#manualViewer').open;
+function closeManual() { const v = $('#manualViewer'); if (!v.open) return; v.close(); }
+$('#manualViewer').addEventListener('close', () => { $('#manualFrame').src = 'about:blank'; });
+$('#manualClose').onclick = closeManual;
 
 // ---------- case viewer ----------
 const CV = { open: false, rx: 8, ry: 32, tx: 0, z: 0, game: null, anim: null, token:0, timer:null };
@@ -405,6 +418,8 @@ function rig() {
   $('#caseRig').style.transform = `translateX(${CV.tx}px) translateZ(${CV.z}px) rotateX(${CV.rx}deg) rotateY(${CV.ry}deg)`;
   const c=$('#caseRig .case');
   if(c)c.style.setProperty('--light-x',(30+Math.sin(CV.ry*Math.PI/180)*35)+'%');
+  // Flat captions turn into stray lines when seen edge-on; hide them while the case faces sideways.
+  if(c){const a=Math.abs(((CV.ry%360)+540)%360-180);c.classList.toggle('side-view',a<130&&a>50);}
 }
 function tween(to, ms = 900) {
   cancelAnimationFrame(CV.anim);
@@ -447,6 +462,9 @@ async function openCase() {
     cover.style.inset='5% 6% 14%';cover.style.setProperty('--w',a.W*.92*.88+'px');page.append(cover);
     page.append(el('div','manual-cover-caption','Instruction booklet'));
   }
+  // A real booklet has thickness: back cover, stapled spine and a stack of page edges, so it never
+  // turns into a floating hairline when the case is viewed from the side.
+  man.append(el('div', 'manual-back'), el('div', 'manual-edge manual-edge-fore'), el('div', 'manual-edge manual-edge-spine'), el('div', 'manual-edge manual-edge-top'), el('div', 'manual-edge manual-edge-bottom'));
   man.append(page, el('div', 'tag', g.media.manual ? 'Click to read the manual' : 'No manual file found'));
   man.onclick = e => { e.stopPropagation(); if (c.classList.contains('open')) manual(g); };
   c.append(man);
@@ -768,6 +786,7 @@ $('#stage').addEventListener('wheel', e => {
 
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
+  if(manualOpen()){if(action==='back'||action==='manual')closeManual();return;}
   if(Appearance.panelOpen()){Appearance.controller(action);return;}
   if(LibraryUI.pickerOpen()){LibraryUI.controller(action);return;}
   if(action==='systems'&&libraryActive()&&!caseShown()){LibraryUI.openPicker();return;}

@@ -63,7 +63,7 @@ const Appearance=(()=>{
   function position(i,sel,scale,itemScale,stage,view,size=()=>[230,323,24]){
     const d=i-sel,a=Math.abs(d),s=Math.sign(d);
     if(mode==='bookshelf') {
-      // Cases stand spine-out on one shelf, bottoms on the plank; the selected one slides out to face you.
+      // Cases stand spine-out side by side on one baseline; the selected one slides out to face you.
       const k=itemScale*.6,ks=itemScale*.82,base=323*k/2;
       if(d===0){const [,H]=size(i);return {transform:`translate3d(0px,${base-H*ks/2-34*scale}px,150px) scale3d(${ks},${ks},${ks})`,hidden:false,shelf:base}}
       const [Ws]=size(sel);let x=Ws*ks/2+18*scale;

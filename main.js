@@ -878,7 +878,8 @@ function createWindow() {
     show: !previewMode,
     backgroundColor: '#07080c', autoHideMenuBar: true, title: 'PyroCade',
     icon:path.join(ROOT,'renderer/assets/brand/pyrocade-icon-256.png'),
-    webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, sandbox: false, autoplayPolicy:'no-user-gesture-required',offscreen: previewMode, backgroundThrottling: !previewMode },
+    // plugins: Chromium's built-in PDF viewer, used to read manuals inside PyroCade.
+    webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, sandbox: false, plugins: true, autoplayPolicy:'no-user-gesture-required',offscreen: previewMode, backgroundThrottling: !previewMode },
   });
   win.loadFile(path.join(ROOT, 'renderer', 'index.html'));
   if (configWarning) win.webContents.once('did-finish-load', () => win.webContents.send('toast', configWarning));
@@ -1143,10 +1144,11 @@ handle('dialog:folder', async title => {
   const r = await dialog.showOpenDialog(win, { title, properties: ['openDirectory'] });
   return r.canceled ? null : r.filePaths[0];
 });
-handle('manual:open', p => {
-  const w = new BrowserWindow({ width: 1000, height: 1100, autoHideMenuBar: true, title: 'Manual', backgroundColor: '#222' });
-  w.loadURL(pathToFileURL(p).href);
-});
+// Manuals open in PyroCade's own viewer; this gives it the file address of a library manual.
+const knownManual = p => typeof p === 'string' && /\.pdf$/i.test(p) && libraryGames.some(g => g.media.manual === p) && fs.existsSync(p);
+handle('manual:url', p => { if (!knownManual(p)) throw new Error('Manual not found.'); return pathToFileURL(p).href; });
+// "Open in your PDF reader" from the viewer.
+handle('manual:open', async p => { if (!knownManual(p)) throw new Error('Manual not found.'); const err = await shell.openPath(p); if (err) throw new Error(err); });
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());

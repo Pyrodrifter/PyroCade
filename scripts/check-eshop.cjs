@@ -30,6 +30,10 @@ for(const name of fs.readdirSync(packshotDir).filter(f=>image.test(f))){
 }
 const digest=()=>createHash('sha256').update(Buffer.concat(files.map(f=>fs.readFileSync(path.join(coverDir,f))))).digest('hex');
 const before=digest();
+// The fixtures are the small eShop-style Switch covers from a local library. Once those have been
+// replaced by sharper retail scans (Artwork → Replace low-resolution covers), there is nothing to test.
+const eShopFixtures=files.filter(f=>size(path.join(coverDir,f))[0]<600&&expected.some(p=>f.startsWith(p)));
+if(eShopFixtures.length<expected.length){console.log(`Skipped: only ${eShopFixtures.length} of ${expected.length} eShop-style test covers are present in data/media/switch/covers.`);process.exit(0)}
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1584,height:861,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),sandbox:false,contextIsolation:true,offscreen:true,backgroundThrottling:false}});
   const watchdog=setTimeout(()=>{console.error('eShop check timed out');app.exit(1)},30000);

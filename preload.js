@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
   emuRemove: id => call('emu:remove', id),
   pickFolder: title => call('dialog:folder', title),
   openManual: p => call('manual:open', p),
+  manualUrl: p => call('manual:url', p),
   onProgress: fn => ipcRenderer.on('emu:progress', (_e, p) => fn(p)),
   onToast: fn => ipcRenderer.on('toast', (_e, m) => fn(m)),
   appVersion: () => call('app:version'),
