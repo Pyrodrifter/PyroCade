@@ -100,7 +100,7 @@ Each system's file types and emulator can be changed in **Settings**, and **Add 
 | Atari 2600 | `.a26` `.zip` | Link your own |
 | Arcade | `.zip` | Link your own |
 
-Switch and Switch 2 games can also be unpacked game folders (`<game>ase\exefs\main`). Systems without a built-in download work with any emulator you link with **Use existing .exe…**.
+Switch and Switch 2 games can also be unpacked game folders (`<game>\base\exefs\main`). Systems without a built-in download work with any emulator you link with **Use existing .exe…**.
 
 ### Your own artwork
 Your own files always win over downloads. PyroCade reads:
