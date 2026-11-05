@@ -12,9 +12,13 @@ const systems=[
 ];
 const game=(id,title,system,base)=>({id,title,system,base,romPath:'fixture.rom',media:{},info:{}});
 const games=[game('ps1:spyro','Spyro the Dragon','ps1','Spyro the Dragon (USA)'),game('gba:zelda','The Legend of Zelda: A Link to the Past','gba','Legend of Zelda, The - A Link To The Past Four Swords (U) [!]'),game('ps1:missing','Unmatched prototype','ps1','Unknown Prototype'),game('switch:game','Switch game','switch','Switch Game')];
-const front=path.resolve(__dirname,'../data/media/ps1/covers/Spyro the Dragon (USA).png');
-if(fs.existsSync(front))games[0].media.front=pathToFileURL(front).href;
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1cAAAAASUVORK5CYII=','base64');
+// The first game always has a cover of its own: the local one when present, else a placeholder
+// (CI has no data/ folder). It sits outside the download folders, so downloads must keep it.
+const localFront=path.resolve(__dirname,'../data/media/ps1/covers/Spyro the Dragon (USA).png');
+const front=fs.existsSync(localFront)?localFront:path.join(root,'own-cover.png');
+if(front!==localFront)fs.writeFileSync(front,png);
+games[0].media.front=pathToFileURL(front).href;
 let listener=()=>{};
 const service=createArtworkService({dataDir:root,getSystems:()=>systems,getGames:()=>games,normalize:s=>s.replace(/\([^)]*\)|\[[^\]]*\]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase(),onProgress:p=>listener(p),fetchImpl:async(url,{signal})=>{
   await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,140);signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Cancelled','AbortError'))},{once:true})});
