@@ -62,6 +62,8 @@ const DEFAULT_SYSTEMS = [
   { id: 'genesis', name: 'Sega Genesis', caseType: 'dvd', media: 'cart', color: '#1b1b1b', extensions: ['.md', '.gen', '.smd', '.zip'], emulator: '', libretro: 'Sega - Mega Drive - Genesis' },
   { id: 'xbox', name: 'Xbox', caseType: 'dvd', media: 'disc', color: '#1c8a2e', extensions: ['.iso', '.xiso'], emulator: 'xemu', libretro: 'Microsoft - Xbox' },
   { id: 'x360', name: 'Xbox 360', caseType: 'dvd', media: 'disc', color: '#7cbb00', extensions: ['.iso', '.xex', '.zar'], emulator: '', libretro: 'Microsoft - Xbox 360' },
+  // PC: a folder of shortcuts (.lnk, Steam .url) or game programs. Games start directly, no emulator.
+  { id: 'pc', name: 'PC Games', caseType: 'dvd', media: 'disc', color: '#3b82f6', extensions: ['.lnk', '.url', '.exe'], emulator: '', direct: true },
   { id: 'a2600', name: 'Atari 2600', caseType: 'nesbox', media: 'cart', color: '#a0522d', extensions: ['.a26', '.zip'], emulator: '', libretro: 'Atari - 2600' },
   { id: 'arcade', name: 'Arcade', caseType: 'bigbox', media: 'cart', color: '#d4a017', extensions: ['.zip'], emulator: '', libretro: 'MAME' },
 ];
@@ -81,6 +83,7 @@ function defaultConfig() {
     systems: DEFAULT_SYSTEMS.map(s => ({ ...s, romDir: '' })),
     emulators: {},        // per catalog id: { exe, args, prerelease } overrides
     customEmulators: [],  // { id, name, exe, args, systems: [] }
+    extraGames: [],       // games added one by one: { id, system, path, title }
   };
 }
 
@@ -93,6 +96,7 @@ function loadConfig() {
     if (!saved || !Array.isArray(saved.systems)) throw new Error('missing systems');
     saved.emulators ||= {};
     saved.customEmulators ||= [];
+    saved.extraGames ||= [];
     const def = defaultConfig();
     // Keep new default systems appearing for older configs.
     const ids = new Set(saved.systems.map(s => s.id));
@@ -279,11 +283,17 @@ async function scanLibrary() {
     // A system can have several ROM folders (e.g. games split across two SD cards), separated by "|".
     // Folders that are missing - an SD card that isn't inserted - are skipped.
     const dirs = romDirsOf(sys).filter(d => fs.existsSync(d));
-    if (!dirs.length) continue;
+    const extras = (config.extraGames || []).filter(x => x.system === sys.id && fs.existsSync(x.path));
+    if (!dirs.length && !extras.length) continue;
     const exts = sys.extensions.map(e => e.toLowerCase());
     const files = [];
+    // Direct-launch systems (PC) only look at the folder itself: game folders are full of helper programs.
     for (const [ri, dir] of dirs.entries()) {
-      for (const f of await walkRoms(dir, exts)) if (!/\(track \d+\)/i.test(f.name)) files.push({ ...f, root: dir, rootIndex: ri });
+      for (const f of await walkRoms(dir, exts, sys.direct ? 4 : 0)) if (!/\(track \d+\)/i.test(f.name)) files.push({ ...f, root: dir, rootIndex: ri });
+    }
+    for (const x of extras) {
+      let size = 0; try { size = (await fsp.stat(x.path)).size; } catch {}
+      files.push({ name: path.basename(x.path), path: x.path, size, root: path.dirname(x.path), rootIndex: 'added-' + x.id, title: x.title, added: x.id, score: Infinity });
     }
     // Prefer .m3u playlists over their individual discs.
     const m3u = new Set(files.filter(f => /\.m3u$/i.test(f.name)).map(f => looseKey(stem(f.name))));
@@ -292,7 +302,7 @@ async function scanLibrary() {
       const base = path.basename(f.name, path.extname(f.name));
       if (!/\.m3u$/i.test(f.name) && /\(disc \d+\)/i.test(base) && m3u.has(looseKey(base))) continue;
       const key = looseKey(base) || base.toLowerCase();
-      f.score = copyScore(f);
+      if (f.score !== Infinity) f.score = copyScore(f);
       if (!best.has(key) || best.get(key).score < f.score) best.set(key, f);
     }
     const roots = [config.mediaRoot && path.join(config.mediaRoot, sys.id), ...dirs.flatMap(d => [path.join(d, 'media'), d]), path.join(DATA, 'media', sys.id)].filter(Boolean);
@@ -302,13 +312,14 @@ async function scanLibrary() {
     for (const f of best.values()) {
       const base = path.basename(f.name, path.extname(f.name));
       const { media, info } = await findMedia(indexes, base);
-      const meta = { ...(gamelist.get(base.toLowerCase()) || {}), ...(info || {}) };
+      const meta = { ...(gamelist.get(base.toLowerCase()) || {}), ...(info || {}), ...(f.title ? { title: f.title } : {}) };
       games.push({
         id: `${sys.id}:${f.rootIndex ? f.rootIndex + ':' : ''}${path.relative(f.root, f.path)}`,
         system: sys.id,
         romPath: f.path,
         base,
         title: meta.title || displayTitle(base),
+        ...(f.added ? { added: f.added } : {}),
         info: meta,
         media: Object.fromEntries(Object.entries(media).map(([k, v]) => [k, k === 'manual' ? v : fileUrl(v)])),
       });
@@ -753,12 +764,39 @@ function macAppBinary(p) {
   } catch {}
   return p;
 }
+// PC games and other "run the file itself" systems: programs are started in their own folder;
+// shortcuts (.lnk, .url) and anything else are opened the way Windows would open them.
+async function launchDirect(game) {
+  const file = game.romPath;
+  if (!fs.existsSync(file)) throw new Error(`${path.basename(file)} is missing. Rescan in Settings.`);
+  // Programs are started directly; batch files, shortcuts and anything else open the way the system would.
+  const program = process.platform === 'win32' ? /\.exe$/i.test(file) : (/\.app$/i.test(file) || (fs.statSync(file).mode & 0o111) !== 0);
+  if (!program) {
+    const err = await shell.openPath(file);
+    if (err) throw new Error(`Couldn't open ${path.basename(file)}: ${err}`);
+    return true;
+  }
+  const exe = macAppBinary(file);
+  return new Promise((resolve, reject) => {
+    const child = spawn(exe, [], { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
+    child.once('error', e => reject(new Error(`Launch failed: ${e.message}`)));
+    child.once('spawn', () => {
+      if (config.hideWhilePlaying && win && !win.isDestroyed()) {
+        win.minimize();
+        child.once('exit', () => { if (win && !win.isDestroyed()) { win.restore(); win.focus(); } });
+      }
+      child.unref();
+      resolve(true);
+    });
+  });
+}
 function launchGame(gameId) {
   // The ROM path always comes from the scanned library, never from the renderer.
   const game = libraryGames.find(g => g.id === gameId);
   if (!game) throw new Error('This game is no longer in your library. Rescan in Settings and try again.');
   const sys = config.systems.find(s => s.id === game.system);
   if (!sys) throw new Error('Unknown system');
+  if (sys.direct) return launchDirect(game);
   const emuId = sys.emulator;
   if (!emuId) throw new Error(`No emulator is set for ${sys.name}. Choose one in Settings.`);
   const exe = macAppBinary(resolveExe(emuId));
@@ -935,7 +973,7 @@ handle('config:get', () => ({ ...config, screenscraper: undefined }));
 // renderer holding an older copy of the config can never overwrite them.
 handle('config:set', cfg => {
   if (!cfg || !Array.isArray(cfg.systems)) throw new Error('Invalid settings');
-  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper };
+  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames };
   saveConfig(config);
   return config;
 });
@@ -994,6 +1032,30 @@ handle('app:openRelease', url => {
   return shell.openExternal(url);
 });
 handle('game:launch', id => launchGame(id));
+// Add one game file (a PC game's .exe or shortcut, or any ROM) to a system, without a ROM folder.
+handle('game:add', async ({ system, title }) => {
+  const sys = config.systems.find(s => s.id === system);
+  if (!sys) throw new Error('Choose a system first.');
+  const exts = (sys.extensions || []).map(e => e.replace(/^\./, '')).filter(Boolean);
+  const r = await dialog.showOpenDialog(win, { title: `Add a game to ${sys.name}`, properties: ['openFile'],
+    filters: [...(exts.length ? [{ name: `${sys.name} games`, extensions: exts }] : []), { name: 'All files', extensions: ['*'] }],
+    ...(sys.direct && process.platform === 'darwin' ? { defaultPath: '/Applications' } : {}) });
+  if (r.canceled) return null;
+  const file = r.filePaths[0];
+  if (config.extraGames.some(x => x.system === sys.id && path.resolve(x.path) === path.resolve(file))) throw new Error('That game is already in your library.');
+  // A program inside its own folder ("Hollow Knight\hollow_knight.exe") is named after the folder.
+  const guess = /\.(exe|app)$/i.test(file) && path.basename(path.dirname(file)).length > 2 ? path.basename(path.dirname(file)) : displayTitle(path.basename(file, path.extname(file)));
+  const entry = { id: randomUUID().slice(0, 8), system: sys.id, path: file, title: String(title || '').trim().slice(0, 120) || guess };
+  config.extraGames.push(entry);
+  saveConfig(config);
+  return entry;
+});
+handle('game:remove', id => {
+  config.extraGames = config.extraGames.filter(x => x.id !== id);
+  saveConfig(config);
+  return true;
+});
+handle('game:list', () => config.extraGames.map(x => ({ ...x, missing: !fs.existsSync(x.path) })));
 handle('art:fetch', (sysId, base, options) => artwork.fetchArt(sysId, base, options));
 handle('art:start', options => artwork.start(options));
 handle('art:status', () => artwork.status());

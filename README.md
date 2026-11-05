@@ -28,6 +28,10 @@ An emulator front end for Windows, macOS and Linux that shows your games as real
   - If a match is wrong, **Artwork → Change an image → Other versions…** lets you pick another.
   - [ScreenScraper](https://www.screenscraper.fr/) can be added with your own login.
 - **Manuals:** PDF manuals open inside PyroCade. PyroCade finds them next to your ROMs (for example `00 Goodies\Manuals`), matches a whole folder with **Find manuals in a folder…**, or downloads them from ScreenScraper.
+- **PC games and your own systems:**
+  - Point **PC Games** at a folder of shortcuts (`.lnk`, Steam `.url`) or game programs (`.exe`), and they start directly, with no emulator.
+  - **Settings → Add game…** adds any single game file to any system.
+  - **Settings → Add system…** creates your own system with its own colour, case style, file types and emulator.
 - **Emulators:**
   - Install and update DuckStation, PCSX2, RPCS3, shadPS4, PPSSPP, Cemu, Azahar, melonDS, mGBA, Flycast and xemu from their official GitHub releases.
   - Any emulator can download from a fork instead (**Source…**).
@@ -56,7 +60,7 @@ If macOS says the app is damaged, run `xattr -cr /Applications/PyroCade.app` in 
 On Linux, data lives in `~/.config/PyroCade/data` and the emulator downloader installs the official AppImages. The AppImage updates itself; the other packages show an update banner. On Ubuntu 24.04 and newer, prefer the .deb, because Electron AppImages need `--no-sandbox` there.
 
 ## Getting started
-1. **Settings:** set a ROM folder for each system (use **+ Add** for more than one), pick its emulator and click **Save & rescan**.
+1. **Settings:** set a ROM folder for each system (use **+ Add** for more than one), pick its emulator and click **Save & rescan**. For PC games, choose **Run the file itself** as the emulator.
 2. **Emulators:** click **Install** for the emulators you need, or **Use existing .exe…** for ones you already have.
 3. **Artwork:** choose **Entire library** and **Download artwork**. The first download fetches LaunchBox's game list once (about 100 MB, refreshed monthly). Turn on **Replace low-resolution covers** to sharpen art you already have.
 

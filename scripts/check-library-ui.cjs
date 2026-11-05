@@ -18,7 +18,7 @@ app.whenReady().then(async()=>{
       S.config.systems=Object.entries(Packaging.profiles).map(([id,p])=>({id,name:p.brand,color:p.accent,romDir:'fixture/'+id,caseType:['switch','switch2'].includes(id)?'switch':'dvd',media:Cartridges.profiles[id]?'cart':'disc'}));
       S.games=${JSON.stringify(fixtures)};S.demo=false;document.querySelector('#demoBanner').classList.add('hidden');renderChips();setSystem('switch');select(3);
       for(const g of S.games)measure(g);await pause(200);
-      assert(document.querySelectorAll('#systems button').length===25,'Configured empty systems were lost');
+      assert(document.querySelectorAll('#systems button').length===Object.keys(Packaging.profiles).length+1,'Configured empty systems were lost');
       assert(document.querySelectorAll('#systems [aria-pressed=true]').length===1,'System selection is ambiguous');
       const rail=document.querySelector('#systems');rail.scrollLeft=0;rail.dispatchEvent(new WheelEvent('wheel',{deltaY:240,cancelable:true}));assert(rail.scrollLeft>0,'Mouse wheel does not scroll the system rail');
       const first=rail.querySelector('button');first.focus();first.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));assert(S.system==='ps1'&&document.activeElement.dataset.id==='ps1','Rail keyboard navigation did not move focus and selection');

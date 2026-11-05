@@ -23,7 +23,7 @@ const LibraryUI=(()=>{
     settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>'
   };
   const glyph={all:'grid',psp:'wide',switch:'switch',switch2:'switch',nds:'dual','3ds':'dual',gb:'handheld',gbc:'handheld',gba:'wide',wii:'remote',wiiu:'wide',gc:'cube',n64:'n64',nes:'nes',dreamcast:'swirl',a2600:'joystick',arcade:'arcade'};
-  const shortNames={ps1:'PS1',ps2:'PS2',ps3:'PS3',ps4:'PS4',switch:'Switch',switch2:'Switch 2',nds:'DS','3ds':'3DS',gb:'Game Boy',gbc:'GBC',gba:'GBA',n64:'N64',snes:'SNES',nes:'NES',gc:'GameCube',genesis:'Genesis',x360:'Xbox 360',a2600:'Atari'};
+  const shortNames={pc:'PC',ps1:'PS1',ps2:'PS2',ps3:'PS3',ps4:'PS4',switch:'Switch',switch2:'Switch 2',nds:'DS','3ds':'3DS',gb:'Game Boy',gbc:'GBC',gba:'GBA',n64:'N64',snes:'SNES',nes:'NES',gc:'GameCube',genesis:'Genesis',x360:'Xbox 360',a2600:'Atari'};
   function icon(id){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[glyph[id]||id]||shapes.pad}</svg>`}
   function element(tag,cls,text){const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n}
   const smooth=()=>document.documentElement.dataset.motion==='reduced'?'instant':'smooth';

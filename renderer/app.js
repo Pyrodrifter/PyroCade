@@ -693,22 +693,79 @@ function renderSettings() {
   const body = $('#sysTable tbody'); body.innerHTML = '';
   // Always offer "None" and keep an unknown/removed emulator id as-is, so saving never
   // silently assigns the first emulator in the list.
-  const emuOpts = sel => {
-    const opt = (id, name) => `<option value="${esc(id)}" ${id === (sel || '') ? 'selected' : ''}>${esc(name)}</option>`;
+  const emuOpts = (sel, direct) => {
+    const opt = (id, name) => `<option value="${esc(id)}" ${id === (direct ? '__direct' : sel || '') ? 'selected' : ''}>${esc(name)}</option>`;
     const known = S.emus.some(e => e.id === sel);
-    return opt('', 'None') + (sel && !known ? opt(sel, `${sel} (not found)`) : '') + S.emus.map(e => opt(e.id, e.name)).join('');
+    return opt('', 'None') + opt('__direct', 'Run the file itself') + (sel && !known ? opt(sel, `${sel} (not found)`) : '') + S.emus.map(e => opt(e.id, e.name)).join('');
   };
   c.systems.forEach((s, i) => {
     const tr = el('tr', '', `
-      <td class="name"><i style="background:${s.color}"></i>${esc(s.name)}</td>
+      <td class="name"><i style="background:${esc(s.color)}"></i>${esc(s.name)}${s.custom ? ` <button class="sys-remove" data-remove-system="${esc(s.id)}" title="Remove this system">Remove</button>` : ''}</td>
       <td><input data-k="romDir" value="${esc(s.romDir)}" placeholder="Not set" id="rom${i}"/></td>
       <td><button data-browse="rom${i}">Browse…</button> <button data-browse="rom${i}" data-add="1" title="Add another ROM folder">+ Add</button></td>
-      <td><select data-k="emulator">${emuOpts(s.emulator)}</select></td>
+      <td><select data-k="emulator">${emuOpts(s.emulator, s.direct)}</select></td>
       <td><input data-k="extensions" value="${esc(s.extensions.join(' '))}"/></td>
       <td><input data-k="args" value="${esc(s.args || '')}" placeholder="emulator default"/></td>`);
     tr.dataset.i = i; body.append(tr);
   });
+  renderAddedGames();
 }
+// ---- Your own systems and games ----
+async function renderAddedGames() {
+  let list = [];
+  try { list = await api.gameList(); } catch {}
+  const box = $('#addedGames');
+  box.classList.toggle('hidden', !list.length);
+  box.querySelector('summary').textContent = `Games you added (${list.length})`;
+  const sysName = id => S.config.systems.find(s => s.id === id)?.name || id;
+  box.querySelector('ul').replaceChildren(...list.map(x => {
+    const li = el('li', x.missing ? 'missing' : '', `<span><b>${esc(x.title)}</b> · ${esc(sysName(x.system))}<small>${esc(x.path)}${x.missing ? ' (file not found)' : ''}</small></span>`);
+    const b = el('button', '', 'Remove'); b.type = 'button';
+    b.onclick = async () => { await api.gameRemove(x.id); await loadLibrary(); renderAddedGames(); toast(`${x.title} removed from your library.`); };
+    li.append(b); return li;
+  }));
+}
+const toggleForm = (form, show) => { $$('.add-form').forEach(f => f.classList.add('hidden')); if (show) { form.classList.remove('hidden'); form.querySelector('input,select')?.focus(); } };
+$('#btnAddSystem').onclick = () => toggleForm($('#addSystemForm'), $('#addSystemForm').classList.contains('hidden'));
+$('#btnAddGame').onclick = () => {
+  const form = $('#addGameForm'), pick = form.elements.system;
+  pick.replaceChildren(...S.config.systems.map(s => { const o = el('option', '', esc(s.name)); o.value = s.id; return o; }));
+  pick.value = S.config.systems.some(s => s.id === S.system) ? S.system : 'pc';
+  toggleForm(form, form.classList.contains('hidden'));
+};
+$$('.add-form [data-cancel]').forEach(b => { b.onclick = () => toggleForm(null, false); });
+$('#addSystemForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const f = new FormData(ev.target), name = String(f.get('name')).trim();
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'system';
+  let id = 'custom-' + slug, n = 2; while (S.config.systems.some(s => s.id === id)) id = `custom-${slug}-${n++}`;
+  const caseType = String(f.get('caseType')), media = ['dvd', 'jewel', 'bluray', 'umd'].includes(caseType) ? 'disc' : 'cart';
+  const extensions = String(f.get('extensions')).split(/[\s,]+/).filter(Boolean).map(x => (x.startsWith('.') ? x : '.' + x).toLowerCase());
+  const c = structuredClone(S.config);
+  c.systems.push({ id, name, caseType, media, color: String(f.get('color')), extensions: extensions.length ? extensions : ['.zip'], emulator: '', romDir: '', custom: true });
+  S.config = await api.setConfig(c);
+  ev.target.reset(); toggleForm(null, false); renderSettings(); LibraryUI.render?.();
+  toast(`${name} added. Set its ROM folder and emulator, then Save & rescan.`, 5000);
+};
+$('#addGameForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  try {
+    const entry = await api.gameAdd({ system: f.get('system'), title: f.get('title') });
+    if (!entry) return;
+    ev.target.reset(); toggleForm(null, false);
+    await loadLibrary(); renderAddedGames();
+    toast(`${entry.title} added to your library.`);
+  } catch (e) { toast(e.message, 5000); }
+};
+document.addEventListener('click', async e => {
+  const r = e.target.closest('[data-remove-system]');
+  if (!r) return;
+  const sys = S.config.systems.find(s => s.id === r.dataset.removeSystem);
+  if (!sys || !confirm(`Remove ${sys.name}? Your game files and artwork stay where they are.`)) return;
+  const c = structuredClone(S.config); c.systems = c.systems.filter(s => s.id !== sys.id);
+  S.config = await api.setConfig(c); renderSettings(); await loadLibrary();
+});
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-browse]');
   if (b) {
@@ -737,6 +794,7 @@ $('#btnSave').onclick = async () => {
       const v = inp.value.trim();
       if (inp.dataset.k === 'extensions') s.extensions = v.split(/[\s,]+/).filter(Boolean).map(x => (x.startsWith('.') ? x : '.' + x).toLowerCase());
       else if (inp.dataset.k === 'args') { if (v) s.args = v; else delete s.args; }
+      else if (inp.dataset.k === 'emulator') { s.direct = v === '__direct'; s.emulator = s.direct ? '' : v; }
       else s[inp.dataset.k] = v;
     });
   });

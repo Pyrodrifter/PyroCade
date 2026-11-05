@@ -26,7 +26,8 @@ const Packaging=(()=>{
     snes:p([318,225,52],'#bdb4a3','cardboard','#242428','#fff','SUPER NINTENDO','#b62a30'),
     n64:p([318,225,52],'#bdb4a3','cardboard','#202228','#fff','NINTENDO 64','#257847'),
     a2600:p([230,310,42],'#bdb09d','cardboard','#a94123','#fff','ATARI 2600','#eb9d39'),
-    arcade:p([318,225,52],'#b8ad98','cardboard','#28262c','#fff','ARCADE','#bc8b29')
+    arcade:p([318,225,52],'#b8ad98','cardboard','#28262c','#fff','ARCADE','#bc8b29'),
+    pc:p([230,323,24],'#141518','plastic','#f2f3f5','#111','PC','#1f6feb')
   };
   // Generated spines follow each system's retail layout: a logo band at the top in the system's
   // colours, the title running down the spine, the publisher at the foot. Real scans always win.
@@ -55,6 +56,7 @@ const Packaging=(()=>{
     n64:{band:'#0d0d0f',ink:'#fff',body:'#0d0d0f',text:'#fff',mark:['NINTENDO','64'],style:'nintendo',accent:'#1aa34a'},
     a2600:{band:'#a94123',ink:'#fff',body:'#151515',text:'#fff',mark:['ATARI','2600'],style:'sega'},
     arcade:{band:'#28262c',ink:'#ffcc33',body:'#28262c',text:'#fff',mark:['ARCADE'],style:'sega'},
+    pc:{band:'#111216',ink:'#fff',body:'#f2f3f5',text:'#111',mark:['PC','DVD-ROM'],style:'xbox',rule:'#1f6feb'},
   };
   const spineDesign=sys=>spines[sys.id]||{band:sys.color||'#333',ink:'#fff',body:'#151515',text:'#fff',mark:[sys.name],style:'plain'};
   function profile(sys){return profiles[sys.id]||p([230,323,24],'#292a31','plastic','#252631','#fff',sys.name,sys.color||'#444')}

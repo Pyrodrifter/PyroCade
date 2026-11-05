@@ -2,6 +2,18 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
+## [0.4.3] - 2026-11-05
+
+### Added
+- **PC games:**
+  - A new **PC Games** system takes a folder of shortcuts (`.lnk`, Steam `.url`) or game programs (`.exe`).
+  - Games start directly, with no emulator. Batch files and shortcuts open the way Windows would.
+  - Only the folder itself is searched, so installers and helper programs inside game folders are left out.
+  - Artwork and details come from LaunchBox's Windows games.
+- **Add game…** in Settings adds a single game file to any system. A program inside its own folder is named after that folder. Added games are listed under "Games you added" and can be removed.
+- **Add system…** in Settings creates your own system with a name, colour, case style (disc or cartridge), file types, ROM folder and emulator. Your own systems can be removed again.
+- Any system can use **Run the file itself** instead of an emulator.
+
 ## [0.4.2] - 2026-11-05
 
 ### Added
@@ -101,6 +113,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.4.3]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.3.0...v0.4.0

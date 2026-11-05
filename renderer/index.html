@@ -225,6 +225,27 @@
       <div class="row"><span>PyroCade updates</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>
       <label class="row check"><input type="checkbox" id="sCheckUpdates" /> Check for a new PyroCade release when the app starts</label>
     </div>
+    <div class="sys-tools">
+      <button id="btnAddSystem" type="button">+ Add system…</button>
+      <button id="btnAddGame" type="button">+ Add game…</button>
+      <span class="sub">PC games: point <b>PC Games</b> at a folder of shortcuts or game programs, or add them one by one with <b>Add game</b>.</span>
+    </div>
+    <form id="addSystemForm" class="panel add-form hidden">
+      <input name="name" placeholder="System name (e.g. Neo Geo)" required maxlength="40" />
+      <label>Colour <input name="color" type="color" value="#7c5cff" /></label>
+      <select name="caseType" aria-label="Case style">
+        <optgroup label="Disc"><option value="dvd">DVD case</option><option value="jewel">CD jewel case</option><option value="bluray">Blu-ray case</option><option value="umd">UMD case</option></optgroup>
+        <optgroup label="Cartridge"><option value="cartbox">Small cartridge box</option><option value="bigbox">Big cartridge box</option><option value="nesbox">Tall cartridge box</option><option value="ds">Card case</option></optgroup>
+      </select>
+      <input name="extensions" placeholder="File types (e.g. .neo .zip)" />
+      <button class="primary" type="submit">Add system</button><button type="button" data-cancel>Cancel</button>
+    </form>
+    <form id="addGameForm" class="panel add-form hidden">
+      <select name="system" aria-label="System"></select>
+      <input name="title" placeholder="Name (optional, guessed from the file)" maxlength="120" />
+      <button class="primary" type="submit">Choose file…</button><button type="button" data-cancel>Cancel</button>
+    </form>
+    <details id="addedGames" class="panel help hidden"><summary></summary><ul class="added-list"></ul></details>
     <table id="sysTable" class="panel">
       <thead><tr><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>
       <tbody></tbody>

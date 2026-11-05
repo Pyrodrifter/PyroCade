@@ -11,6 +11,7 @@ const PLATFORMS = {
   n64:'Nintendo 64', snes:'Super Nintendo Entertainment System', nes:'Nintendo Entertainment System', '3ds':'Nintendo 3DS',
   nds:'Nintendo DS', gba:'Nintendo Game Boy Advance', gbc:'Nintendo Game Boy Color', gb:'Nintendo Game Boy',
   dreamcast:'Sega Dreamcast', genesis:'Sega Genesis', xbox:'Microsoft Xbox', x360:'Microsoft Xbox 360', a2600:'Atari 2600', arcade:'Arcade',
+  pc:'Windows',
 };
 // PyroCade artwork type -> LaunchBox image types, best first.
 const IMAGE_TYPES = {
