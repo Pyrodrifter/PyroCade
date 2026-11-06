@@ -5,6 +5,17 @@ if(process.platform==='win32')app.setAppUserModelId('com.pyrodrifter.pyrocade');
 // PyroCade stays open behind a running game. Without this, Windows reports the covered window as
 // hidden and Chromium stops reading controllers, so "hold to quit" would never be seen.
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// SteamOS Game Mode (gamescope, e.g. Steam Deck, Legion Go S): Electron 38+ chooses Wayland by
+// itself, and gamescope's Wayland socket can't show a normal app window, so PyroCade never
+// appeared. gamescope also runs an X server for apps, so start again on X11 there. The display
+// server is chosen before this file runs, so a restart with the switch is the reliable way.
+// Desktop Mode is unaffected. PYROCADE_OZONE=wayland (or any --ozone-platform) skips this.
+if (process.platform === 'linux' && (process.env.XDG_CURRENT_DESKTOP === 'gamescope' || process.env.GAMESCOPE_WAYLAND_DISPLAY)
+  && !process.env.PYROCADE_OZONE && !process.argv.some(a => a.startsWith('--ozone-platform'))) {
+  process.env.PYROCADE_OZONE = 'x11';
+  app.relaunch({ ...(process.env.APPIMAGE ? { execPath: process.env.APPIMAGE } : {}), args: [...process.argv.slice(1), '--ozone-platform=x11'] });
+  app.exit(0);
+}
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
