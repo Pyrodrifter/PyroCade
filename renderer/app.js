@@ -239,11 +239,12 @@ function createMedia(game, a) {
   const media = el('div', `physical-media ${cart ? 'cartridge-model cartridge-' + a.sys.id : 'disc-model disc-' + a.sys.id + (mini ? ' disc-mini' : '')}`);
   media.setAttribute('aria-hidden','true');
   if (a.mediaPhoto) {
-    const size = a.W * .64;
-    media.classList.add('media-photo');
-    media.style.cssText = `--mw:${size}px;--mh:${size}px`;
-    const img = el('img', 'media-photo-img'); img.src = a.mediaPhoto; img.alt = ''; img.draggable = false;
-    media.append(img);
+    // Keep whole-UMD photography intact on the face, with a physical shell behind
+    // it so turning the media over still reveals the UMD window and solid edge.
+    const label=Cartridges.build(media,a.sys.id,a.W);label.remove();
+    media.querySelector('.cartridge-label-well')?.remove();
+    const img = el('img', 'cartridge-whole-photo'); img.src = a.mediaPhoto; img.alt = ''; img.draggable = false;
+    media.querySelector('.cartridge-front').append(img);
   } else if (cart) {
     const label=Cartridges.build(media,a.sys.id,a.W);label.style.backgroundImage = `url("${a.disc}")`;
     const shell=Cartridges.shellColor(game,a.sys.id);if(shell)media.style.setProperty('--shell-color',shell);

@@ -100,6 +100,70 @@ const Packaging=(()=>{
       for(const corner of ['tl','tr','bl','br'])inner.append(node('case-booklet-tab case-booklet-tab-'+corner));
       const right=box.querySelector(':scope > .f-right');right?.append(node('case-latch'));
     }
+    if(lid)structure(box,a,v);
+  }
+  function structure(box,a,v){
+    const {W,H,D}=a,lid=box.querySelector(':scope > .lid'),paper=v.material==='cardboard';
+    const base=node('case-structure');base.setAttribute('aria-hidden','true');box.append(base);
+    const add=(parent,x,y,z,w,h,d,cls,outline)=>{
+      // Tiny internal rails use six faces; their edge highlight is in the material.
+      // This keeps a fully opened case inexpensive to rotate alongside the shelf.
+      const mesh=PhysicalGeometry.prism({width:w,height:h,depth:d,bevel:cls==='case-hinge'?.35:0,className:cls,outline,color:v.shell});
+      mesh.root.style.transform=`translate3d(${x}px,${y}px,${z}px)`;parent.append(mesh.root);return mesh;
+    };
+    const rails=(parent,z,w,h,d,inset=0)=>{
+      const t=paper?1.1:2.3;
+      add(parent,inset,inset,z,w-2*inset,t,d,'case-rail');
+      add(parent,inset,h-inset-t,z,w-2*inset,t,d,'case-rail');
+      add(parent,inset,inset+t,z,t,h-2*inset-2*t,d,'case-rail');
+      add(parent,w-inset-t,inset+t,z,t,h-2*inset-2*t,d,'case-rail');
+    };
+    if(paper){
+      // Four inner wall surfaces and exposed card edges at the box mouth.
+      const front=add(base,0,0,D/2-.8,W,H,1.2,'box-wall');front.front.remove();
+      const back=add(base,0,0,-D/2+.8,W,H,1.2,'box-wall');back.back.remove();
+      for(const x of [.6,W-.6])add(base,x-.6,0,0,1.2,H,D-1.2,'box-wall');
+      add(base,0,H-1,0,W,1,D-1,'box-wall');
+      // Folded insert is a shallow cradle, visible down the opening.
+      const inset=8;
+      add(base,inset,14,-D/2+4,W-inset*2,H-25,3,'box-insert');
+      for(const x of [inset,W-inset-11])add(base,x,14,-2,11,H-25,D-12,'box-insert');
+      // Solid top flap and small tuck tongue follow the existing top hinge.
+      const slab=add(lid,0,0,0,W,D,1.05,'box-flap');slab.front.remove();slab.back.remove();
+      const tuck=node('box-flap-tuck');tuck.style.cssText=`left:5%;top:${D}px;width:${W*.9}px;height:14px`;
+      add(tuck,0,0,0,W*.9,14,1,'box-flap','0,0 100,0 98,75 94,100 6,100 2,75');lid.append(tuck);
+      for(const side of ['left','right']){
+        const flap=node('box-dust-flap box-dust-flap-'+side);flap.style.width=D-2+'px';flap.style.height=Math.min(35,W*.16)+'px';
+        add(flap,0,0,0,D-2,Math.min(35,W*.16),1,'box-flap','0,0 100,0 91,83 79,100 15,100 4,80');base.append(flap);
+      }
+      return;
+    }
+    const lidDepth=D*.40,baseDepth=D-lidDepth;
+    rails(base,-D/2+baseDepth/2,W,H,baseDepth);
+    const inside=node('case-structure');inside.setAttribute('aria-hidden','true');lid.append(inside);
+    const slab=add(inside,0,0,-.75,W,H,2.5,'case-lid-sheet');
+    // Mount the printed outside and inner liner on the two caps of the same
+    // solid. Separate sibling planes can disappear in Chromium at grazing angles.
+    slab.front.append(lid.querySelector('.l-front'));slab.back.append(lid.querySelector('.l-inner'));
+    rails(inside,-lidDepth/2,W,H,lidDepth);
+    // Seating lip, visibly proud of the base rim when the case is open.
+    rails(base,-D/2+baseDepth-.1,W,H,1.2,2.5);
+    for(const y of [H*.12,H*.78]){
+      add(base,-1,y,-D*.05,6,H*.1,D*.7,'case-hinge',PhysicalGeometry.rounded(18,2));
+      add(inside,-1,y, -lidDepth/2,5,H*.09,lidDepth,'case-hinge',PhysicalGeometry.rounded(16,2));
+    }
+    for(const y of [H*.28,H*.69])add(inside,W-5,y,-lidDepth+1,4,10,2,'case-retainer');
+    const cart=Cartridges.profiles[a.sys.id];
+    if(a.sys.media==='cart'||cart?.shell){
+      const mw=W*(cart?.w||.6),mh=W*(cart?.h||.6),x=(W-mw)/2,y=(H-mh)/2;
+      // The surrounding ribs and clips leave an actual empty recess for the media.
+      for(const xx of [x-4,x+mw])add(base,xx,y-2,-D/2+4,4,mh+4,5,'case-retainer');
+      add(base,x-4,y+mh,-D/2+4,mw+8,4,5,'case-retainer');
+      for(const xx of [x-5,x+mw-3])add(base,xx,y+mh*.55,-D/2+7,8,mh*.15,3,'case-retainer');
+    }else{
+      const diameter=W*(a.sys.id==='gc'?.11:.09);
+      add(base,(W-diameter)/2,(H-diameter)/2,-D/2+4,diameter,diameter,6,'case-hub',PhysicalGeometry.rounded(50,8));
+    }
   }
   function brand(sys,D,height){
     const n=node('spine-brand'),v=profile(sys),design=spineDesign(sys);

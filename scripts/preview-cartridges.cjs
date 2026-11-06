@@ -16,12 +16,12 @@ app.whenReady().then(async()=>{
         const tile=el('section','sample'),stage=el('div','sample-stage');tile.append(el('h2','',name),el('small','',subtitles[id]),stage);document.querySelector('main').append(tile);
         const p=Cartridges.profiles[id],model=createMedia(game,{sys,W:210,H:300,disc:Art.cart(game,sys,420*p.w*p.label[2]/100,420*p.h*p.label[3]/100)});stage.append(model);
         const face=model.querySelector('.cartridge-front');if(getComputedStyle(face).clipPath==='none')throw new Error('Missing shell contour for '+id);
-        if(model.querySelector('.cartridge-contacts'))throw new Error('Gold contacts remain');
+        if(model.querySelector('.cartridge-front .cartridge-contacts'))throw new Error('Contacts must not cover the front label');
       }
       await new Promise(r=>setTimeout(r,200));
     })()`);
     win.webContents.invalidate();await new Promise(r=>setTimeout(r,150));
     fs.writeFileSync(path.resolve(__dirname,'../output/cartridge-models.png'),(await win.webContents.capturePage()).toPNG());
-    console.log('Rendered 12 cartridge models; all contours active and no contact geometry.');app.exit(0);
+    console.log('Rendered 12 cartridge models; all contours active and contacts kept off the front.');app.exit(0);
   }catch(e){console.error(e);app.exit(1)}
 });

@@ -226,13 +226,9 @@ header { position: relative; z-index: 5; display: flex; align-items: center; gap
 .disc-mini .disc-surface { inset: 2px; mask-image: radial-gradient(circle,transparent 0 22%,#000 22.5%); }
 .disc-mini .disc-hub { background: radial-gradient(circle,transparent 0 10.5%,#e0e7f077 11% 13%,#aab5c788 13.5% 19%,#e2eaf070 19.5% 22%,transparent 22.5%); }
 .cartridge-body { position: absolute; inset: 0; transform-style: preserve-3d; }
-.cartridge-front, .cartridge-back, .cartridge-shell-layer { position: absolute; inset: 0; clip-path: var(--cart-outline); }
+.cartridge-front, .cartridge-back { position: absolute; inset: 0; }
 .cartridge-front, .cartridge-back { backface-visibility: hidden; }
-.cartridge-front { transform: translateZ(calc(var(--cd) / 2 + .1px)); }
-.cartridge-back { transform: rotateY(180deg) translateZ(calc(var(--cd) / 2 + .1px)); }
-.cartridge-shell-layer { background: color-mix(in srgb,var(--shell-color) 67%,#080909); }
 .cartridge-molding { position: absolute; inset: 0; width: 100%; height: 100%; }
-.cartridge-front::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(120deg,#ffffff16,transparent 34%,#0001 80%); }
 .cartridge-label { position: absolute; background-size: cover; background-position: center; border-radius: 1.5px; box-shadow: 0 0 0 1px #0005, 0 1px 0 #ffffff30; overflow: hidden; }
 .case.open .physical-media { transition: transform 1s cubic-bezier(.2,.8,.2,1) .55s; transform: translate3d(calc(var(--w) * .85),-8px,150px) rotateY(-12deg) rotateZ(6deg); }
 .case .physical-media { transform: translateZ(0px); transition: transform .65s cubic-bezier(.2,.8,.2,1); }

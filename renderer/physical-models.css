@@ -1,0 +1,43 @@
+/* Geometry only; the surrounding library keeps its existing appearance. */
+.physical-solid { position: absolute; transform-style: preserve-3d; --solid-color: var(--shell-color,var(--case-shell)); }
+.solid-cap { position: absolute; inset: 0; background: var(--solid-color); backface-visibility: hidden; }
+.solid-front { transform: translateZ(calc(var(--solid-depth) / 2)); }
+.solid-back { transform: translateZ(calc(var(--solid-depth) / -2)) rotateY(180deg); }
+.solid-wall,.solid-bevel { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.solid-wall { background: linear-gradient(0deg,#0003,transparent 14% 47%,#0008 48% 51%,#ffffff25 52%,transparent 57% 87%,#0002),linear-gradient(rgb(255 255 255 / var(--edge-light)),rgb(255 255 255 / var(--edge-light))),var(--solid-color); }
+.solid-bevel { background: linear-gradient(rgb(255 255 255 / var(--bevel-light)),#0001),var(--solid-color); }
+.cartridge-body > .solid-front::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(120deg,#ffffff0b,transparent 40%,#00000009); }
+.cartridge-body > .solid-front { background: linear-gradient(120deg,#ffffff12,transparent 40%,#00000008),var(--solid-color); }
+.cartridge-relief .solid-wall { background: linear-gradient(#0003,#0001),var(--solid-color); }
+.cartridge-relief .solid-front { background: linear-gradient(125deg,#ffffff09,#00000006),var(--solid-color); }
+.cartridge-rib .solid-front { background: linear-gradient(0deg,#00000020,transparent 22% 65%,#ffffff34),var(--solid-color); }
+.cartridge-rib .solid-wall { background: linear-gradient(#ffffff30,#0005),var(--solid-color); }
+.cartridge-label { background-size: 100% 100%; border-radius: 2px; box-shadow: 0 0 0 1px #0005,0 1px 0 #ffffff40,inset 0 1px 2px #0002; }
+.cartridge-label-well { position: absolute; border-radius: 3px; background: #00000025; box-shadow: inset 0 1px 2px #0006,0 1px 0 #ffffff38; }
+.cartridge-contacts { position: absolute; background: #25251f; border: 1px solid #111; box-shadow: inset 0 1px 3px #000; }
+.cartridge-contacts::after { content: ''; position: absolute; inset: 2px 3px 0; background: repeating-linear-gradient(90deg,#a28339 0 calc(var(--pin-pitch) - 2px),#2a2820 calc(var(--pin-pitch) - 2px) var(--pin-pitch)); border-top: 1px solid #d4bc73; }
+.cartridge-socket .solid-front { background: #191a18; box-shadow: inset 0 0 0 2px #0008; }
+.cartridge-pcb { position: absolute; background: repeating-linear-gradient(90deg,#ba984c 0 calc(var(--pin-pitch) - 1.5px),#234c36 calc(var(--pin-pitch) - 1.5px) var(--pin-pitch)); border-top: 2px solid #315741; }
+.cartridge-molding { pointer-events: none; }
+.cartridge-body > .cartridge-front { transform: translateZ(calc(var(--solid-depth) / 2)); }
+.cartridge-body > .cartridge-back { transform: translateZ(calc(var(--solid-depth) / -2)) rotateY(180deg); }
+.cartridge-whole-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.case-structure { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
+.case-rail .solid-wall,.case-hinge .solid-wall { background: linear-gradient(90deg,#0004,#ffffff15 46%,#0002),var(--solid-color); }
+.case-rail .solid-front { background: linear-gradient(90deg,#ffffff30,#ffffff06),var(--solid-color); }
+.case:not([data-material='cardboard']) > :is(.f-top,.f-bottom,.f-right) { visibility: hidden; }
+.case:not([data-material='cardboard']) .lid .l-inner { transform: translateZ(-2px) rotateY(180deg); box-shadow: inset 0 0 0 7px #0002; }
+.case[data-material='jewel'] .lid .l-inner { background: linear-gradient(125deg,#c0ccd5,#9eabb5); }
+.case .lid .case-lid-sheet .face { transform: none; backface-visibility: visible; }
+.case[data-material='cardboard'] .box-lining { position: absolute; background: linear-gradient(90deg,#00000014,#ffffff0a),var(--case-shell); backface-visibility: hidden; }
+.box-insert .solid-front { background: linear-gradient(110deg,#e0d9c8,#bcb5a6); }
+.box-insert .solid-wall { background: linear-gradient(#dfd7c7,#aaa294); }
+.box-dust-flap { position: absolute; top: 0; transform-style: preserve-3d; transform-origin: 0 0; transition: transform 1s cubic-bezier(.5,0,.2,1); }
+.case-hub .solid-front { background: repeating-conic-gradient(#ffffff24 0 14deg,#0002 14deg 28deg),var(--case-shell); border-radius: 50%; box-shadow: inset 0 0 0 3px #0003; }
+.case-retainer .solid-front { background: linear-gradient(110deg,#ffffff24,#0001),var(--case-shell); }
+.case[data-material='cardboard'] .lid .solid-wall { background: #a99b82; }
+.box-dust-flap-left { left: 1px; transform: translateZ(calc(var(--d) / -2 + 1px)) rotateY(-90deg) rotateX(-90deg); }
+.box-dust-flap-right { left: calc(var(--w) - 1px); transform: translateZ(calc(var(--d) / 2 - 1px)) rotateY(90deg) rotateX(-90deg); }
+.case.open .box-dust-flap-left { transform: translateZ(calc(var(--d) / -2 + 1px)) rotateY(-90deg) rotateX(-155deg); }
+.case.open .box-dust-flap-right { transform: translateZ(calc(var(--d) / 2 - 1px)) rotateY(90deg) rotateX(-155deg); }
+.box-flap-tuck { position: absolute; transform-style: preserve-3d; transform-origin: 50% 0; transform: rotateX(-70deg); }

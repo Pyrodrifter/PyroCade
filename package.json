@@ -10,6 +10,7 @@
     "prompts:export": "electron scripts/export-prompts.cjs",
     "prompts:check": "electron scripts/check-prompts.cjs",
     "carousel:check": "electron scripts/check-carousel.cjs",
+    "models:check": "electron scripts/check-physical-models.cjs",
     "artwork:check": "node scripts/check-artwork.cjs && electron scripts/check-artwork-ui.cjs",
     "eshop:check": "electron scripts/check-eshop.cjs",
     "ui:check": "electron scripts/check-library-ui.cjs",
