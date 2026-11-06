@@ -32,6 +32,9 @@
     "active": true,
     "createUpdaterArtifacts": false,
     "targets": ["app", "dmg", "appimage", "deb", "rpm"],
+    "android": {
+      "minSdkVersion": 24
+    },
     "category": "Game",
     "shortDescription": "3D carousel front end for emulators",
     "longDescription": "A glass-styled emulator front end with a 3D library, animated physical media, four browsing layouts and a built-in emulator downloader and updater.",

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{AppHandle, Emitter, Manager, State};
+#[cfg(not(target_os = "android"))]
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
@@ -51,7 +52,7 @@ struct MediaIndex {
 
 impl AppState {
     pub fn new(app: &AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
-        let data_dir = data_directory()?;
+        let data_dir = data_directory(app)?;
         let config_path = data_dir.join("config.json");
         let (config, warning) = load_config(&config_path);
         fs::create_dir_all(&data_dir)?;
@@ -74,7 +75,10 @@ impl AppState {
     }
 }
 
-fn data_directory() -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn data_directory(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if cfg!(target_os = "android") {
+        return Ok(app.path().app_data_dir()?);
+    }
     if let Some(portable) = std::env::var_os("PORTABLE_EXECUTABLE_DIR") {
         return Ok(PathBuf::from(portable).join("data"));
     }
@@ -126,6 +130,9 @@ fn wait_for_child(
     std::thread::spawn(move || {
         let mut child = child;
         let _ = child.wait();
+        #[cfg(target_os = "android")]
+        let _ = window;
+        #[cfg(not(target_os = "android"))]
         if let Some(window) = window {
             let _ = window.unminimize();
             let _ = window.set_focus();
@@ -135,6 +142,8 @@ fn wait_for_child(
 
 #[tauri::command]
 pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<bool, String> {
+    #[cfg(target_os = "android")]
+    let _ = app;
     let game = state
         .games
         .read()
@@ -219,12 +228,16 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     let child = command.spawn().map_err(|e| format!("Launch failed: {e}"))?;
+    #[cfg(not(target_os = "android"))]
     let window = config
         .get("hideWhilePlaying")
         .and_then(Value::as_bool)
         .unwrap_or(false)
         .then(|| app.get_webview_window("main"))
         .flatten();
+    #[cfg(target_os = "android")]
+    let window = None;
+    #[cfg(not(target_os = "android"))]
     if let Some(window) = window.as_ref() {
         let _ = window.minimize();
     }
@@ -791,6 +804,7 @@ fn display_title(name: &str) -> String {
     value
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn pick_folder(app: AppHandle, title: String) -> Option<String> {
     app.dialog()
@@ -799,6 +813,12 @@ pub fn pick_folder(app: AppHandle, title: String) -> Option<String> {
         .blocking_pick_folder()
         .and_then(|path| path.into_path().ok())
         .map(|path| path.to_string_lossy().to_string())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn pick_folder(_app: AppHandle, _title: String) -> Result<Option<String>, String> {
+    Err("Folder selection is not supported on Android yet.".to_owned())
 }
 
 #[tauri::command]

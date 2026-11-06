@@ -1,34 +1,27 @@
 ---
-slice: P10
+slice: P10-recut
 stateFile: docs/STATE.md
-donotCount: 3
-seededFrom: c5525fc
-reads:
-  - package.json
-  - .github/workflows/release.yml
-  - src-tauri/Cargo.toml
-  - src-tauri/tauri.conf.json
-  - src-tauri/src/lib.rs
-  - src-tauri/src/backend.rs
-  - src-tauri/src/config.rs
-  - src-tauri/src/emulators.rs
-  - renderer/tauri-bridge.js
-  - README.md
+donotCount: 4
+seededFrom: re-cut-required
+reads: []
 ---
 
-# P10 — Add Android ARM64 target
+# P10 remainder — re-cut before implementation
 
 ## Next action
 
-P10 — Add Android ARM64 target. Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64. Configure Android project/build metadata and a reproducible ARM64 CI build using the Android SDK and JDK; verify the renderer bridge, app permissions, storage/import, emulator-linking and launch behavior, controller/audio/rendering paths, and artifact installation on Android. Document the Android support and validation matrix. Use the Android SDK and tools already installed in the local environment for device or emulator validation when available.
+Unknown — P10 is not closed. Run `/babysteps-handoff` to create priced slices for Android signing, Storage Access Framework storage/import, installed-emulator linking and launch, and on-device renderer/controller/audio validation. Do not reuse P10's previous reading set for that work.
 
-Closes when Android ARM64 build and installation, bridge, permissions, storage/import, emulator-linking and launch, controller/audio/rendering, and the documented support matrix are validated without regressing macOS/Linux ARM64.
+**Closes when:** The remaining Android requirements have separate priced plan rows and the next seed names only the selected slice's reads.
 
 ## Settled
 
-- P9 removed the Electron app entrypoint, preload bridge, and app launcher; Electron remains dev-only for existing tooling.
-- The macOS ARM64 Tauri app and DMG build successfully and the `.app` contains no Electron runtime, `app.asar`, or `node_modules`.
-- Do-Not count is 3; entry #1 remains applicable to manual filesystem paths.
+- Android Rust mobile entry, app-private data path, minimum API, and ARM64 CI build configuration are implemented.
+- Android Rust cross-compilation and a local debug APK build succeeded; the test app installs and its process starts on the connected ARM64 device.
+- The Tauri bridge now exposes and merges the app-update progress subscription; the debug app installed and started on-device, and the user confirms it renders normally when the device is awake.
+- Android release signing is not configured; CI does not publish Android APKs to release assets, and no installable release artifact is available.
+- Tauri's dialog plugin lacks Android folder selection, and its content URIs are not compatible with the current filesystem-path backend.
+- Managed emulator downloads do not provide Android app linking or ROM launch.
 
 ## Withdrawn numbers
 
@@ -36,33 +29,20 @@ Closes when Android ARM64 build and installation, bridge, permissions, storage/i
 
 ## Code to touch
 
-| Path | P10 scope |
-|---|---|
-| `package.json` | Android build and validation commands |
-| `.github/workflows/release.yml` | Reproducible Android ARM64 CI build |
-| `src-tauri/Cargo.toml` | Android target/build configuration |
-| `src-tauri/tauri.conf.json` | Android application metadata and permissions |
-| `src-tauri/src/lib.rs` | Android host registration |
-| `src-tauri/src/backend.rs` | Android runtime behavior |
-| `src-tauri/src/config.rs` | Android storage/settings behavior |
-| `src-tauri/src/emulators.rs` | Android emulator-linking and launch behavior |
-| `renderer/tauri-bridge.js` | Android renderer bridge behavior |
-| `README.md` | Android support and validation matrix |
+Not priced; determine in the handoff re-cut.
 
 ## Read these first, and only these
 
 - `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction`
 - `.operator/specs/artwork-service.md` — `Contract`
-- `.babysteps/tauri-migration.plan.md` — `Tauri v2 migration slices`, `Budget rows` (P10)
-- `.babysteps/tauri-migration.tasks.json` — task `S10`
+- `.babysteps/tauri-migration.plan.md` — `Tauri v2 migration slices`, `Budget rows`
+- `.babysteps/tauri-migration.tasks.json` — Android task split
 
 ## Gate commands
 
-- `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
-- `cargo test --manifest-path src-tauri/Cargo.toml`
-- `cargo check --manifest-path src-tauri/Cargo.toml`
-- Android ARM64 build/install and device or emulator validation when available
+Not selected until the remaining requirements are priced.
 
 ## Applicable Do-Not entries
 
 - #1
+- #4

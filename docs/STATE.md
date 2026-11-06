@@ -4,7 +4,7 @@
 
 The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The ten slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), P7 / S06 (`39b7d24`, `4692cb5`), P8 / S08 (`c555b43`, `2895559`), and P9 / S09 (`c5525fc`) are complete.
 
-**The next action** is P10 — Add Android ARM64 target. Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64.
+Unknown — P10 remains open. Run /babysteps-handoff to re-cut Android signing, Storage Access Framework storage/import, installed-emulator linking/launch, and on-device rendering/controller/audio validation into separately priced work units.
 
 ## Next action
 
@@ -78,3 +78,8 @@ The fork is migrating from Electron to Tauri v2, retaining the web renderer wher
 ## Queued
 
 - **P10 — Queued.** Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64. Configure Android project/build metadata and a reproducible ARM64 CI build using the Android SDK and JDK; verify bridge, permissions, storage/import, emulator workflows, controller/audio/rendering, and artifact installation, then document the support and validation matrix.
+
+
+## P10 partial — Android ARM64 build pipeline
+
+The Android Rust target and local debug APK build succeeded, and the debug package installed and started on the ARM64 device. The initial black screenshot was captured while the device was asleep; the user confirms the app renders normally when awake. The release APK is unsigned and is withheld from release uploads. Android folder selection/URI access and installed-emulator linking/launch remain unimplemented; do not mark Android as fully supported. Do-Not #4 records the SAF URI constraint.

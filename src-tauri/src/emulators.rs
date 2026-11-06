@@ -385,6 +385,8 @@ fn target_platform() -> &'static str {
         "macos"
     } else if cfg!(target_os = "linux") {
         "linux"
+    } else if cfg!(target_os = "android") {
+        "android"
     } else {
         std::env::consts::OS
     }
@@ -799,7 +801,7 @@ mod tests {
                 }}
             }
         });
-        for platform in ["macos", "linux"] {
+        for platform in ["macos", "linux", "android"] {
             let selected =
                 selected_definition_for_target(&base, &json!({}), "emu", platform, "arm64");
 

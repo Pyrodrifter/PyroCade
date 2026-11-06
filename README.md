@@ -8,33 +8,33 @@ A glass-styled emulator front end with a 3D library, animated physical media, fo
 
 **[Watch the 35-second demo](docs/media/pyrocade-demo.mp4)** · [Appearance & sound](#library-appearance-and-sound) · [Controller support](#button-prompts)
 
-## Install
-Download **PyroCade-Setup-x.y.z.exe** from the [latest release](https://github.com/Pyrodrifter/PyroCade/releases/latest) and run it. The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC": click **More info → Run anyway**.
+## Supported platforms
 
-Installed copies keep their settings, emulators and artwork in `%APPDATA%\PyroCade\data`. PyroCade checks for new releases when it starts and can update itself from the banner or **Settings → PyroCade updates**.
-
-### Linux
-Every release has 64-bit (x86_64) Linux builds:
-
-| Distribution | Download | Install |
+| Platform | Artifact | Validation |
 | --- | --- | --- |
-| **SteamOS** (Steam Deck) and any distro | `PyroCade-x.y.z-x86_64.AppImage` | In Desktop Mode, right-click the file → Properties → Permissions → *Is executable*, then open it. To play from Game Mode, add it in Steam with *Add a Non-Steam Game*. |
-| **Ubuntu**, Debian, Linux Mint, Pop!_OS | `pyrocade_x.y.z_amd64.deb` | `sudo apt install ./pyrocade_x.y.z_amd64.deb` |
-| **Fedora**, Nobara, openSUSE | `pyrocade-x.y.z.x86_64.rpm` | `sudo dnf install ./pyrocade-x.y.z.x86_64.rpm` |
-| **Arch**, Manjaro, EndeavourOS, CachyOS | `pyrocade-x.y.z-x86_64.pkg.tar.zst` | `sudo pacman -U ./pyrocade-x.y.z-x86_64.pkg.tar.zst` |
+| macOS ARM64 | DMG | Native ARM64 build and install smoke test in the release workflow. |
+| Linux ARM64 | AppImage, `.deb`, `.rpm` | Native ARM64 build and package install smoke test in the release workflow. |
+| Android ARM64 | CI-only unsigned `arm64-v8a` APK | The ARM64 build is automated, but an installable release awaits Android signing setup; ROM storage and emulator-app launch are also incomplete. |
 
-On Linux, settings and emulators are kept in `~/.config/PyroCade/data`. The emulator downloader installs the official Linux AppImages. The AppImage updates itself; the .deb, .rpm and Arch packages show the update banner and are updated by installing the new package.
+The Android app requires Android 7.0 (API 24) or newer. Settings and managed data use app-private storage, and PyroCade does not request broad external-storage access. Tauri's dialog plugin does not provide a folder picker on Android, so ROM-folder selection and library scanning are not yet supported there. Android emulator packages are separate apps, not the desktop executables managed by the macOS/Linux downloader; Android app linking and ROM launch still need a native integration. Release APKs require a private Android keystore configured in CI; the current release build is unsigned and cannot be installed.
 
-On Ubuntu 24.04 and newer, prefer the .deb: AppImages built with Electron need to be started with `--no-sandbox` there because of Ubuntu's AppArmor rules.
+Download desktop builds from the [latest release](https://github.com/Pyrodrifter/PyroCade/releases/latest). The Android APK is currently a CI build artifact, not an installable release download.
 
 ## Run from source
+
     npm ci
     npm start
 
-Build the installer with `npm run dist` (output in `dist/`).
+Build macOS or Linux ARM64 releases with `npm run dist:macos:arm64` or `npm run dist:linux:arm64`. For Android, install the Android SDK/NDK and JDK 17, then run:
+
+    npm run tauri:android:init
+    npm run dist:android:arm64
+
+The Android build targets ARM64, compiles against API 36, targets API 35, and emits split APKs. The CI job pins the JDK and Android SDK components used for its build; release signing remains to be configured.
 
 ## Releasing an update
-Raise `version` in `package.json`, commit, then push a tag `v<version>` (for example `git tag v0.3.0 && git push origin v0.3.0`). The **Release** GitHub Action builds the Windows installer and the Linux packages, smoke-tests Linux, and attaches them to a draft release. Publish the draft, and installed copies offer the update on their next start.
+
+Raise `version` in `package.json`, commit, then push a tag `v<version>` (for example `git tag v0.3.0 && git push origin v0.3.0`). The **Release** GitHub Action validates the Rust app, builds macOS/Linux ARM64 packages and an unsigned Android ARM64 APK, smoke-tests desktop installs, and attaches desktop artifacts to a draft release. Signed Tauri self-updates are limited to the configured macOS and Linux artifacts. Android release distribution requires a CI keystore before an installable APK can be attached.
 
 ## Brand assets
 The flame and play-button mark, glass app icon, wordmark and banner are in `renderer/assets/brand/`. The set includes SVG masters, PNG icons from 16 to 1024px, a transparent wordmark and a multi-resolution Windows `.ico`. The header mark follows the selected colour theme. Rebuild the complete set with `npm run brand:build`.
@@ -92,10 +92,12 @@ Switch 2 covers can be supplied through **Use your own image**. Square product p
 Run `npm run artwork:check` to verify the download service and the integrated UI without modifying your ROMs, emulator settings or real artwork.
 
 ## Emulator catalog
-`emulators.json` lists each emulator's GitHub repo, a regex for the Windows download, a regex for the program file, and the default launch arguments. Edit it to add more.
+
+Managed emulator downloads are selected by operating system and CPU architecture. The release catalog currently provides macOS and Linux ARM64 packages; Android builds do not offer desktop executables as Android emulator apps. Custom executable linking and process launching are native-path operations and are not a substitute for installing and launching an Android emulator application.
 
 ## Your data stays local
-Everything personal lives in `data/` next to the app and is not part of this repository: `data/config.json` (your ROM folders and emulator paths), `data/emulators/` (emulators installed by PyroCade) and `data/media/` (downloaded artwork).
+
+Settings, emulator files and downloaded artwork stay in PyroCade's per-user app-data directory; on Android they remain in the app-private data directory. Personal data is not part of this repository.
 
 ## Legal
 PyroCade is only a launcher. It does not include or download games, BIOS files or console firmware/keys. Use dumps of games and systems you own. Emulators are downloaded from their own official GitHub releases and remain under their own licenses.

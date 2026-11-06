@@ -1,5 +1,5 @@
 (() => {
-  if (window.api || !window.__TAURI__?.core?.invoke) return;
+  if (!window.__TAURI__?.core?.invoke) return;
 
   const invoke = window.__TAURI__.core.invoke;
   const listen = window.__TAURI__.event.listen;
@@ -31,6 +31,7 @@
   });
 
   window.api = {
+    ...window.api,
     getConfig: () => call('get_config'),
     setConfig: cfg => call('set_config', { cfg }),
     scan: () => call('scan_library'),
@@ -52,6 +53,7 @@
     openManual: path => call('open_manual', { path }),
     onProgress: fn => subscribe('emu:progress', fn),
     onArtProgress: fn => subscribe('art:progress', fn),
+    onAppUpdateProgress: fn => subscribe('app:updateProgress', fn),
     onToast: fn => subscribe('toast', fn),
     appVersion: () => call('app_version'),
     appCheckUpdate: () => call('check_app_update'),
