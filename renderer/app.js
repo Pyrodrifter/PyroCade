@@ -47,7 +47,9 @@ function art(game) {
     back: m.back || Art.back(game, sys, W, H),
     spine: m.spine || null,
     // No disc/cart scan? Use the real cover as the label, else generate one.
-    disc: m.disc || m.front || (shelled ? Art.cart(game, sys, cart?W*cart.w*cart.label[2]/100:W*.7, cart?W*cart.h*cart.label[3]/100:W*.55) : Art.disc(game, sys, 300)),
+    // A photo of the whole media (a PSP UMD) is shown on its own; the drawn shell then uses the cover as its label.
+    mediaPhoto: cart?.wholePhoto ? m.disc || null : null,
+    disc: (cart?.wholePhoto ? null : m.disc) || m.front || (shelled ? Art.cart(game, sys, cart?W*cart.w*cart.label[2]/100:W*.7, cart?W*cart.h*cart.label[3]/100:W*.55) : Art.disc(game, sys, 300)),
   };
 }
 
@@ -218,7 +220,13 @@ function createMedia(game, a) {
   const mini = !cart && a.sys.id === 'gc';
   const media = el('div', `physical-media ${cart ? 'cartridge-model cartridge-' + a.sys.id : 'disc-model disc-' + a.sys.id + (mini ? ' disc-mini' : '')}`);
   media.setAttribute('aria-hidden','true');
-  if (cart) {
+  if (a.mediaPhoto) {
+    const size = a.W * .64;
+    media.classList.add('media-photo');
+    media.style.cssText = `--mw:${size}px;--mh:${size}px`;
+    const img = el('img', 'media-photo-img'); img.src = a.mediaPhoto; img.alt = ''; img.draggable = false;
+    media.append(img);
+  } else if (cart) {
     const label=Cartridges.build(media,a.sys.id,a.W);label.style.backgroundImage = `url("${a.disc}")`;
     const shell=Cartridges.shellColor(game,a.sys.id);if(shell)media.style.setProperty('--shell-color',shell);
     if(a.digital&&!game.media.disc)label.append(EshopCovers.sleeve(game,a.digital,true));

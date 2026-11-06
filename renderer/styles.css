@@ -504,3 +504,6 @@ html[data-wear='on'] .cartridge-label::after { content: ''; position: absolute; 
 html[data-wear='on'] .item:not(.sel) .box .f-front::after { background: #080b1555; box-shadow: none; }
 
 .shelf-position:has(.shelf-tools:hover, .shelf-tools :focus-visible) { opacity: 1; }
+
+/* A photo of the whole media (PSP UMD scans): shown as it is, with a soft shadow. */
+.media-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(2px 6px 6px #0009); pointer-events: none; }
