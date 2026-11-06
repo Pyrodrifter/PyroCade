@@ -14,6 +14,7 @@
     "artwork:check": "node scripts/check-artwork.cjs && electron scripts/check-artwork-ui.cjs",
     "eshop:check": "electron scripts/check-eshop.cjs",
     "ui:check": "electron scripts/check-library-ui.cjs",
+    "perf:check": "electron scripts/check-performance.cjs",
     "brand:build": "electron scripts/build-brand.cjs",
     "brand:check": "electron scripts/check-brand.cjs",
     "demo:record": "electron scripts/record-reddit-demo.cjs",

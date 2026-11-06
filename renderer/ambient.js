@@ -126,7 +126,7 @@ const Ambient=(()=>{
   }
 
   // ---- idle screensaver ----
-  function eligible(){return !!context?.canRun()}
+  function eligible(){return root.dataset.animations!=='off'&&!!context?.canRun()}
   function arm(){
     clearTimeout(idleTimer);if(!idleMinutes||active)return;
     idleTimer=setTimeout(()=>eligible()?enter():arm(),idleMinutes*60000);

@@ -91,12 +91,13 @@ header { position: relative; z-index: 5; display: flex; align-items: center; gap
 .shelf-instruction { margin-left: auto; color: #a1a9bc; }
 #empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 18px; }
 
-.item { position: absolute; transform-style: preserve-3d; transition: transform .65s cubic-bezier(.2,.75,.2,1); cursor: pointer; }
+.item { position: absolute; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.22,1,.36,1); cursor: pointer; }
 .item.far { visibility: hidden; pointer-events: none; }
 /* Filters or opacity on a 3D ancestor flatten its six faces. Shade the faces instead. */
 .item:not(.sel) .f-front::after { background: #080b1555; }
-.item .sway { transform-style: preserve-3d; transform: rotateY(0deg); transition: transform .7s cubic-bezier(.2,.8,.2,1); }
-.item.sel .sway { animation: shelf-float 6s ease-in-out infinite; }
+.item .sway { transform-style: preserve-3d; transform: rotateY(0deg); transition: transform .7s cubic-bezier(.22,1,.36,1); }
+/* Ease into the selected pose before the idle loop starts, so selection never snaps. */
+.item.sel .sway { transform: rotateY(22deg) rotateX(-4deg); animation: shelf-float 6s ease-in-out .7s infinite; }
 @keyframes shelf-float { 0%,100% { transform: translateY(0) rotateY(22deg) rotateX(-4deg); } 50% { transform: translateY(-5px) rotateY(26deg) rotateX(-3deg); } }
 .item .shadow { position: absolute; left: -8%; right: -8%; height: 48px; pointer-events: none; transform: rotateX(90deg); transform-origin: top; }
 .item .shadow::before,.item .shadow::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #0009; filter: blur(13px); }
@@ -210,7 +211,7 @@ header { position: relative; z-index: 5; display: flex; align-items: center; gap
 
 /* Shared physical media: carousel preview and full case viewer use the same model. */
 .physical-media { position: absolute; width: var(--mw); height: var(--mh); left: calc((var(--w) - var(--mw)) / 2); top: calc((var(--h) - var(--mh)) / 2); transform-style: preserve-3d; }
-.item .physical-media { visibility: hidden; transform: translate3d(0,0,0); transition: transform .85s cubic-bezier(.2,.8,.2,1), visibility 0s .85s; }
+.item .physical-media { visibility: hidden; transform: translate3d(0,0,0); transition: transform .85s cubic-bezier(.22,1,.36,1), visibility 0s .85s; }
 .item.sel.media-revealed .physical-media { visibility: visible; transition-delay: 0s; }
 /* The media slides out from behind its own case. A wide cartridge (GBA, SNES, N64) or a 12 cm disc
    would otherwise travel far enough to cover the next game on the shelf, so the slide stops once
@@ -234,8 +235,8 @@ header { position: relative; z-index: 5; display: flex; align-items: center; gap
 .cartridge-front, .cartridge-back { backface-visibility: hidden; }
 .cartridge-molding { position: absolute; inset: 0; width: 100%; height: 100%; }
 .cartridge-label { position: absolute; background-size: cover; background-position: center; border-radius: 1.5px; box-shadow: 0 0 0 1px #0005, 0 1px 0 #ffffff30; overflow: hidden; }
-.case.open .physical-media { transition: transform 1s cubic-bezier(.2,.8,.2,1) .55s; transform: translate3d(calc(var(--w) * .85),-8px,150px) rotateY(-12deg) rotateZ(6deg); }
-.case .physical-media { transform: translateZ(0px); transition: transform .65s cubic-bezier(.2,.8,.2,1); }
+.case.open .physical-media { transition: transform 1s cubic-bezier(.22,1,.36,1) .55s; transform: translate3d(calc(var(--w) * .85),-8px,150px) rotateY(-12deg) rotateZ(6deg); }
+.case .physical-media { transform: translateZ(0px); transition: transform .7s cubic-bezier(.22,1,.36,1); }
 
 /* ---------- info panel ---------- */
 #info { position: absolute; left: 0; right: 0; bottom: 76px; display: flex; gap: 32px; align-items: flex-end; padding: 22px 60px 0; z-index: 4; }
@@ -289,7 +290,7 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 @keyframes fade { from { opacity: 0; } }
 #caseScene { position: absolute; inset: 0; perspective: 1800px; cursor: grab; }
 #caseScene:active { cursor: grabbing; }
-#caseRig { position: absolute; left: 50%; top: 46%; transform-style: preserve-3d; transition: transform .08s linear; }
+#caseRig { position: absolute; left: 50%; top: 46%; transform-style: preserve-3d; transition: transform .1s ease-out; }
 .case-ui { position: absolute; left: 0; right: 0; bottom: 0; padding: 24px 48px 40px; display: flex; align-items: flex-end; gap: 24px; pointer-events: none; }
 .case-ui > * { pointer-events: auto; }
 .case-title { flex: 1; } .case-title h2 { margin: 4px 0 0; font-size: 32px; }
@@ -301,7 +302,7 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 .jewel .tray { background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.2) 0 12%, #111 12.5% 13.5%, rgba(20,22,30,.9) 14%); }
 .cartbox .tray, .ds .tray { background: linear-gradient(#202228, #15161b); }
 .lid { position: absolute; left: 0; top: 0; width: var(--w); height: var(--h); transform-style: preserve-3d; transform-origin: 0 50%;
-  transform: translateZ(calc(var(--d) / 2)); transition: transform 1.1s cubic-bezier(.5,0,.2,1); }
+  transform: translateZ(calc(var(--d) / 2)); transition: transform 1.1s cubic-bezier(.45,0,.2,1); }
 .lid .face { width: var(--w); height: var(--h); }
 .lid .l-front { transform: translateZ(.5px); }
 .lid .l-inner { transform: rotateY(180deg) translateZ(.5px); background: linear-gradient(135deg, #1c1e25, #101116); box-shadow: inset 0 0 0 6px #22252d; }
@@ -314,7 +315,7 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 .case[data-material='cardboard'].open .physical-media { transform: translate3d(0,calc(var(--h) * -.8),8px) rotateY(-8deg) rotateZ(-4deg); }
 .box-flap-title { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--d) * .21); font-weight: 650; padding: 2px 8%; color: var(--case-ink); text-align: center; overflow: hidden; }
 
-.manual { position: absolute; transform-style: preserve-3d; transition: transform 1s cubic-bezier(.3,.9,.3,1); }
+.manual { position: absolute; transform-style: preserve-3d; transition: transform 1s cubic-bezier(.22,1,.36,1); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .manual { width: calc(var(--w) * .92); height: calc(var(--h) * .92); left: calc(var(--w) * .04); top: calc(var(--h) * .04);
