@@ -73,7 +73,6 @@ const SKIP_DIRS = /^(source archives|_extras|extras|texture packs|saves?|states|
 function defaultConfig() {
   return {
     mediaRoot: '',
-    hideWhilePlaying: true,
     launchAnimation: true,
     checkUpdates: true,
     promptFamily: 'auto',
@@ -810,10 +809,8 @@ async function launchDirect(game) {
     const child = spawn(exe, [], { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
     child.once('error', e => reject(new Error(`Launch failed: ${e.message}`)));
     child.once('spawn', () => {
-      if (config.hideWhilePlaying && win && !win.isDestroyed()) {
-        win.minimize();
-        child.once('exit', () => { if (win && !win.isDestroyed()) { win.restore(); win.focus(); } });
-      }
+      // The game window opens on top of PyroCade, so there is no need to minimize; just come back to the front afterwards.
+      child.once('exit', () => { if (win && !win.isDestroyed()) win.focus(); });
       child.unref();
       resolve(true);
     });
@@ -842,11 +839,8 @@ function launchGame(gameId) {
     const child = spawn(exe, args, { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
     child.once('error', e => reject(new Error(`Launch failed: ${e.message}`)));
     child.once('spawn', () => {
-      // Only hide once the emulator really started, so a failed launch never leaves us minimized.
-      if (config.hideWhilePlaying && win && !win.isDestroyed()) {
-        win.minimize();
-        child.once('exit', () => { if (win && !win.isDestroyed()) { win.restore(); win.focus(); } });
-      }
+      // The game window opens on top of PyroCade, so there is no need to minimize; just come back to the front afterwards.
+      child.once('exit', () => { if (win && !win.isDestroyed()) win.focus(); });
       resolve(true);
     });
   });

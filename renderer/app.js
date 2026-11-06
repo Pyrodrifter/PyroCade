@@ -102,17 +102,22 @@ async function loadLibrary() {
 function renderChips() {
   LibraryUI.render();
 }
+const lastGame = new Map(); // system id -> id of the game last selected there
 function setSystem(id) {
   const previousSystem=S.system;
   S.system = S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && s.romDir) ? id : 'all';
   if(previousSystem!==S.system)AudioUI.play('system');
-  const keep = S.list[S.sel];
+  const current = S.list[S.sel];
+  // Each system remembers its selected game, so going back to it shows the same game again.
+  if (previousSystem !== S.system && current) lastGame.set(previousSystem, current.id);
+  const remembered = previousSystem !== S.system && S.games.find(g => g.id === lastGame.get(S.system));
+  const keep = remembered || current;
   const q = S.query.trim().toLowerCase();
   S.list = S.games.filter(g => (S.system === 'all' || g.system === S.system) && (!q || g.title.toLowerCase().includes(q)));
   LibraryUI.select();
   $('#carousel').innerHTML = ''; items.clear();
   const k = keep ? S.list.indexOf(keep) : -1;
-  S.sel = k >= 0 ? k : Math.min(S.sel, Math.max(0, S.list.length - 1));
+  S.sel = k >= 0 ? k : previousSystem !== S.system ? 0 : Math.min(S.sel, Math.max(0, S.list.length - 1));
   $('#empty').textContent = q ? `No games match “${S.query}”.` : (() => { const s = S.config.systems.find(x => x.id === S.system);
       return s?.romDir ? `No games found in ${s.romDir.split('|').map(d => d.trim()).filter(Boolean).join(' or ')}` : 'No games for this system yet.'; })();
   $('#empty').classList.toggle('hidden', S.list.length > 0);
@@ -121,7 +126,7 @@ function setSystem(id) {
 function cycleSystem(dir) {
   const ids = $$('#systems button').map(b => b.dataset.id);
   const i = (ids.indexOf(S.system) + dir + ids.length) % ids.length;
-  S.sel = 0; setSystem(ids[i]);
+  setSystem(ids[i]);
 }
 
 // ---------- 3D carousel ----------
@@ -129,7 +134,9 @@ const items = new Map(); // list index -> element
 let revealTimer, revealId = null, announceTimer;
 function createMedia(game, a) {
   const cart = a.sys.media === 'cart';
-  const media = el('div', `physical-media ${cart ? 'cartridge-model cartridge-' + a.sys.id : 'disc-model'}`);
+  // GameCube games came on 8 cm mini discs instead of 12 cm ones.
+  const mini = !cart && a.sys.id === 'gc';
+  const media = el('div', `physical-media ${cart ? 'cartridge-model cartridge-' + a.sys.id : 'disc-model' + (mini ? ' disc-mini' : '')}`);
   media.setAttribute('aria-hidden','true');
   if (cart) {
     const label=Cartridges.build(media,a.sys.id,a.W);label.style.backgroundImage = `url("${a.disc}")`;
@@ -137,7 +144,7 @@ function createMedia(game, a) {
     if(a.digital&&!game.media.disc)label.append(EshopCovers.sleeve(game,a.digital,true));
     else if(a.packshot&&!game.media.disc)EshopCovers.background(label,a.front,a.packshot);
   } else {
-    const size = Math.min(a.W,a.H) * .94;
+    const size = Math.min(a.W,a.H) * .94 * (mini ? 8/12 : 1);
     media.style.cssText = `--mw:${size}px;--mh:${size}px`;
     const rotor = el('div','disc-rotor');
     const surface = el('div','disc-surface'); surface.style.backgroundImage = `url("${a.disc}")`;
@@ -691,7 +698,6 @@ function renderSettings() {
   $('#sAmbient').value = String(c.ambient?.idleMinutes ?? 2);
   $('#sBackground').value = c.ambient?.background || (c.ambient?.ribbon === false ? 'off' : 'ribbon');
   $('#sMedia').value = c.mediaRoot || '';
-  $('#sHide').checked = !!c.hideWhilePlaying;
   $('#sLaunchFx').checked = c.launchAnimation !== false;
   $('#sCheckUpdates').checked = c.checkUpdates !== false;
   const body = $('#sysTable tbody'); body.innerHTML = '';
@@ -785,7 +791,6 @@ document.addEventListener('click', async e => {
 $('#btnSave').onclick = async () => {
   const c = structuredClone(S.config);
   c.mediaRoot = $('#sMedia').value.trim();
-  c.hideWhilePlaying = $('#sHide').checked;
   c.launchAnimation = $('#sLaunchFx').checked;
   c.checkUpdates = $('#sCheckUpdates').checked;
   c.promptFamily = promptPreference;
@@ -942,6 +947,16 @@ $('#search').addEventListener('keydown', e => {
   else if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); }
   e.stopPropagation();
 });
+// Mouse clicks leave focus on the clicked button, which would then swallow Enter, Space and the arrow keys.
+// Drop that focus in the library; Tab brings back normal keyboard focus.
+let pointerFocus = false;
+document.addEventListener('pointerdown', () => { pointerFocus = true; }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Tab') pointerFocus = false; }, true);
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('button,a');
+  if (!b || e.detail === 0 || !libraryActive() || caseShown() || b.closest('dialog')) return;
+  setTimeout(() => { if (document.activeElement === b) b.blur(); });
+});
 document.addEventListener('keydown', e => {
   usePromptInput('keyboard');
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&libraryActive()&&!caseShown()){e.preventDefault();LibraryUI.openPicker();return;}
@@ -955,7 +970,11 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.target.matches?.('input, select, textarea')) return;
-  if (e.target.matches?.('button,a') && (e.key === 'Enter' || e.key === ' ')) return;
+  if (e.target.matches?.('button,a') && (e.key === 'Enter' || e.key === ' ')) {
+    // A button that only has focus because it was clicked keeps Enter/Space for the library, not for itself.
+    if (!(pointerFocus && libraryActive() && !caseShown() && !e.target.closest('dialog'))) return;
+    e.target.blur();
+  }
   if (libraryActive() && !caseShown() && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !(e.key.toLowerCase() === 'm' && !$('#search').value)) {
     $('#search').focus(); return; // the key lands in the search box
   }

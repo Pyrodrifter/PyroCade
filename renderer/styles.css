@@ -154,6 +154,7 @@ header { position: relative; z-index: 5; display: flex; align-items: center; gap
 .box[data-material] .l-inner { background: linear-gradient(125deg,#ffffff15,#0004),var(--case-shell); box-shadow: inset 0 0 0 4px #0003; }
 .box[data-material='jewel'] .tray { background: radial-gradient(circle at 50% 50%,#abb5bc 0 10%,#24272b 10.5% 13%,#17191d 13.5% 48%,#b0bec355 48.5% 49%,#17191d 49.5%); }
 .box[data-media='disc'] .tray::before { content: ''; position: absolute; width: 80%; aspect-ratio: 1; left: 50%; top: 50%; transform: translate(-50%,-50%); border-radius: 50%; border: 1px solid #0005; background: radial-gradient(circle,#ffffff18 0 7%,#0004 7.5% 9%,#ffffff16 9.5% 11%,transparent 11.5%); box-shadow: inset 0 0 0 2px #ffffff0c; }
+.box[data-packaging='gc'] .tray::before { width: 54%; background: radial-gradient(circle,#ffffff18 0 10.5%,#0004 11% 13.5%,#ffffff16 14% 16.5%,transparent 17%); }
 .box[data-packaging='switch'] .tray::after,.box[data-packaging='switch2'] .tray::after { content: ''; position: absolute; left: 34%; right: 34%; top: 29%; bottom: 30%; border: 2px solid #0003; border-radius: 4px; box-shadow: 0 1px 0 #ffffff28,inset 0 0 0 5px #0001; }
 .spine-insert { position: absolute; inset: 2px 1px; overflow: hidden; background: var(--spine-paper); color: var(--spine-ink); }
 .spine-brand { position: absolute; left: 0; right: 0; top: 0; height: var(--spine-header); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; background: var(--spine-band); color: var(--spine-band-ink); line-height: 1; border-bottom: 2px solid var(--spine-rule); }
@@ -220,6 +221,10 @@ header { position: relative; z-index: 5; display: flex; align-items: center; gap
 .disc-surface::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 25deg,transparent 0 12%,#e5f6ff66 16%,#f1afff33 22%,transparent 30% 56%,#baffec55 66%,transparent 80%); mix-blend-mode: screen; animation: disc-light 18s linear infinite; }
 @keyframes disc-light { to { transform: rotate(360deg); } }
 .disc-hub { background: radial-gradient(circle,transparent 0 7%,#e0e7f077 7.5% 9%,#aab5c788 9.5% 13%,#e2eaf070 13.5% 15%,transparent 15.5%); transform: translateZ(2px); }
+/* 8 cm mini disc (GameCube): same-size centre hole and hub, so they take up more of the disc. */
+.disc-mini .disc-metal { mask-image: radial-gradient(circle,transparent 0 10.5%,#000 11%); }
+.disc-mini .disc-surface { inset: 2px; mask-image: radial-gradient(circle,transparent 0 22%,#000 22.5%); }
+.disc-mini .disc-hub { background: radial-gradient(circle,transparent 0 10.5%,#e0e7f077 11% 13%,#aab5c788 13.5% 19%,#e2eaf070 19.5% 22%,transparent 22.5%); }
 .cartridge-body { position: absolute; inset: 0; transform-style: preserve-3d; }
 .cartridge-front, .cartridge-back, .cartridge-shell-layer { position: absolute; inset: 0; clip-path: var(--cart-outline); }
 .cartridge-front, .cartridge-back { backface-visibility: hidden; }
