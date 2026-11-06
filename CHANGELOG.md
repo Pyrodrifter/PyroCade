@@ -2,7 +2,7 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
-## [Unreleased]
+## [0.5.0] - 2026-11-06
 
 ### Added
 - **An emulator per game:** the new **Emulator** button next to Play chooses the emulator for just that game, such as a fork made for one game, or **Run the file itself**. **Same as <system>** goes back to the system's emulator. The list shows the system's emulators first, then the ones you added or installed.
@@ -14,6 +14,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - **Multi-disc games:** "Game (Disc 1)", "(Disc 2)"… files become one game, with **Start with Disc 1 / 2 / 3** in the case view (LB/RB on a controller). The disc you choose is remembered. PlayStation games get a playlist (`.m3u`) so the emulator can still change discs during play.
 - **Your screenshots:** screenshots taken in the emulator appear under the open case. Click one to view it full size. PyroCade looks in the screenshot folders of DuckStation, PCSX2, Dolphin, PPSSPP, RetroArch and the game's own emulator, and matches screenshots by the game's title.
 - **Hold Select + Start to quit:** while a game is running, hold Select and Start (View and Menu, Share and Options, − and +) for 1.5 seconds to close it and return to PyroCade.
+- **Solid cartridge and case models:** cartridges, the PSP UMD and cases are rebuilt with closed edges, bevelled caps and separate labels, in the proportions of the real thing. The measurements used are listed in `docs/physical-models.md`.
 - **GameCube mini discs:** GameCube games show an 8 cm disc, and the GameCube case tray matches it.
 - **PSP UMDs** are shown as a disc in its plastic shell. PlayStation discs have their black data side, Wii discs a white hub, Wii U discs a rounded edge, and Dreamcast discs the GD-ROM ring.
 - **Settings → Show cases at their real sizes:** a Game Boy box next to a PS2 case looks as small as it really is.
@@ -150,6 +151,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.5.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.4...v0.5.0
 [0.4.4]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.1...v0.4.2
