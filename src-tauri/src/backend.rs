@@ -1,4 +1,5 @@
 use crate::config::{config_for_save, load_config, save_config};
+use crate::storage::{is_content_uri, split_storage_refs};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
@@ -266,16 +267,15 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
         if extensions.is_empty() {
             continue;
         }
-        let dirs: Vec<PathBuf> = system
-            .get("romDir")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .split('|')
-            .map(str::trim)
-            .filter(|p| !p.is_empty())
-            .map(PathBuf::from)
-            .filter(|p| p.is_dir())
-            .collect();
+        // romDir may hold filesystem paths (desktop) or SAF tree URIs (Android).
+        // Only filesystem roots can be walked with std::fs; URIs are stored
+        // but never converted into paths.
+        let dirs: Vec<PathBuf> =
+            split_storage_refs(system.get("romDir").and_then(Value::as_str).unwrap_or(""))
+                .into_iter()
+                .filter_map(|r| r.as_path().cloned())
+                .filter(|p| p.is_dir())
+                .collect();
         if dirs.is_empty() {
             continue;
         }
@@ -368,7 +368,7 @@ fn media_roots(config: &Value, system: &Value, dirs: &[PathBuf], data_dir: &Path
     if let Some(media_root) = config
         .get("mediaRoot")
         .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty() && !is_content_uri(s))
     {
         roots.push(PathBuf::from(media_root).join(id));
     }
@@ -818,7 +818,12 @@ pub fn pick_folder(app: AppHandle, title: String) -> Option<String> {
 #[cfg(target_os = "android")]
 #[tauri::command]
 pub fn pick_folder(_app: AppHandle, _title: String) -> Result<Option<String>, String> {
-    Err("Folder selection is not supported on Android yet.".to_owned())
+    // Dialog plugin does not support Android folder picking. A SAF grant
+    // must come from the native picker and persists as a content URI.
+    Err(
+        "Folder selection on Android needs a document-tree grant; the dialog plugin does not support folder picking there."
+            .to_owned(),
+    )
 }
 
 #[tauri::command]

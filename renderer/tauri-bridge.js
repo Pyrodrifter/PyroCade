@@ -4,8 +4,10 @@
   const invoke = window.__TAURI__.core.invoke;
   const listen = window.__TAURI__.event.listen;
   const convertFileSrc = window.__TAURI__.core.convertFileSrc;
+  // SAF tree URIs are stored as-is; only file:// media becomes asset URLs.
+  const isContentUri = value => typeof value === 'string' && value.startsWith('content://');
   const convertPaths = value => {
-    if (typeof value === 'string' && value.startsWith('file://')) {
+    if (isContentUri(value)) return value;    if (typeof value === 'string' && value.startsWith('file://')) {
       try { return convertFileSrc(decodeURIComponent(new URL(value).pathname)); } catch { return value; }
     }
     if (Array.isArray(value)) return value.map(convertPaths);
@@ -49,7 +51,7 @@
     emuOpenFolder: id => call('open_emulator_folder', { id }),
     emuPickExe: id => call('pick_emulator_executable', { id }),
     emuAddCustom: opts => call('add_custom_emulator', { opts }),
-    pickFolder: title => call('pick_folder', { title }),
+    pickFolder: title => call('pick_folder', { title }), // Android SAF grant arrives as content URI
     openManual: path => call('open_manual', { path }),
     onProgress: fn => subscribe('emu:progress', fn),
     onArtProgress: fn => subscribe('art:progress', fn),

@@ -4,7 +4,9 @@ mod artwork;
 mod backend;
 mod config;
 mod emulators;
+mod storage;
 
+// Android stays in the app-private data dir; user ROMs are SAF tree URIs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()

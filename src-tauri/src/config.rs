@@ -186,6 +186,18 @@ mod tests {
     }
 
     #[test]
+    fn merge_preserves_saf_document_tree_uris() {
+        let saved = json!({
+            "systems": [{"id":"ps1","romDir":"content://com.android.externalstorage.documents/tree/abc"}]
+        });
+        let merged = merge_config(saved).unwrap();
+        assert_eq!(
+            merged["systems"][0]["romDir"],
+            "content://com.android.externalstorage.documents/tree/abc"
+        );
+    }
+
+    #[test]
     fn renderer_settings_cannot_overwrite_backend_owned_emulator_state() {
         let current =
             json!({"emulators":{"one":{"exe":"/safe/path"}},"customEmulators":[{"id":"local"}]});
