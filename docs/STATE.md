@@ -2,23 +2,21 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The ten slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), P7 / S06 (`39b7d24`, `4692cb5`), P8 / S08 (`c555b43`, `2895559`), and P9 / S09 (`c5525fc`) are complete.
-
-Unknown — P10 remains open. Run /babysteps-handoff to re-cut Android signing, Storage Access Framework storage/import, installed-emulator linking/launch, and on-device rendering/controller/audio validation into separately priced work units.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The ten slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), P7 / S06 (`39b7d24`, `4692cb5`), P8 / S08 (`c555b43`, `2895559`), and P9 / S09 (`c5525fc`) are complete. Android Rust target and debug APK build/install on device succeeded; the release APK is unsigned and withheld from uploads. Android folder selection/URI access and installed-emulator linking/launch remain unimplemented. **The next action** is P10a — Sign and publish the Android release APK.
 
 ## Next action
 
-**P10 — Add Android ARM64 target. Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64.**
+**P10a — Sign and publish the Android release APK.** Configure Tauri Android signing (keystore, alias, password) and integrate it into the CI workflow so the release APK is signed and uploaded to release artifacts, while the debug build remains unsigned.
 
-**The Do-Not list is `docs/donot.md`** — 3 entries, append-only. Never dropped, never trimmed.
+**The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
 ## Task queue
 
 ### Completed
 
 - BabySteps limits and the ten-slice Tauri plan are recorded.
-- **P1 / S01 — Complete Tauri window and renderer bridge.** Source committed as `b9ce85e` (`P1: complete Tauri window and renderer bridge`). Exact action: “P1 — Complete Tauri window and renderer bridge. Finish Tauri startup from the existing renderer, wire the current `window.api` surface to Rust commands, and preserve progress/toast events and local asset URLs.”
-  - Close condition: “Closes when the selected Rust gates pass and `npm start` launches the renderer with the bridge available.” `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` passed; `cargo test --manifest-path src-tauri/Cargo.toml` passed (3 tests); `cargo check --manifest-path src-tauri/Cargo.toml` passed with the existing `merge_object` dead-code warning.
+- **P1 / S01 — Complete Tauri window and renderer bridge.** Source committed as `b9ce85e` (`P1: complete Tauri window and renderer bridge`). Exact action: "P1 — Complete Tauri window and renderer bridge. Finish Tauri startup from the existing renderer, wire the current `window.api` surface to Rust commands, and preserve progress/toast events and local asset URLs."
+  - Close condition: "Closes when the selected Rust gates pass and `npm start` launches the renderer with the bridge available." `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` passed; `cargo test --manifest-path src-tauri/Cargo.toml` passed (3 tests); `cargo check --manifest-path src-tauri/Cargo.toml` passed with the existing `merge_object` dead-code warning.
   - `npm start` built and ran without startup panic through a 90-second smoke window, then was stopped. The mock bridge test passed F11 and repeat-key behavior. Interactive dialogs were not verified and the WebView was not visually inspected.
   - Runtime startup required leaving updater-plugin initialization out until its plugin config is added in the later updater slice; current manual release commands remain. Initial scaffold compile errors were corrected: missing imports, opener `PathBuf`/string calls, async mutex-guard scope, and ZIP API return type.
   - Boundary: `package.json:24` retains an `electron .` route resolving to `main.js` via `package.json:6`; this is intentionally left for the later Electron-removal slice, not a Do-Not fault.
@@ -62,7 +60,7 @@ Unknown — P10 remains open. Run /babysteps-handoff to re-cut Android signing, 
   - Post-commit guard after `4692cb5`: WITHIN at 148,172/225,000 tokens (66%); cost $0.10602815/$0.70. Do-Not count remains 3; no applicable entry, new fault, or withdrawn number.
 
 - **P8 / S08 — Port validation and release automation.** P8 implementation was committed as `c555b43` (`P8: Add native validation and release smoke checks`); the completion code commit is `2895559` (`P8: smoke-test Tauri on native ARM64 WebView`).
-  - Close condition: “Closes when Electron-bound checks are replaced or adapted, observable tests cover migrated public behavior, native ARM64 Linux and macOS release jobs are configured, installed artifacts and controller/audio/rendering paths are smoke-tested, and the support matrix is documented.”
+  - Close condition: "Closes when Electron-bound checks are replaced or adapted, observable tests cover migrated public behavior, native ARM64 Linux and macOS release jobs are configured, installed artifacts and controller/audio/rendering paths are smoke-tested, and the support matrix is documented."
   - Passed `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (19 passed), and `cargo check --manifest-path src-tauri/Cargo.toml`; each Rust invocation showed the existing `backend.rs::merge_object` dead-code warning. `actionlint .github/workflows/release.yml` passed.
   - The native ARM64 Linux `.deb` was built in Apple Container, installed, and passed a Tauri WebDriver smoke in WebKit covering the Gamepad API query/event, AudioUI `AudioContext` creation, canvas pixel, and 3D transform. Debian bundling and installed runtime passed. The full local AppImage bundle attempt failed in `linuxdeploy` in Apple Container.
   - The native macOS ARM64 app and DMG were built. The host denied mounting the DMG; a copied `.app` bundle launched successfully. Native DMG mounting was not possible here, and CI retains the DMG install/smoke job. `npm start` started the Tauri dev app and stayed alive through its smoke window.
@@ -77,9 +75,8 @@ Unknown — P10 remains open. Run /babysteps-handoff to re-cut Android signing, 
 
 ## Queued
 
-- **P10 — Queued.** Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64. Configure Android project/build metadata and a reproducible ARM64 CI build using the Android SDK and JDK; verify bridge, permissions, storage/import, emulator workflows, controller/audio/rendering, and artifact installation, then document the support and validation matrix.
-
-
-## P10 partial — Android ARM64 build pipeline
-
-The Android Rust target and local debug APK build succeeded, and the debug package installed and started on the ARM64 device. The initial black screenshot was captured while the device was asleep; the user confirms the app renders normally when awake. The release APK is unsigned and is withheld from release uploads. Android folder selection/URI access and installed-emulator linking/launch remain unimplemented; do not mark Android as fully supported. Do-Not #4 records the SAF URI constraint.
+- **P10 — Re-cut into sub-slices.** Android Rust target and debug APK build/install on device succeeded; the release APK is unsigned and withheld from uploads. Re-cut into:
+  - **P10a — Sign and publish the Android release APK.** Configure Tauri Android signing (keystore, alias, password) and integrate it into the CI workflow so the release APK is signed and uploaded to release artifacts, while the debug build remains unsigned.
+  - **P10b — Implement Storage Access Framework (SAF) storage and import.** Replace filesystem-path-based storage on Android with URI-aware I/O using persistent document-tree grants, since Tauri's dialog plugin does not support Android folder picking.
+  - **P10c — Implement installed-emulator linking and launch on Android.** Link installed emulators from the Android device and support launching them, adapting the existing emulator service for Android's package-based emulator model.
+  - **P10d — On-device renderer, controller, and audio validation.** Verify the renderer bridge, controller input, and audio paths on Android hardware, then update the support and validation documentation.

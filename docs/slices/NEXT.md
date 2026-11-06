@@ -1,48 +1,52 @@
 ---
-slice: P10-recut
+slice: P10a
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: re-cut-required
-reads: []
+seededFrom: c5525fc
+reads:
+  - package.json
+  - .github/workflows/release.yml
+  - src-tauri/Cargo.toml
+  - src-tauri/tauri.conf.json
+allowanceTokens: 85000
 ---
 
-# P10 remainder — re-cut before implementation
+**P10a — Sign and publish the Android release APK.** Configure Tauri Android signing (keystore, alias, password) and integrate it into the CI workflow so the release APK is signed and uploaded to release artifacts, while the debug build remains unsigned. The release APK is currently unsigned and withheld from uploads; this slice adds signing configuration and CI integration.
 
-## Next action
+**The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
-Unknown — P10 is not closed. Run `/babysteps-handoff` to create priced slices for Android signing, Storage Access Framework storage/import, installed-emulator linking and launch, and on-device renderer/controller/audio validation. Do not reuse P10's previous reading set for that work.
+## What is settled — do not re-derive
 
-**Closes when:** The remaining Android requirements have separate priced plan rows and the next seed names only the selected slice's reads.
+- P1 through P9 are complete. Android Rust target and debug APK build/install on device succeeded. The release APK is unsigned and withheld from uploads. Do-Not #4 records the SAF URI constraint (not relevant to signing).
+- The CI workflow (`release.yml`) builds macOS ARM64, Linux ARM64, and Android ARM64 artifacts. The Android job produces an unsigned APK.
+- Tauri's Android signing is configured via `tauri.conf.json` (`androidSigning`) and/or `Cargo.toml` build script overrides.
 
-## Settled
+## Withdrawn — proven wrong, do not use
 
-- Android Rust mobile entry, app-private data path, minimum API, and ARM64 CI build configuration are implemented.
-- Android Rust cross-compilation and a local debug APK build succeeded; the test app installs and its process starts on the connected ARM64 device.
-- The Tauri bridge now exposes and merges the app-update progress subscription; the debug app installed and started on-device, and the user confirms it renders normally when the device is awake.
-- Android release signing is not configured; CI does not publish Android APKs to release assets, and no installable release artifact is available.
-- Tauri's dialog plugin lacks Android folder selection, and its content URIs are not compatible with the current filesystem-path backend.
-- Managed emulator downloads do not provide Android app linking or ROM launch.
-
-## Withdrawn numbers
-
-- None.
+None.
 
 ## Code to touch
 
-Not priced; determine in the handoff re-cut.
+- `package.json` — Add or update Android build scripts; reference signing config.
+- `.github/workflows/release.yml` — Add signing step to the Android ARM64 build job; upload signed APK to release artifacts.
+- `src-tauri/tauri.conf.json` — Add Android signing configuration (keystore path, alias, password source).
+- `src-tauri/Cargo.toml` — Ensure Android build script respects signing config.
 
 ## Read these first, and only these
 
-- `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction`
-- `.operator/specs/artwork-service.md` — `Contract`
-- `.babysteps/tauri-migration.plan.md` — `Tauri v2 migration slices`, `Budget rows`
-- `.babysteps/tauri-migration.tasks.json` — Android task split
+- `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction` (Android target section)
+- `.babysteps/tauri-migration.plan.md` — `Budget rows` (P10 row for reference)
 
-## Gate commands
+## Do-Not entries that apply here
 
-Not selected until the remaining requirements are priced.
+Total Do-Not count: 4. No entries apply to this signing-only slice.
 
-## Applicable Do-Not entries
+## The gate
 
-- #1
-- #4
+`cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
+`cargo test --manifest-path src-tauri/Cargo.toml`
+`cargo check --manifest-path src-tauri/Cargo.toml`
+
+## When this slice closes
+
+Write the next seed with the next sub-slice (P10b — SAF storage/import), advance the state file, and re-verify the Do-Not count.
