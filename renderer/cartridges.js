@@ -99,13 +99,18 @@ const Cartridges=(()=>{
     const p=profiles[system]||fallback;
     const width=W*p.w,height=W*p.h,depth=p.mm?width*p.mm[2]/p.mm[0]:p.depth;
     media.style.cssText=`--mw:${width}px;--mh:${height}px;--shell-color:${p.color};--cd:${depth}px`;
-    const solid=PhysicalGeometry.prism({width,height,depth,outline:p.outline,bevel:Math.min(1.2,width*.008),className:'cartridge-body'});
+    const bevel=Math.min(1.2,width*.008);
+    const solid=PhysicalGeometry.prism({width,height,depth,outline:p.outline,bevel,className:'cartridge-body'});
     const {root:body,front,back}=solid;
     front.classList.add('cartridge-front');back.classList.add('cartridge-back');front.append(shell(p));back.append(shell(p,true));
-    // Raised molding belongs to the 3D body, never inside a clipped cap.
+    // Raised molding belongs to the 3D body, never inside a clipped cap. It is also kept inside the
+    // bevelled face: a panel or rib written flush with the outline (0% or 100%) would otherwise hang
+    // over the shell's rounded edge and show up as a second, ragged silhouette.
     const relief=(x,y,w,h,d=1,outline)=>{
-      const part=PhysicalGeometry.prism({width:width*w/100,height:height*h/100,depth:d,outline,bevel:d>2?.5:0,className:'cartridge-relief'});
-      part.root.style.transform=`translate3d(${width*x/100}px,${height*y/100}px,${depth/2+d/2-.1}px)`;body.append(part.root);return part;
+      const left=Math.max(width*x/100,bevel),top=Math.max(height*y/100,bevel);
+      const pw=Math.max(.5,Math.min(width*(x+w)/100,width-bevel)-left),ph=Math.max(.5,Math.min(height*(y+h)/100,height-bevel)-top);
+      const part=PhysicalGeometry.prism({width:pw,height:ph,depth:d,outline,bevel:d>2?.5:0,className:'cartridge-relief'});
+      part.root.style.transform=`translate3d(${left}px,${top}px,${depth/2+d/2-.1}px)`;body.append(part.root);return part;
     };
     const rib=(...args)=>{const part=relief(...args);part.root.classList.add('cartridge-rib');return part};
     let labelZ=depth/2+.12;
@@ -116,9 +121,11 @@ const Cartridges=(()=>{
       const d=depth*.16;
       relief(16,0,68,100,d,'2,0 98,0 100,2 100,99 97,100 96,98 96,64 94,62 6,62 4,64 4,98 3,100 0,99 0,2');
       labelZ+=d;
-      for(const x of [1,84.5])for(let i=0;i<5;i++)rib(x,5+i*16,14.5,14.9,.8);
+      // Set in from the edge: a rib that reaches it hides the side wall in slivers, which reads as a
+      // second, broken outline rather than as moulding on the face.
+      for(const x of [2.5,84])for(let i=0;i<5;i++)rib(x,5+i*16,13.5,14.9,.8);
     }else if(['gb','gbc'].includes(system)){
-      for(const x of [1,84])for(let i=0;i<5;i++)rib(x,8+i*3.4,15,2.1,1.1);
+      for(const x of [2.5,83.5])for(let i=0;i<5;i++)rib(x,8+i*3.4,14,2.1,1.1);
       // The capsule header has its own embossed wordmark above the raised face.
       const part=relief(12,7,76,18,1.2,PhysicalGeometry.rounded(45,6));
       const svg=shell({...p,details:'',art:null,brandY:63});svg.querySelector('text')?.setAttribute('font-size','8');part.front.append(svg);

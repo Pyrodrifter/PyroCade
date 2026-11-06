@@ -26,6 +26,15 @@ app.whenReady().then(async()=>{
       window.modelCovers=${JSON.stringify(covers)};
       S.config.systems=Object.entries(Packaging.profiles).map(([id,p])=>({id,name:p.brand,caseType:p.material==='cardboard'?'cartbox':p.material==='jewel'?'jewel':'dvd',media:Cartridges.profiles[id]&&!Cartridges.profiles[id].shell?'cart':'disc',color:p.accent}));
       window.modelGames=S.config.systems.map(s=>({id:'model:'+s.id,system:s.id,title:s.name,media:modelCovers[s.id]?{front:modelCovers[s.id]}:{},info:{},demo:true}));
+      // The library measures each cover before it builds the model; do the same here, so the gallery
+      // shows a square eShop packshot trimmed to its artwork rather than letterboxed on the label.
+      for(const g of modelGames){
+        if(!g.media.front)continue;
+        const img=new Image();img.src=g.media.front;
+        try{await img.decode()}catch{continue}
+        g._packshot=EshopCovers.packshot(img);
+        g._aspect=img.naturalWidth/img.naturalHeight*(g._packshot?.w||1);
+      }
       const gallery=el('div','model-gallery');gallery.innerHTML='<h1>Physical models</h1><div class="model-grid"></div>';document.body.append(gallery);
       const style=el('style');style.textContent='body > :not(.model-gallery){display:none!important}body{background:#dfdfd9;overflow:hidden}.model-gallery{padding:24px 30px;color:#353732;font-family:Segoe UI,sans-serif}.model-gallery h1{font-size:18px;font-weight:500;margin:0 0 16px}.model-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.model-tile{height:268px;position:relative;background:#eeeeea;border:1px solid #cecec7}.model-tile h2{margin:13px 17px;font-size:12px;font-weight:500}.model-stage{position:absolute;inset:38px 0 10px;perspective:1100px;transform-style:preserve-3d}.model-stage .physical-media{left:50%;top:50%;margin-left:calc(var(--mw) / -2);margin-top:calc(var(--mh) / -2);transform:rotateX(-9deg) rotateY(-18deg)}.model-stage .case{transition:none!important}.model-stage .case > .physical-media,.model-stage .case > .manual{display:none}.model-stage .case-anchor{position:absolute;left:57%;top:53%;transform-style:preserve-3d;transform:scale(.68) rotateX(-24deg) rotateY(26deg)}.model-stage .case .lid{transition:none!important}';document.head.append(style);
       style.textContent+='.model-stage .case-anchor{top:45%;transform:scale(.56) rotateX(-24deg) rotateY(26deg)}';

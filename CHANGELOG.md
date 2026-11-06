@@ -2,6 +2,20 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
+## [Unreleased]
+
+### Added
+- **Hide a game:** **⊘ Hide** next to Favourite (or the **Delete** key) takes a game off every shelf. Nothing in your ROM folder is renamed, moved or deleted — the choice lives in PyroCade's own library file. **Show → Hidden games** lists everything you hid, with **⊙ Unhide** to bring one back.
+- **Fullscreen is remembered and has a switch:** **Settings → Fullscreen**, as well as **F11**. **Ctrl/Cmd+Shift+F** does the same, for keyboards and desktops where F11 belongs to the window manager. `--fullscreen` and `--windowed` set it from a shortcut or from Steam's launch options.
+
+### Changed
+- **Nintendo Switch updates and DLC join their game.** Files are grouped by the title ID in their name (`Game [0100ABCD12345000][v0].nsp`): an update ends in `…800` and a DLC pack in `…1000` and up, so they all belong to the game ending in `…000` instead of each becoming a game of its own. The game itself is what the library lists and launches. Files without a title ID are grouped by name, as before.
+
+### Fixed
+- **The cartridge no longer covers the next game.** A wide cartridge (Game Boy Advance, SNES, Nintendo 64) or a 12 cm disc slid so far out from behind its case that it was drawn over its neighbour on the shelf. It now stops just clear of the case, whatever its size.
+- **Side ribs no longer double the cartridge's outline.** SNES and Game Boy ribs reached the edge of the shell and hid its side wall in slivers, which read as a second, ragged silhouette. Raised moulding is also kept inside the bevelled face, so a panel written flush with the edge can no longer hang over it.
+- **Square covers fill the label instead of being letterboxed.** A Switch 2 eShop packshot has a white bar down each side; those bars were measured only for Switch 2 cases and were left on every cartridge label. They are now measured for any cover on any system, and a cover without them is untouched.
+
 ## [0.5.0] - 2026-11-06
 
 ### Added

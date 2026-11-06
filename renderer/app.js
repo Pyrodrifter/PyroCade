@@ -122,7 +122,10 @@ const VIEWS = { favorites: 'Favourites', recent: 'Recently played' };
 const viewName = id => id === 'all' ? 'All games' : VIEWS[id] || sysOf(id).name;
 // A hidden system (Settings → Show) leaves every shelf, including All games, Favourites and Recently played.
 const systemHidden = id => !!S.config?.systems.find(s => s.id === id)?.hidden;
-const inView = (g, id) => !systemHidden(g.system) && (id === 'all' || (id === 'favorites' ? !!g.favorite : id === 'recent' ? g.lastPlayed > 0 : g.system === id));
+// A hidden game leaves every shelf too, until "Show → Hidden games" asks for exactly those.
+const showingHidden = () => S.filter === 'hidden';
+const inView = (g, id) => !systemHidden(g.system) && !!g.hidden === showingHidden()
+  && (id === 'all' || (id === 'favorites' ? !!g.favorite : id === 'recent' ? g.lastPlayed > 0 : g.system === id));
 // Sorting and filtering, applied inside the current system or view.
 const yearOf = g => parseInt(g.info?.year, 10) || 0;
 const genresOf = g => String(g.info?.genre || '').split(/[;,/]|\s+&\s+/).map(x => x.trim()).filter(Boolean);
@@ -138,6 +141,7 @@ const SORTS = {
 };
 function passesFilter(g) {
   if (!S.filter) return true;
+  if (S.filter === 'hidden') return true; // inView already narrowed the shelf to hidden games
   if (S.filter === 'multi') return maxPlayers(g) >= 2;
   if (S.filter === 'unplayed') return !g.lastPlayed;
   if (S.filter.startsWith('genre:')) return genresOf(g).some(x => x.toLowerCase() === S.filter.slice(6).toLowerCase());
@@ -193,7 +197,8 @@ function saveUi() {
   clearTimeout(uiTimer);
   uiTimer = setTimeout(() => {
     const g = S.list[S.sel]; if (g) lastGame.set(S.system, g.id);
-    api.saveLibraryUi({ system: S.system, game: g?.id || null, perSystem: Object.fromEntries(lastGame), sort: S.sort, filter: S.filter }).catch(() => {});
+    // "Hidden games" is a trip to the bin, not a place to reopen in, so it is not remembered.
+    api.saveLibraryUi({ system: S.system, game: g?.id || null, perSystem: Object.fromEntries(lastGame), sort: S.sort, filter: showingHidden() ? '' : S.filter }).catch(() => {});
   }, 700);
 }
 // Sort, Show (filter) and Random, above the shelf.
@@ -202,7 +207,10 @@ function renderShelfTools() {
   for (const g of S.games) for (const x of genresOf(g)) { const k = x.toLowerCase(); const c = counts.get(k) || { name: x, n: 0 }; c.n++; counts.set(k, c); }
   const genres = [...counts.values()].filter(c => c.n >= 2 || counts.size <= 12).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 40);
   const opt = (value, label) => `<option value="${esc(value)}">${esc(label)}</option>`;
+  // "Hidden games" only appears once something is hidden; it is how a hidden game is brought back.
+  const hiddenCount = S.games.filter(g => g.hidden).length;
   $('#filterBy').innerHTML = opt('', 'All games') + opt('multi', 'Multiplayer (2+)') + opt('unplayed', 'Not played yet')
+    + (hiddenCount ? opt('hidden', `Hidden games (${hiddenCount})`) : '')
     + (genres.length ? `<optgroup label="Genre">${genres.map(c => opt('genre:' + c.name, c.name)).join('')}</optgroup>` : '');
   if (S.filter && ![...$('#filterBy').options].some(o => o.value === S.filter)) S.filter = '';
   syncShelfTools();
@@ -321,7 +329,11 @@ function measure(game) {
   const source=game.media.front;
   img.onload = async () => {
     if(game.media.front!==source)return;
-    game._packshot=game.system==='switch2'?EshopCovers.packshot(img):null;
+    // Square packshots (Switch 2 eShop art, and what some scrapers hand back) carry a white bar down
+    // each side. Measured once, the cover fills the case front and the cartridge label instead of
+    // being letterboxed. packshot() returns null unless it really finds those bars, so a normal
+    // cover on any system is left exactly as it is.
+    game._packshot=EshopCovers.packshot(img);
     game._aspect=img.naturalWidth/img.naturalHeight*(game._packshot?.w||1);
     game._eShop=['switch','switch2'].includes(game.system)?EshopCovers.analyze(img):null;
     if(game._eShop) {
@@ -448,6 +460,26 @@ async function toggleFavorite(g = S.list[S.sel]) {
   if (S.system === 'favorites') setSystem('favorites'); else { LibraryUI.select(); updateFavButton(); }
 }
 
+// ---------- hidden games ----------
+// Hiding writes to PyroCade's own library state. Nothing is renamed, moved or deleted in the
+// ROM folder, and "Show → Hidden games" lists everything that was hidden so it can come back.
+function updateHideButton() {
+  const g = S.list[S.sel], b = $('#btnHide'); if (!b) return;
+  const hidden = !!g?.hidden;
+  b.setAttribute('aria-pressed', String(hidden));
+  b.textContent = hidden ? '⊙ Unhide' : '⊘ Hide';
+  b.title = hidden ? 'Show this game in the library again (Delete)' : 'Hide this game from the library (Delete). Your ROM folder is not touched.';
+}
+async function toggleHidden(g = S.list[S.sel]) {
+  if (!g) return;
+  if (g.demo || !api.setHidden) return toast('Hiding works with your own games. Add your ROM folders in Settings.');
+  const want = !g.hidden;
+  try { g.hidden = (await api.setHidden({ gameId: g.id, hidden: want })).hidden; } catch (e) { return toast(e.message); }
+  AudioUI.play(want ? 'back' : 'confirm');
+  toast(want ? `${g.title} hidden. Show → Hidden games brings it back.` : `${g.title} is back in the library.`, 4500);
+  renderShelfTools(); renderChips(); setSystem(S.system);
+}
+
 // ---------- play time ----------
 function applyStats(p) {
   const g = S.games.find(x => x.id === p.gameId); if (!g) return;
@@ -491,7 +523,7 @@ async function showInfo(quiet) {
     g.discs?.length > 1 && `${g.discs.length} discs`, ...playSummary(g)]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
   $('#btnManual').disabled = !g.media.manual;
-  updateEmuButton(); updateFavButton();
+  updateEmuButton(); updateFavButton(); updateHideButton();
   if (quiet) {
     const shot = $('#gShot');
     if (g.media.screenshot || g.media.title) { shot.style.backgroundImage = `url("${g.media.screenshot || g.media.title}")`; shot.style.display = ''; }
@@ -908,6 +940,7 @@ function renderSettings() {
   $('#sAmbient').value = String(c.ambient?.idleMinutes ?? 2);
   $('#sBackground').value = c.ambient?.background || (c.ambient?.ribbon === false ? 'off' : 'ribbon');
   $('#sMedia').value = c.mediaRoot || '';
+  $('#sFullscreen').checked = !!c.fullscreen;
   $('#sLaunchFx').checked = c.launchAnimation !== false;
   $('#sRealSizes').checked = !!c.realCaseSizes;
   $('#sWear').checked = !!c.wornCases;
@@ -1049,6 +1082,7 @@ $('#btnManual').onclick = () => manual();
 $('#btnArtwork').onclick = () => {showView('artwork');ArtworkUI.open('game');};
 $('#btnEmulator').onclick = () => openEmuChoice();
 $('#btnFavorite').onclick = () => toggleFavorite();
+$('#btnHide').onclick = () => toggleHidden();
 $('#closeEmuChoice').onclick = () => $('#emuChoice').close();
 // One game can use its own emulator, for example a fork made for that game.
 const emuChoiceOpen = () => $('#emuChoice').open;
@@ -1155,7 +1189,7 @@ function input(action) {
   if(action==='sysprev'||action==='sysnext'){cycleSystem(action==='sysprev'?-1:1);return;}
   if(['up','down'].includes(action)&&['vertical','swatches'].includes(Appearance.mode())){const delta=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+(action==='up'?-delta:delta));return;}
   ({ left: () => select(S.sel - 1), right: () => select(S.sel + 1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
-     play: () => play(), case: openCase, manual: () => manual(), favorite: () => toggleFavorite(), random: randomGame, pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
+     play: () => play(), case: openCase, manual: () => manual(), favorite: () => toggleFavorite(), hide: () => toggleHidden(), random: randomGame, pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
 }
 // Search: start typing anywhere in the library to filter.
 let searchT;
@@ -1200,7 +1234,8 @@ document.addEventListener('keydown', e => {
   if (libraryActive() && !caseShown() && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !(['m','f'].includes(e.key.toLowerCase()) && !$('#search').value)) {
     $('#search').focus(); return; // the key lands in the search box
   }
-  const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'play', ' ': 'case', Escape: 'back', m: 'manual', M: 'manual', f: 'favorite', F: 'favorite', PageUp: 'pgup', PageDown: 'pgdn' };
+  // Delete, not a letter: single letters go to the search box while you are browsing the shelf.
+  const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'play', ' ': 'case', Escape: 'back', m: 'manual', M: 'manual', f: 'favorite', F: 'favorite', Delete: 'hide', PageUp: 'pgup', PageDown: 'pgdn' };
   if (map[e.key]) { e.preventDefault(); input(caseShown() && e.key === ' ' ? 'back' : map[e.key]); }
 });
 
@@ -1238,6 +1273,13 @@ document.addEventListener('wheel', () => usePromptInput('keyboard'), {passive:tr
 
 // "Used copies": scuffed cases and faded labels. Real case sizes are applied when the shelf is built.
 function applyCaseLook() { document.documentElement.dataset.wear = S.config?.wornCases ? 'on' : 'off'; }
+// Fullscreen belongs to the window, so it switches at once instead of waiting for "Save & rescan".
+// The window reports back, which also keeps the box right after F11 or the title bar.
+$('#sFullscreen').addEventListener('change', async e => {
+  if (!api.setFullscreen) return;
+  try { await api.setFullscreen(e.target.checked); } catch (err) { e.target.checked = !e.target.checked; toast(err.message); }
+});
+api.onFullscreen?.(on => { if (S.config) S.config.fullscreen = on; const box = $('#sFullscreen'); if (box) box.checked = on; });
 ['sRealSizes', 'sWear'].forEach(id => $('#' + id).addEventListener('change', () => {
   S.config = { ...S.config, realCaseSizes: $('#sRealSizes').checked, wornCases: $('#sWear').checked };
   applyCaseLook(); for (const it of items.values()) { const g = S.games.find(x => x.id === it.dataset.id); if (g) fillItem(it, g); } if (S.list.length) layout();

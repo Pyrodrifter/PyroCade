@@ -26,6 +26,7 @@ An emulator front end for Windows, macOS and Linux that shows your games as real
   - **Favourites** (press **F**) and **Recently played** get their own shelves.
   - **Play time** and **last played** show with each game.
   - **Sort** by title, year, play time or developer, **show** only multiplayer, unplayed or one genre, or pick a **random** game.
+  - **Hide a game** you don't want on the shelf (**⊘ Hide**, or the **Delete** key) without touching your ROM folder; **Show → Hidden games** brings it back.
   - PyroCade opens on the system and game you had selected.
 - **Multi-disc games** are one game with a disc choice in the case view. **Your own screenshots** from the emulator appear under the open case.
 - **Start animation:** pressing Play spins the disc into a drive, or pushes the cartridge half-way into its slot, then starts the game. You can turn it off in Settings.
@@ -73,7 +74,7 @@ On Linux, data lives in `~/.config/PyroCade/data` and the emulator downloader in
 3. **Artwork:** choose **Entire library** and **Download artwork**. The first download fetches LaunchBox's game list once (about 100 MB, refreshed monthly). Turn on **Replace low-resolution covers** to sharpen art you already have.
 
 **Controls:**
-- **Keyboard:** ← → browse, ↑ ↓ switch system, **Enter** play, **Space** open the case, **M** manual, **F** favourite, **/** search, **Ctrl+K** all systems, **F11** fullscreen.
+- **Keyboard:** ← → browse, ↑ ↓ switch system, **Enter** play, **Space** open the case, **M** manual, **F** favourite, **Delete** hide, **/** search, **Ctrl+K** all systems, **F11** (or **Ctrl/Cmd+Shift+F**) fullscreen.
 - **Controllers:** the matching buttons work, LB/RB switch system, Select stars a game and the left stick button picks a random one. While a game is running, hold **Select + Start** for 1.5 seconds to close it.
 
 ### Supported systems
@@ -107,7 +108,7 @@ Each system's file types and emulator can be changed in **Settings**, and **Add 
 | Atari 2600 | `.a26` `.zip` | Link your own |
 | Arcade | `.zip` | Link your own |
 
-Switch and Switch 2 games can also be unpacked game folders (`<game>\base\exefs\main`). Systems without a built-in download work with any emulator you link with **Use existing .exe…**.
+Switch and Switch 2 games can also be unpacked game folders (`<game>\base\exefs\main`). Update and DLC files are listed with the game they belong to rather than as games of their own, using the title ID in the file name (`Game [0100ABCD12345000][v0].nsp`). Systems without a built-in download work with any emulator you link with **Use existing .exe…**.
 
 ### Your own artwork
 Your own files always win over downloads. PyroCade reads:

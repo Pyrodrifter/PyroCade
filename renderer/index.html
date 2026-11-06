@@ -78,6 +78,7 @@
           <button id="btnArtwork">Artwork</button>
           <button id="btnEmulator" title="Choose the emulator for this game">Emulator</button>
           <button id="btnFavorite" aria-pressed="false" title="Add to Favourites (F)">☆ Favourite</button>
+          <button id="btnHide" aria-pressed="false" title="Hide this game from the library (Delete). Your ROM folder is not touched.">⊘ Hide</button>
         </div>
       </div>
       <div id="gShot" class="shot"></div>
@@ -250,6 +251,7 @@
       <label class="row"><span>Background</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
       <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
       <label class="row"><span>Artwork folder (optional)</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
+      <label class="row check"><input type="checkbox" id="sFullscreen" /> Fullscreen (F11, or Ctrl/Cmd+Shift+F, does the same thing)</label>
       <label class="row check"><input type="checkbox" id="sLaunchFx" /> Play the disc and cartridge start animation (about 2.5 seconds)</label>
       <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes (a Game Boy box next to a PS2 case looks small)</label>
       <label class="row check"><input type="checkbox" id="sWear" /> Used copies: scuffed cases and faded labels</label>

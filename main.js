@@ -122,6 +122,7 @@ function defaultConfig() {
     mediaRoot: '',
     launchAnimation: true,
     checkUpdates: true,
+    fullscreen: false,
     promptFamily: 'auto',
     motion: 'auto',
     eShopStyle: 'enhanced',
@@ -182,7 +183,7 @@ let config = loadConfig();
 // Kept apart from config.json: it changes after every game and every selection, and the window's
 // "Save & rescan" (which sends a whole config) must never overwrite it.
 const STATE_PATH = path.join(DATA, 'library-state.json');
-const emptyState = () => ({ favorites: {}, stats: {}, discs: {}, ui: {} });
+const emptyState = () => ({ favorites: {}, stats: {}, discs: {}, hidden: {}, ui: {} });
 function loadState() {
   try { const s = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); return { ...emptyState(), ...(s && typeof s === 'object' ? s : {}) }; }
   catch { return emptyState(); }
@@ -198,10 +199,10 @@ function writeState() {
   } catch (e) { console.error(`library-state.json could not be saved: ${e.message}`); }
 }
 const saveState = () => { clearTimeout(stateTimer); stateTimer = setTimeout(writeState, 800); };
-// What the window needs to know about one game: favourite, play time, last played, chosen disc.
+// What the window needs to know about one game: favourite, hidden, play time, last played, chosen disc.
 function gameState(id) {
   const st = libraryState.stats[id] || {};
-  return { favorite: !!libraryState.favorites[id], playMs: st.ms || 0, lastPlayed: st.last || 0, plays: st.plays || 0, disc: libraryState.discs[id] || 0 };
+  return { favorite: !!libraryState.favorites[id], hidden: !!libraryState.hidden?.[id], playMs: st.ms || 0, lastPlayed: st.last || 0, plays: st.plays || 0, disc: libraryState.discs[id] || 0 };
 }
 
 // ---------- Library scanning ----------
@@ -345,8 +346,23 @@ const looseKey = s => cleanTitle(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toL
 const BRAND = /^\s*(disney\s*[-•]?\s*pixar|disney|pixar|dreamworks|nickelodeon|nicktoons)('s)?\b[\s:-]*/i;
 const bareKey = name => { if (!BRAND.test(cleanTitle(name))) return ''; const b = looseKey(cleanTitle(name).replace(BRAND, '')); return b.length >= 6 ? b : ''; };
 
+// Nintendo Switch dumps write the 16-digit title ID into the file name:
+// "Game [0100ABCD12345000][v0].nsp". A game's update ends in …800 and its downloadable content in
+// …1000 and up, so clearing the low 13 bits of any of them gives the base game's own ID. Nintendo
+// never hands out a base ID inside that range, so two different games can never collide here.
+const TITLE_ID = /\[([0-9a-f]{16})\]/i;
+function switchTitleId(name) {
+  const m = name.match(TITLE_ID);
+  if (!m) return null;
+  const id = BigInt('0x' + m[1]);
+  // part: 0 = the game itself, 0x800 = its update, 0x1000 and up = one of its DLC packs.
+  return { base: (id & ~0x1fffn).toString(16).padStart(16, '0'), part: Number(id & 0x1fffn) };
+}
+// Updates and DLC join the game they belong to instead of each becoming a game of their own.
+const switchGroup = name => switchTitleId(name)?.base || '';
+
 // When the same game appears more than once, keep the best copy.
-function copyScore(f) {
+function copyScore(f, titleIds) {
   const n = f.name;
   let s = 0;
   if (/\((u|usa|us|e|eu|europe|world|en)\b|\(usa?,|\[usa?\]|\(ue\)/i.test(n)) s += 4;
@@ -354,6 +370,8 @@ function copyScore(f) {
   if (/\[!\]/.test(n)) s += 2;
   if (/\b(update|upd|dlc)\b|\[v[1-9]\d*\]|\(beta|\(proto|\(demo|\(hack|\[(b|h|t|o)\d*\]/i.test(n)) s -= 6;
   if (!/\.zip$/i.test(n)) s += 1;
+  // Switch: the game itself is what you launch, so it beats its own update and DLC files.
+  if (titleIds) { const id = switchTitleId(n); if (id) s += id.part === 0 ? 8 : -8; }
   return s + Math.min(f.size / 1e10, 0.9); // tie-break: bigger file (base game rather than patch)
 }
 
@@ -379,12 +397,14 @@ async function scanLibrary() {
     }
     // Prefer .m3u playlists over their individual discs.
     const m3u = new Set(files.filter(f => /\.m3u$/i.test(f.name)).map(f => looseKey(stem(f.name))));
+    // Switch-style libraries group by title ID, so an update or a DLC pack never becomes its own game.
+    const titleIds = ['.nsp', '.xci', '.nsz', '.xcz'].some(e => exts.includes(e));
     const best = new Map();
     for (const f of files) {
       const base = path.basename(f.name, path.extname(f.name));
       if (!/\.m3u$/i.test(f.name) && /\(disc \d+\)/i.test(base) && m3u.has(looseKey(base))) continue;
-      const key = looseKey(base) || base.toLowerCase();
-      if (f.score !== Infinity) f.score = copyScore(f);
+      const key = (titleIds && switchGroup(base)) || looseKey(base) || base.toLowerCase();
+      if (f.score !== Infinity) f.score = copyScore(f, titleIds);
       if (!best.has(key) || best.get(key).score < f.score) best.set(key, f);
     }
     const roots = [config.mediaRoot && path.join(config.mediaRoot, sys.id), ...dirs.flatMap(d => [path.join(d, 'media'), d]), path.join(DATA, 'media', sys.id)].filter(Boolean);
@@ -1152,22 +1172,45 @@ async function installAppUpdate(send) {
 }
 
 // ---------- Window & IPC ----------
+// Fullscreen is remembered, so PyroCade opens the way it was left. --fullscreen and --windowed set
+// it from a shortcut or from Steam's launch options; like F11, the choice is then remembered.
+const flag = name => process.argv.slice(1).includes('--' + name);
+const startFullscreen = flag('fullscreen') || (!!config.fullscreen && !flag('windowed'));
 function createWindow() {
   win = new BrowserWindow({
     width: 1600, height: 900, minWidth: 1100, minHeight: 650,
     show: !previewMode,
+    fullscreen: startFullscreen && !previewMode,
     backgroundColor: '#07080c', autoHideMenuBar: true, title: 'PyroCade',
     icon:path.join(ROOT,'renderer/assets/brand/pyrocade-icon-256.png'),
     // plugins: Chromium's built-in PDF viewer, used to read manuals inside PyroCade.
     webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, sandbox: false, plugins: true, autoplayPolicy:'no-user-gesture-required',offscreen: previewMode, backgroundThrottling: !previewMode },
   });
+  // A --fullscreen / --windowed launch is the same choice as pressing F11, so record it either way.
+  if (!previewMode && config.fullscreen !== startFullscreen) { config.fullscreen = startFullscreen; saveConfig(config); }
   win.loadFile(path.join(ROOT, 'renderer', 'index.html'));
   win.webContents.once('did-finish-load', () => log('window loaded', { visible: win.isVisible(), bounds: win.getBounds() }));
   win.webContents.on('did-fail-load', (_e, code, desc) => log('window failed to load', code, desc));
   if (configWarning) win.webContents.once('did-finish-load', () => win.webContents.send('toast', configWarning));
+  // F11 is taken by the window manager on macOS and on some Linux desktops, so Ctrl/Cmd+Shift+F
+  // does the same thing and Settings has a switch for people whose keyboard has neither.
   win.webContents.on('before-input-event', (_, input) => {
-    if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen());
+    if (input.type !== 'keyDown') return;
+    const key = String(input.key || '');
+    if (key === 'F11' || (key.toLowerCase() === 'f' && input.shift && (input.control || input.meta))) setFullScreen(!win.isFullScreen());
   });
+  // Remember the choice however it was made: the shortcut, the setting, or the title bar.
+  for (const [event, on] of [['enter-full-screen', true], ['leave-full-screen', false]])
+    win.on(event, () => {
+      if (config.fullscreen !== on) { config.fullscreen = on; saveConfig(config); }
+      if (!win.isDestroyed()) win.webContents.send('fullscreen', on);
+    });
+}
+function setFullScreen(on) {
+  if (!win || win.isDestroyed()) return false;
+  win.setFullScreen(!!on);
+  // Linux window managers answer asynchronously, so report what was asked for.
+  return !!on;
 }
 
 const handle = (ch, fn) => ipcMain.handle(ch, async (_e, ...a) => {
@@ -1179,7 +1222,8 @@ handle('config:get', () => ({ ...config, screenscraper: undefined }));
 // renderer holding an older copy of the config can never overwrite them.
 handle('config:set', cfg => {
   if (!cfg || !Array.isArray(cfg.systems)) throw new Error('Invalid settings');
-  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames, shellColors: config.shellColors, gameEmulators: config.gameEmulators };
+  // fullscreen is owned by the window (app:setFullscreen), so a stale copy here can never undo it.
+  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames, shellColors: config.shellColors, gameEmulators: config.gameEmulators, fullscreen: config.fullscreen };
   saveConfig(config);
   return config;
 });
@@ -1247,6 +1291,17 @@ handle('game:setFavorite', ({ gameId, favorite }) => {
   saveState();
   return gameState(gameId);
 });
+// Hiding a game only writes to library-state.json: the ROM folder is never touched, and the game
+// comes back through "Show → Hidden games" in the library.
+handle('game:setHidden', ({ gameId, hidden }) => {
+  if (!libraryGames.some(g => g.id === gameId)) throw new Error('Select a game in your library first.');
+  libraryState.hidden ||= {};
+  if (hidden) libraryState.hidden[gameId] = true; else delete libraryState.hidden[gameId];
+  saveState();
+  return gameState(gameId);
+});
+handle('app:fullscreen', () => !!(win && !win.isDestroyed() && win.isFullScreen()));
+handle('app:setFullscreen', on => setFullScreen(on));
 // What the library looked like when PyroCade was closed: system, selected game per system, sort and filter.
 handle('library:ui', () => libraryState.ui || {});
 handle('library:saveUi', patch => {
