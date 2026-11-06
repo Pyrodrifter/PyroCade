@@ -183,7 +183,7 @@ let config = loadConfig();
 // Kept apart from config.json: it changes after every game and every selection, and the window's
 // "Save & rescan" (which sends a whole config) must never overwrite it.
 const STATE_PATH = path.join(DATA, 'library-state.json');
-const emptyState = () => ({ favorites: {}, stats: {}, discs: {}, hidden: {}, ui: {} });
+const emptyState = () => ({ favorites: {}, stats: {}, discs: {}, hidden: {}, titles: {}, ui: {} });
 function loadState() {
   try { const s = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); return { ...emptyState(), ...(s && typeof s === 'object' ? s : {}) }; }
   catch { return emptyState(); }
@@ -202,7 +202,7 @@ const saveState = () => { clearTimeout(stateTimer); stateTimer = setTimeout(writ
 // What the window needs to know about one game: favourite, hidden, play time, last played, chosen disc.
 function gameState(id) {
   const st = libraryState.stats[id] || {};
-  return { favorite: !!libraryState.favorites[id], hidden: !!libraryState.hidden?.[id], playMs: st.ms || 0, lastPlayed: st.last || 0, plays: st.plays || 0, disc: libraryState.discs[id] || 0 };
+  return { favorite: !!libraryState.favorites[id], hidden: !!libraryState.hidden?.[id], customTitle: libraryState.titles?.[id] || '', playMs: st.ms || 0, lastPlayed: st.last || 0, plays: st.plays || 0, disc: libraryState.discs[id] || 0 };
 }
 
 // ---------- Library scanning ----------
@@ -450,6 +450,10 @@ async function scanLibrary() {
   for (const g of games) {
     if (config.shellColors?.[g.id]) g.shellCustom = config.shellColors[g.id];
     if (config.gameEmulators?.[g.id]) g.emulator = config.gameEmulators[g.id];
+    // A title typed in Rename… wins over the scanned one, so the shelf sorts by it too.
+    // The scanned title is kept so "Use the file name" can put it back exactly.
+    g.scannedTitle = g.title;
+    if (libraryState.titles?.[g.id]) g.title = libraryState.titles[g.id];
   }
   games.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   libraryGames = games;
@@ -1299,6 +1303,18 @@ handle('game:setHidden', ({ gameId, hidden }) => {
   if (hidden) libraryState.hidden[gameId] = true; else delete libraryState.hidden[gameId];
   saveState();
   return gameState(gameId);
+});
+// Rename a game. Like hiding, this lives in library-state.json; the file on disk keeps its name.
+// An empty title clears the override and the scanned file name comes back.
+handle('game:setTitle', ({ gameId, title }) => {
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game) throw new Error('Select a game in your library first.');
+  const wanted = String(title ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  libraryState.titles ||= {};
+  if (wanted) libraryState.titles[gameId] = wanted; else delete libraryState.titles[gameId];
+  game.title = wanted || game.scannedTitle || displayTitle(game.base);
+  saveState();
+  return { title: game.title, ...gameState(gameId) };
 });
 handle('app:fullscreen', () => !!(win && !win.isDestroyed() && win.isFullScreen()));
 handle('app:setFullscreen', on => setFullScreen(on));

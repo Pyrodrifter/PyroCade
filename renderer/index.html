@@ -109,6 +109,22 @@
     <p class="emu-choice-note">Add a fork or any other emulator in the Emulators tab, then choose it here.</p>
   </dialog>
 
+  <!-- Right-click a game on the shelf -->
+  <div id="gameMenu" class="game-menu" role="menu" hidden></div>
+
+  <dialog id="renameGame" aria-labelledby="renameTitle">
+    <div class="system-picker-heading"><div><h2 id="renameTitle">Rename game</h2></div><button id="closeRename" aria-label="Close rename">×</button></div>
+    <p id="renameGameFile" class="emu-choice-game"></p>
+    <form method="dialog" id="renameForm">
+      <input id="renameInput" type="text" maxlength="120" autocomplete="off" spellcheck="false" aria-label="Title shown in the library" />
+      <div class="rename-actions">
+        <button type="button" id="renameReset">Use the file name</button>
+        <button value="save" class="primary">Save</button>
+      </div>
+    </form>
+    <p class="emu-choice-note">Only the title shown in PyroCade changes. The file on disk keeps its name.</p>
+  </dialog>
+
   <!-- CASE VIEWER -->
   <div id="caseView" class="hidden">
     <div id="caseScene"><div id="caseRig"></div></div>

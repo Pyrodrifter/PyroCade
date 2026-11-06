@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   screenshots: id => call('game:screenshots', id),
   setFavorite: options => call('game:setFavorite', options),
   setHidden: options => call('game:setHidden', options),
+  setTitle: options => call('game:setTitle', options),
   isFullscreen: () => call('app:fullscreen'),
   setFullscreen: on => call('app:setFullscreen', on),
   onFullscreen: fn => ipcRenderer.on('fullscreen', (_e, on) => fn(on)),

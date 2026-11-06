@@ -5,7 +5,10 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 ## [Unreleased]
 
 ### Added
-- **Hide a game:** **⊘ Hide** next to Favourite (or the **Delete** key) takes a game off every shelf. Nothing in your ROM folder is renamed, moved or deleted — the choice lives in PyroCade's own library file. **Show → Hidden games** lists everything you hid, with **⊙ Unhide** to bring one back.
+- **Hide a game:** **⊘ Hide** next to Favourite, the **Delete** key, or right-click → **Hide from the library** takes a game off every shelf. Nothing in your ROM folder is renamed, moved or deleted — the choice lives in PyroCade's own library file. **Show → Hidden games** lists everything you hid, with **⊙ Unhide** to bring one back.
+- **Right-click a game on the shelf** for Play, Open case, Manual, Favourite, Rename…, Hide, Emulator… and Artwork, all acting on the game you pointed at. Arrow keys and a controller work in the menu too.
+- **Rename a game:** right-click → **Rename…** sets the title PyroCade shows. The file on disk keeps its name, the shelf re-sorts straight away, and **Use the file name** (or typing the scanned title back) clears the override.
+- **Browsing no longer stops at the end of the shelf.** On a system's shelf, pressing right past the last game carries on into the next system that has games, and left past the first goes back into the previous one. All games, Favourites and Recently played are one list already, so they wrap round to the other end.
 - **Fullscreen is remembered and has a switch:** **Settings → Fullscreen**, as well as **F11**. **Ctrl/Cmd+Shift+F** does the same, for keyboards and desktops where F11 belongs to the window manager. `--fullscreen` and `--windowed` set it from a shortcut or from Steam's launch options.
 
 ### Changed

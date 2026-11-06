@@ -234,6 +234,24 @@ function cycleSystem(dir) {
   const i = (ids.indexOf(S.system) + dir + ids.length) % ids.length;
   setSystem(ids[i]);
 }
+// Browsing never stops at the end of the shelf. On a system's shelf, going past the last game
+// carries on into the next system that has games; All games, Favourites and Recently played are
+// one list already, so they wrap round to the other end.
+const shelvedSystems = () => $$('#systems button').map(b => b.dataset.id)
+  .filter(id => id !== 'all' && !VIEWS[id] && S.games.some(g => inView(g, id) && passesFilter(g)));
+function browse(dir) {
+  if (!S.list.length) return;
+  const next = S.sel + dir;
+  if (next >= 0 && next < S.list.length) return select(next);
+  // Past the end of a system's shelf, step into the next one; setSystem makes its own sound.
+  const ids = S.system === 'all' || VIEWS[S.system] ? [] : shelvedSystems();
+  if (ids.length > 1) setSystem(ids[(ids.indexOf(S.system) + dir + ids.length) % ids.length]);
+  else if (S.list.length < 2) return;                 // nowhere to go
+  else AudioUI.play('scroll', dir);
+  S.sel = dir > 0 ? 0 : Math.max(0, S.list.length - 1);
+  layout(); showInfo(); saveUi();
+}
+
 
 // ---------- 3D carousel ----------
 const items = new Map(); // list index -> element
@@ -316,6 +334,7 @@ function makeItem(i) {
   it.setAttribute('role','option'); it.setAttribute('aria-label',`${game.title}, ${sysOf(game.system).name}`);
   fillItem(it, game);
   it.onclick = () => { if (S.list[S.sel] === game) openCase(); else select(S.list.indexOf(game)); };
+  it.oncontextmenu = e => { e.preventDefault(); const n = S.list.indexOf(game); if (n >= 0 && n !== S.sel) select(n); openGameMenu(game, e.clientX, e.clientY); };
   $('#carousel').append(it);
   ensureArt(game);
   return it;
@@ -413,8 +432,9 @@ function layout() {
   $('#counter').textContent = S.list.length ? `${(S.sel + 1).toLocaleString()} / ${S.list.length.toLocaleString()}` : '';
   $('#shelfPosition').textContent = S.list.length ? `${String(S.sel+1).padStart(2,'0')} / ${S.list.length.toLocaleString()}` : '0 games';
   $('#shelfProgress').style.width = `${S.list.length ? (S.sel+1)/S.list.length*100 : 0}%`;
-  $('#shelfPrev').disabled = !S.list.length || S.sel === 0;
-  $('#shelfNext').disabled = !S.list.length || S.sel === S.list.length-1;
+  // Browsing wraps on, so the arrows only go dead when there is nowhere at all to go.
+  const stuck = !S.list.length || (S.list.length < 2 && (S.system === 'all' || VIEWS[S.system] || shelvedSystems().length < 2));
+  $('#shelfPrev').disabled = stuck; $('#shelfNext').disabled = stuck;
   $('#shelfLabel').textContent = viewName(S.system)+' / '+Appearance.layouts[Appearance.mode()].name;
   if (S.list.length) $('#carousel').setAttribute('aria-activedescendant',`shelf-game-${S.sel}`);
   else $('#carousel').removeAttribute('aria-activedescendant');
@@ -479,6 +499,86 @@ async function toggleHidden(g = S.list[S.sel]) {
   toast(want ? `${g.title} hidden. Show → Hidden games brings it back.` : `${g.title} is back in the library.`, 4500);
   renderShelfTools(); renderChips(); setSystem(S.system);
 }
+
+// ---------- rename ----------
+// Only the title PyroCade shows changes; the file on disk keeps its name. An empty box puts the
+// scanned title back. Kept in library-state.json next to favourites and hidden games.
+let renaming = null;
+function openRename(g = S.list[S.sel]) {
+  if (!g) return;
+  if (g.demo || !api.setTitle) return toast('Renaming works with your own games. Add your ROM folders in Settings.');
+  renaming = g;
+  $('#renameGameFile').textContent = g.scannedTitle && g.scannedTitle !== g.title ? `File name: ${g.scannedTitle}` : g.base || '';
+  const input = $('#renameInput');
+  input.value = g.title; input.placeholder = g.scannedTitle || g.title;
+  $('#renameReset').disabled = !g.customTitle;
+  AudioUI.play('open');
+  $('#renameGame').showModal();
+  input.focus(); input.select();
+}
+async function applyRename(wanted) {
+  const g = renaming; if (!g) return;
+  $('#renameGame').close();
+  // Typing the scanned title back is the same as asking for the file name again.
+  const clean = String(wanted || '').replace(/\s+/g, ' ').trim();
+  const title = clean === (g.scannedTitle || '') ? '' : clean;
+  if (title === (g.customTitle || '')) return;
+  let result;
+  try { result = await api.setTitle({ gameId: g.id, title }); } catch (e) { return toast(e.message); }
+  Object.assign(g, { title: result.title, customTitle: result.customTitle });
+  AudioUI.play('confirm');
+  toast(result.customTitle ? `Renamed to ${result.title}.` : `${result.title} uses its file name again.`);
+  // The scan hands the library over already sorted by title, so a renamed game has to be put back
+  // in its place here; the default "Title" sort does no sorting of its own.
+  S.games.sort(byTitle);
+  renderChips(); setSystem(S.system);
+  const it = [...items.values()].find(e => e.dataset.id === g.id);
+  if (it) it.setAttribute('aria-label', `${g.title}, ${sysOf(g.system).name}`);
+}
+$('#closeRename').onclick = () => $('#renameGame').close();
+$('#renameReset').onclick = () => applyRename('');
+$('#renameForm').addEventListener('submit', e => { e.preventDefault(); applyRename($('#renameInput').value); });
+$('#renameGame').addEventListener('close', () => { renaming = null; });
+const renameOpen = () => $('#renameGame').open;
+
+// ---------- right-click a game ----------
+// Everything the buttons under the shelf do, on the game you pointed at.
+function closeGameMenu() { const m = $('#gameMenu'); if (!m.hidden) { m.hidden = true; m.replaceChildren(); } }
+function openGameMenu(g, x, y) {
+  const m = $('#gameMenu');
+  m.replaceChildren();
+  const title = el('div', 'game-menu-title', esc(g.title)); m.append(title);
+  const sep = () => m.append(el('hr'));
+  const add = (icon, label, run, disabled) => {
+    const b = el('button', '', `<i>${icon}</i><span>${esc(label)}</span>`);
+    b.type = 'button'; b.setAttribute('role', 'menuitem'); b.disabled = !!disabled;
+    b.onclick = () => { closeGameMenu(); run(); };
+    m.append(b); return b;
+  };
+  add('▶', 'Play', () => play(g));
+  add('⟲', 'Open case', () => { if (S.list[S.sel] !== g) select(S.list.indexOf(g)); openCase(); });
+  add('▤', 'Manual', () => manual(g), !g.media.manual);
+  sep();
+  add(g.favorite ? '★' : '☆', g.favorite ? 'Remove from Favourites' : 'Add to Favourites', () => toggleFavorite(g));
+  add('✎', 'Rename…', () => openRename(g));
+  add(g.hidden ? '⊙' : '⊘', g.hidden ? 'Unhide' : 'Hide from the library', () => toggleHidden(g));
+  sep();
+  add('⚙', 'Emulator…', () => openEmuChoice(g));
+  add('🖼', 'Artwork', () => { if (S.list[S.sel] !== g) select(S.list.indexOf(g)); showView('artwork'); ArtworkUI.open('game'); });
+  // Shown off-screen first, so its real size decides which way it opens near an edge.
+  m.style.left = '0px'; m.style.top = '0px'; m.hidden = false;
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
+  m.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + 'px';
+  AudioUI.play('open');
+  m.querySelector('button:not(:disabled)')?.focus();
+}
+const gameMenuOpen = () => !$('#gameMenu').hidden;
+document.addEventListener('pointerdown', e => { if (gameMenuOpen() && !e.target.closest('#gameMenu')) closeGameMenu(); }, true);
+addEventListener('blur', closeGameMenu);
+addEventListener('resize', closeGameMenu);
+// The shelf background and the arrows are not games, so a right-click there has no menu.
+$('#carousel').addEventListener('contextmenu', e => { if (!e.target.closest('.item')) closeGameMenu(); });
 
 // ---------- play time ----------
 function applyStats(p) {
@@ -1133,8 +1233,8 @@ $('#cvPlay').onclick = () => play(CV.game);
 $('#cvBack').onclick = closeCase;
 $('#cvToggle').onclick = () => setOpen(!CV.open);
 $('#cvFlip').onclick = () => tween({ ry: CV.ry + 180 }, 900);
-$('#shelfPrev').onclick = () => select(S.sel-1);
-$('#shelfNext').onclick = () => select(S.sel+1);
+$('#shelfPrev').onclick = () => browse(-1);
+$('#shelfNext').onclick = () => browse(1);
 let surfaceLightFrame=null;
 $('#stage').addEventListener('pointermove',e=>{
   if(surfaceLightFrame!==null||document.documentElement.dataset.motion==='reduced')return;
@@ -1160,6 +1260,14 @@ $('#stage').addEventListener('wheel', e => {
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
   if(document.querySelector('.launch-fx'))return; // a game is starting
+  if(renameOpen())return; // the box has the keyboard
+  if(gameMenuOpen()){
+    const opts=[...$$('#gameMenu button')].filter(b=>!b.disabled),i=opts.indexOf(document.activeElement);
+    if(action==='back')closeGameMenu();
+    else if(action==='play')document.activeElement?.click();
+    else if(['up','left','down','right'].includes(action))opts[(i+(['up','left'].includes(action)?-1:1)+opts.length)%opts.length]?.focus();
+    return;
+  }
   if(manualOpen()){if(action==='back'||action==='manual')closeManual();return;}
   if(shotOpen()){if(action==='back')$('#shotViewer').close();else if(action==='left'||action==='right')stepShot(action==='left'?-1:1);return;}
   if(emuChoiceOpen()){
@@ -1188,7 +1296,7 @@ function input(action) {
   if (!libraryActive()) return;
   if(action==='sysprev'||action==='sysnext'){cycleSystem(action==='sysprev'?-1:1);return;}
   if(['up','down'].includes(action)&&['vertical','swatches'].includes(Appearance.mode())){const delta=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+(action==='up'?-delta:delta));return;}
-  ({ left: () => select(S.sel - 1), right: () => select(S.sel + 1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
+  ({ left: () => browse(-1), right: () => browse(1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
      play: () => play(), case: openCase, manual: () => manual(), favorite: () => toggleFavorite(), hide: () => toggleHidden(), random: randomGame, pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
 }
 // Search: start typing anywhere in the library to filter.
@@ -1215,6 +1323,11 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => {
   usePromptInput('keyboard');
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&libraryActive()&&!caseShown()){e.preventDefault();LibraryUI.openPicker();return;}
+  if(renameOpen())return;
+  if(gameMenuOpen()){
+    if(['ArrowUp','ArrowDown','Escape','Enter',' '].includes(e.key)){e.preventDefault();input({ArrowUp:'up',ArrowDown:'down',Escape:'back',Enter:'play',' ':'play'}[e.key]);}
+    return;
+  }
   if(LibraryUI.pickerOpen()||Appearance.panelOpen()||emuChoiceOpen())return;
   if(shotOpen()&&e.key==='Tab')return;
   if(e.key==='/'&&libraryActive()&&!caseShown()&&!e.target.matches?.('input,select,textarea')){e.preventDefault();$('#search').focus();return;}
