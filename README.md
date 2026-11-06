@@ -14,11 +14,11 @@ A glass-styled emulator front end with a 3D library, animated physical media, fo
 | --- | --- | --- |
 | macOS ARM64 | DMG | Native ARM64 build and install smoke test in the release workflow. |
 | Linux ARM64 | AppImage, `.deb`, `.rpm` | Native ARM64 build and package install smoke test in the release workflow. |
-| Android ARM64 | CI-only unsigned `arm64-v8a` APK | The ARM64 build is automated, but an installable release awaits Android signing setup; ROM storage and emulator-app launch are also incomplete. |
+| Android ARM64 | CI-only unsigned `arm64-v8a` APK for pull requests; signed APK on release runs | Signed release APKs are attached to GitHub releases. On-device renderer, controller navigation, and Web Audio startup were checked on an Odin2 running Android 13; see [platform validation](docs/SUPPORT.md). |
 
-The Android app requires Android 7.0 (API 24) or newer. Settings and managed data use app-private storage, and PyroCade does not request broad external-storage access. Tauri's dialog plugin does not provide a folder picker on Android, so ROM-folder selection and library scanning are not yet supported there. Android emulator packages are separate apps, not the desktop executables managed by the macOS/Linux downloader; Android app linking and ROM launch still need a native integration. Release APKs require a private Android keystore configured in CI; the current release build is unsigned and cannot be installed.
+The Android app requires Android 7.0 (API 24) or newer. Settings and managed data use app-private storage, and PyroCade does not request broad external-storage access. ROM-folder selection uses Android's Storage Access Framework; linked Android emulator apps can be launched with the selected ROM URI. Android emulator packages are separate apps, not the desktop executables managed by the macOS/Linux downloader. See [platform validation](docs/SUPPORT.md) for tested-device details and remaining validation limits.
 
-Download desktop builds from the [latest release](https://github.com/Pyrodrifter/PyroCade/releases/latest). The Android APK is currently a CI build artifact, not an installable release download.
+Download desktop builds and the signed Android APK from the [latest release](https://github.com/Pyrodrifter/PyroCade/releases/latest).
 
 ## Run from source
 
@@ -27,14 +27,15 @@ Download desktop builds from the [latest release](https://github.com/Pyrodrifter
 
 Build macOS or Linux ARM64 releases with `npm run dist:macos:arm64` or `npm run dist:linux:arm64`. For Android, install the Android SDK/NDK and JDK 17, then run:
 
-    npm run tauri:android:init
-    npm run dist:android:arm64
+    ANDROID_HOME=/path/to/android-sdk ANDROID_SDK_ROOT=/path/to/android-sdk npm run tauri:android:init
+    ANDROID_HOME=/path/to/android-sdk ANDROID_SDK_ROOT=/path/to/android-sdk npm run tauri:android:configure
+    ANDROID_HOME=/path/to/android-sdk ANDROID_SDK_ROOT=/path/to/android-sdk RUSTC="$(rustup which rustc)" npm run dist:android:arm64
 
-The Android build targets ARM64, compiles against API 36, targets API 35, and emits split APKs. The CI job pins the JDK and Android SDK components used for its build; release signing remains to be configured.
+The Android build targets ARM64, compiles against API 36, targets API 35, and emits split APKs. The CI job pins the JDK and Android SDK components used for its build; release APKs use the configured CI keystore, while pull-request APKs are unsigned.
 
 ## Releasing an update
 
-Raise `version` in `package.json`, commit, then push a tag `v<version>` (for example `git tag v0.3.0 && git push origin v0.3.0`). The **Release** GitHub Action validates the Rust app, builds macOS/Linux ARM64 packages and an unsigned Android ARM64 APK, smoke-tests desktop installs, and attaches desktop artifacts to a draft release. Signed Tauri self-updates are limited to the configured macOS and Linux artifacts. Android release distribution requires a CI keystore before an installable APK can be attached.
+Raise `version` in `package.json`, commit, then push a tag `v<version>` (for example `git tag v0.3.0 && git push origin v0.3.0`). The **Release** GitHub Action validates the Rust app, builds macOS/Linux ARM64 packages and a signed Android ARM64 APK, smoke-tests desktop installs, and attaches artifacts to a draft release. Signed Tauri self-updates are limited to the configured macOS and Linux artifacts; Android updates use manual release downloads.
 
 ## Brand assets
 The flame and play-button mark, glass app icon, wordmark and banner are in `renderer/assets/brand/`. The set includes SVG masters, PNG icons from 16 to 1024px, a transparent wordmark and a multi-resolution Windows `.ico`. The header mark follows the selected colour theme. Rebuild the complete set with `npm run brand:build`.

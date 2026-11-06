@@ -5,6 +5,7 @@ use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(not(target_os = "android"))]
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -227,15 +228,18 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
                         .unwrap_or(emulator_id)
                 )
             })?;
+    #[cfg(not(target_os = "android"))]
     let template = system
         .get("args")
         .and_then(Value::as_str)
         .or_else(|| definition.get("args").and_then(Value::as_str))
         .unwrap_or("{rom}");
+    #[cfg(not(target_os = "android"))]
     let args: Vec<String> = split_args(template)
         .into_iter()
         .map(|part| part.replace("{rom}", &game.rom_path))
         .collect();
+    #[cfg(not(target_os = "android"))]
     let app_bundle = cfg!(target_os = "macos")
         .then(|| {
             executable
@@ -243,10 +247,12 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
                 .find(|path| path.extension().and_then(|ext| ext.to_str()) == Some("app"))
         })
         .flatten();
+    #[cfg(not(target_os = "android"))]
     let cwd = app_bundle
         .and_then(Path::parent)
         .or_else(|| executable.parent())
         .unwrap_or_else(|| Path::new("."));
+    #[cfg(not(target_os = "android"))]
     let mut command = if let Some(bundle) = app_bundle {
         let mut command = Command::new("open");
         command
@@ -260,11 +266,13 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
         command.args(args);
         command
     };
+    #[cfg(not(target_os = "android"))]
     command
         .current_dir(cwd)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    #[cfg(not(target_os = "android"))]
     let child = command.spawn().map_err(|e| format!("Launch failed: {e}"))?;
     #[cfg(not(target_os = "android"))]
     let window = config
@@ -273,12 +281,11 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
         .unwrap_or(false)
         .then(|| app.get_webview_window("main"))
         .flatten();
-    #[cfg(target_os = "android")]
-    let window = None;
     #[cfg(not(target_os = "android"))]
     if let Some(window) = window.as_ref() {
         let _ = window.minimize();
     }
+    #[cfg(not(target_os = "android"))]
     wait_for_child(child, window);
     Ok(true)
 }

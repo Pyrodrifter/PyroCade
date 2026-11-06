@@ -2,11 +2,13 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The ten slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), P7 / S06 (`39b7d24`, `4692cb5`), P8 / S08 (`c555b43`, `2895559`), P9 / S09 (`c5525fc`), P10a / S10a (`5f3c2e1`), P10b / S10b (`7071f90`), and P10c / S10c (`ac63358`) are complete. Android Rust target and debug APK build/install on device succeeded; the release APK is signed and uploaded to release artifacts. SAF URI-aware storage and installed-emulator package linking/launch are implemented; on-device renderer, controller, and audio validation remain unimplemented. **The next action** is P10d — On-device renderer, controller, and audio validation.
+The fork's Tauri v2 migration is complete for macOS ARM64, Linux ARM64 on modern Snapdragon hardware, and Android ARM64. The slices are budgeted in `.babysteps/tauri-migration.plan.md`. Android Rust target and debug APK build/install succeeded; signed release APKs are uploaded to release artifacts. SAF URI-aware storage and installed-emulator package linking/launch are implemented. P10d on-device validation is complete on an Odin2 running Android 13/API 33 with system WebView 101.0.4951.61: renderer visible, controller navigation verified, Gamepad API query available, AudioContext reached running at 48 kHz/stereo on the speaker route, canvas and preserve-3d/perspective checks passed. WebView emitted repeated tile-memory-limit warnings; subjective audio quality was not assessed. **The queue is exhausted.**
 
 ## Next action
 
-**P10d — On-device renderer, controller, and audio validation.** Verify the renderer bridge, controller input, and audio paths on Android hardware, then update the support and validation documentation.
+**P10d — On-device renderer, controller, and audio validation.** Verify the renderer bridge, controller input, and audio paths on Android hardware, then update the support and validation documentation. [COMPLETE]
+
+**Next action:** The queue is exhausted.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -78,10 +80,14 @@ The fork is migrating from Electron to Tauri v2, retaining the web renderer wher
   - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
   - Post-commit guard: WITHIN at 109,766/225,000 tokens (49%); cost $0/$0.70. Do-Not count remains 4; #4 applies, no new fault was added, and no numbers were withdrawn.
 
-## Queued
+- **P10d / S10d — On-device renderer, controller, and audio validation.** Android's debug build initially failed because the desktop process-launch block remained compiled after Android's intent-launch return; gated desktop-only process setup to non-Android targets. Built and installed the fresh ARM64 debug APK on an Odin2 (Android 13/API 33, WebView 101.0.4951.61). The PyroCade renderer launched visibly; the operator confirmed controller navigation works. DevTools checks confirmed stage presence, callable Gamepad API, canvas pixel output, CSS preserve-3d/perspective, and AudioContext running at 48 kHz with stereo output routed to the Odin2 speaker. Repeated Chromium tile-memory-limit warnings occurred during renderer capture; subjective audio quality was not assessed.
+  - Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (26 passed), and `cargo check --manifest-path src-tauri/Cargo.toml`. Existing dead-code warnings remain; Android build also reports unreachable/dead-code warnings for desktop-only launch helpers.
+  - `README.md` and `docs/SUPPORT.md` now describe signed Android release APKs, SAF/emulator support, and the tested-device validation scope. Do-Not count remains 4; #4 applies, no new fault was added, and no numbers were withdrawn.
+
+## Queue
 
 - **P10 — Re-cut into sub-slices.** Android Rust target and debug APK build/install on device succeeded; the release APK is signed and uploaded to release artifacts. Re-cut into:
   - **P10a — Sign and publish the Android release APK.** [COMPLETE] Committed as `5f3c2e1`. Configure Tauri Android signing (keystore, alias, password) and integrate it into the CI workflow so the release APK is signed and uploaded to release artifacts, while the debug build remains unsigned.
   - **P10b — Implement Storage Access Framework (SAF) storage and import.** [COMPLETE] Committed as `7071f90`. URI-aware storage keeps content:// tree URIs distinct from filesystem paths, persists them through settings, and leaves non-filesystem roots unwalked.
   - **P10c — Implement installed-emulator linking and launch on Android.** [COMPLETE] Committed as `ac63358`. Package-based linking, Android Intent launch with ROM URI pass-through, and library emulator-state display are implemented.
-  - **P10d — On-device renderer, controller, and audio validation.** Verify the renderer bridge, controller input, and audio paths on Android hardware, then update the support and validation documentation.
+  - Queue exhausted; no task remains queued.

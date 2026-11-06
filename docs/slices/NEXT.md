@@ -1,61 +1,45 @@
 ---
-slice: P10d
+slice: exhausted
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: ac63358
+seededFrom: P10d
 reads:
-  - package.json
-  - .github/workflows/release.yml
-  - src-tauri/src/lib.rs
-  - src-tauri/src/backend.rs
-  - src-tauri/src/emulators.rs
-  - renderer/tauri-bridge.js
-  - renderer/ui-audio.js
-  - README.md
-  - docs/SUPPORT.md
-allowanceTokens: 130000
+  - docs/STATE.md
+  - .operator/specs/desktop-runtime.md
+allowanceTokens: 0
 ---
 
-**P10d — On-device renderer, controller, and audio validation.** Verify the renderer bridge, controller input, and audio paths on Android hardware, then update the support and validation documentation.
+**Next action:** The migration queue is exhausted. Do not start a new slice until a new task is added to `docs/STATE.md` and priced in `.babysteps/tauri-migration.plan.md`.
 
-**The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
+## What is settled
 
-## What is settled — do not re-derive
+- P1 through P10d are complete.
+- P10d built and installed the current Android ARM64 debug APK on an Odin2 running Android 13/API 33 and system WebView 101.0.4951.61.
+- On-device renderer checks passed for stage availability, Gamepad API query, canvas paint, CSS preserve-3d/perspective, and AudioContext running at 48 kHz/stereo on the speaker route. Controller navigation was confirmed by the operator. Subjective audio quality was not assessed; repeated WebView tile-memory-limit warnings appeared during rendering.
+- The Android-only build required desktop process-launch setup in `backend.rs` to be excluded from Android builds. The configured Rust gates pass.
+- Android release APKs are signed in non-PR CI and uploaded as release artifacts; PR APKs remain unsigned. Android updates are manual downloads.
+- The Do-Not list has 4 entries; #4 applies to future Android SAF work.
 
-- P1 through P10c are complete. Android release APKs are signed and uploaded to release artifacts; SAF storage is URI-aware; installed emulators are linked by package and launched via Android intents with ROM URIs passed through unchanged.
-- Do-Not #4: Do not treat Android Storage Access Framework content URIs as filesystem paths; persistent document-tree grants and URI-aware I/O are required, and Tauri's dialog plugin does not support Android folder picking.
-
-## Withdrawn — proven wrong, do not use
+## Withdrawn
 
 None.
 
 ## Code to touch
 
-- `package.json` — Android on-device validation and release script support.
-- `.github/workflows/release.yml` — CI on-device validation job wiring if needed.
-- `src-tauri/src/lib.rs` — Register any new Android validation command if needed.
-- `src-tauri/src/backend.rs` — Validation hooks for renderer/controller/audio checks.
-- `src-tauri/src/emulators.rs` — Emulator validation hooks on Android.
-- `renderer/tauri-bridge.js` — Renderer bridge validation surface.
-- `renderer/ui-audio.js` — Audio on Android WebView validation.
-- `README.md` — Support and validation documentation.
-- `docs/SUPPORT.md` — Platform support and validation status.
+None until a new task is queued.
 
 ## Read these first, and only these
 
 - `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction` (Android SAF section)
-- `.babysteps/tauri-migration.plan.md` — `Budget rows` (P10d row)
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. Entry #4 applies: Do not treat Android Storage Access Framework content URIs as filesystem paths; persistent document-tree grants and URI-aware I/O are required, and Tauri's dialog plugin does not support Android folder picking.
+Total Do-Not count: 4. Entry #4 applies.
 
-## The gate
+## Gate
 
-`cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
-`cargo test --manifest-path src-tauri/Cargo.toml`
-`cargo check --manifest-path src-tauri/Cargo.toml`
+No slice is queued; do not run gates until a new task is priced and seeded.
 
-## When this slice closes
+## When this seed closes
 
-Once P10d is complete, write the next seed with the final sub-slice if any remains, otherwise state that the queue is exhausted; advance the state file, and re-verify the Do-Not count.
+This exhausted-queue seed closes when a new priced task is added to `docs/STATE.md` and `.babysteps/tauri-migration.plan.md` and a replacement seed is written.
