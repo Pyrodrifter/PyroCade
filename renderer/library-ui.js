@@ -25,19 +25,36 @@ const LibraryUI=(()=>{
   const glyph={all:'grid',psp:'wide',switch:'switch',switch2:'switch',nds:'dual','3ds':'dual',gb:'handheld',gbc:'handheld',gba:'wide',wii:'remote',wiiu:'wide',gc:'cube',n64:'n64',nes:'nes',dreamcast:'swirl',a2600:'joystick',arcade:'arcade'};
   const shortNames={ps1:'PS1',ps2:'PS2',ps3:'PS3',ps4:'PS4',switch:'Switch',switch2:'Switch 2',nds:'DS','3ds':'3DS',gb:'Game Boy',gbc:'GBC',gba:'GBA',n64:'N64',snes:'SNES',nes:'NES',gc:'GameCube',genesis:'Genesis',x360:'Xbox 360',a2600:'Atari'};
   function icon(id){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[glyph[id]||id]||shapes.pad}</svg>`}
+  function isAndroid(){return /android/i.test(navigator.userAgent||'')||(navigator.platform||'').toLowerCase().includes('android')}
+  function emulatorStateFor(system){
+    const emus=context?.getState?.().emus||[];
+    const emu=emus.find(e=>e.id===system.emulator);
+    if(!emu)return{label:'NO EMULATOR',linked:false};
+    if(isAndroid())return emu.package||emu.linked?{label:`LINKED ${emu.package||''}`.trim(),linked:true,emu}:{label:'NOT LINKED',linked:false,emu};
+    if(emu.installed)return{label:'INSTALLED',linked:true,emu};
+    if(emu.exe)return{label:'LINKED',linked:true,emu};
+    return{label:'NOT INSTALLED',linked:false,emu};
+  }
   function element(tag,cls,text){const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n}
   const smooth=()=>document.documentElement.dataset.motion==='reduced'?'instant':'smooth';
   function button(entry,cls){
     const b=element('button',cls);b.type='button';b.dataset.id=entry.id;b.style.setProperty('--system-color',entry.color||'#ff954e');
     b.setAttribute('aria-pressed',String(entry.id===context.getState().system));
-    b.setAttribute('aria-label',`${entry.name}, ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`);
-    b.title=`${entry.name} · ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`;
+    const emu=entry.id==='all'?null:emulatorStateFor(entry);
+    const emuSuffix=isAndroid()&&emu?`, emulator ${emu.label.toLowerCase()}`:'';
+    b.setAttribute('aria-label',`${entry.name}, ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}${emuSuffix}`);
+    b.title=`${entry.name} · ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}${emuSuffix?` · ${emu.label}`:''}`;
+    if(emu)b.dataset.emulator=emu.label.toLowerCase().replace(/\s+/g,'-');
     const mark=element('span','system-glyph');mark.innerHTML=icon(entry.id);const copy=element('span','system-copy');
-    const compact=cls==='system-tile';copy.append(element('span','system-name',compact?(shortNames[entry.id]||entry.name):entry.name),element('span','n',compact?entry.count.toLocaleString():entry.count?`${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`:'No games yet'));b.append(mark,copy);return b;
+    const compact=cls==='system-tile';
+    copy.append(element('span','system-name',compact?(shortNames[entry.id]||entry.name):entry.name),element('span','n',compact?entry.count.toLocaleString():entry.count?`${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`:'No games yet'));
+    if(isAndroid()&&emu)copy.append(element('span','emu-state',emu.label));
+    b.append(mark,copy);return b;
   }
   function render(){
     const s=context.getState(),counts={};for(const g of s.games)counts[g.system]=(counts[g.system]||0)+1;
     entries=[{id:'all',name:'All games',count:s.games.length,color:'#ffad65'},...s.config.systems.filter(sys=>counts[sys.id]||sys.romDir).map(sys=>({...sys,count:counts[sys.id]||0}))];
+    document.body.dataset.platform=isAndroid()?'android':'desktop';
     const nav=$('#systems');nav.replaceChildren();for(const e of entries){const b=button(e,'system-tile');b.onclick=()=>context.select(e.id);nav.append(b)}
     $('#systemTotal').textContent=`${entries.length-1} systems`;
     $('#systemPickerSummary').textContent=`${s.games.length.toLocaleString()} games · ${entries.length-1} systems`;
@@ -111,5 +128,5 @@ const LibraryUI=(()=>{
     $('#clearSearch').onclick=()=>{$('#search').value='';$('#search').dispatchEvent(new Event('input'));$('#search').focus()};
     new ResizeObserver(updateRail).observe($('#systems'));
   }
-  return {init,render,select,pickerOpen,openPicker,controller};
+  return {init,render,select,pickerOpen,openPicker,controller,isAndroid,emulatorStateFor};
 })();

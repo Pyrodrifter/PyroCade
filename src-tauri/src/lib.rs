@@ -29,6 +29,8 @@ pub fn run() {
             emulators::open_emulator_folder,
             emulators::pick_emulator_executable,
             emulators::add_custom_emulator,
+            emulators::link_android_emulator,
+            emulators::unlink_android_emulator,
             artwork::fetch_art,
             artwork::start_artwork_download,
             artwork::artwork_status,

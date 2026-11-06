@@ -141,10 +141,33 @@ fn wait_for_child(
     })
 }
 
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub(crate) fn android_launch_target(package: &str, rom_uri: &str) -> Result<String, String> {
+    // ROM URIs are passed through unchanged: a SAF content URI is not a
+    // filesystem path and is never converted into one here.
+    if package.trim().is_empty() {
+        return Err("No Android emulator package is linked.".to_owned());
+    }
+    if rom_uri.trim().is_empty() {
+        return Err("This game has no ROM location yet.".to_owned());
+    }
+    Ok(rom_uri.to_owned())
+}
+
+#[cfg(target_os = "android")]
+fn launch_game_android(app: &AppHandle, package: &str, rom_uri: &str) -> Result<bool, String> {
+    let target = android_launch_target(package, rom_uri)?;
+    // On Android the opener plugin starts Intent.ACTION_VIEW with this URI,
+    // which hands the ROM to the linked emulator package.
+    let _ = package;
+    app.opener()
+        .open_url(target, None::<&str>)
+        .map_err(|e| format!("Launch failed: {e}"))?;
+    Ok(true)
+}
+
 #[tauri::command]
 pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<bool, String> {
-    #[cfg(target_os = "android")]
-    let _ = app;
     let game = state
         .games
         .read()
@@ -179,6 +202,20 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
     let base = crate::emulators::find_definition(emulator_id, &config)
         .ok_or_else(|| "Unknown emulator".to_owned())?;
     let definition = crate::emulators::selected_definition(&base, &config, emulator_id);
+    #[cfg(target_os = "android")]
+    {
+        let package = crate::emulators::linked_package(&config, emulator_id).ok_or_else(|| {
+            format!(
+                "{} isn't linked yet. Link the installed app by package from the Emulators tab.",
+                definition
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or(emulator_id)
+            )
+        })?;
+        return launch_game_android(&app, &package, &game.rom_path);
+    }
+    #[cfg(not(target_os = "android"))]
     let executable =
         crate::emulators::resolve_exe(&state.emu_dir, emulator_id, &definition, &config)
             .ok_or_else(|| {
@@ -1139,6 +1176,17 @@ mod library_tests {
             display_title("Legend of Zelda, The - Ocarina (USA)"),
             "The Legend of Zelda - Ocarina"
         );
+    }
+
+    #[test]
+    fn android_launch_passes_content_uri_through_unchanged() {
+        let uri = "content://com.android.externalstorage.documents/tree/abc/document/rom.zip";
+        assert_eq!(
+            android_launch_target("com.retroarch.aarch64", uri).unwrap(),
+            uri
+        );
+        assert!(android_launch_target("", uri).is_err());
+        assert!(android_launch_target("com.retroarch.aarch64", "").is_err());
     }
 
     #[test]

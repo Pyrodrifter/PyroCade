@@ -42,6 +42,11 @@ pub async fn check_emulator_update(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Value, String> {
+    if is_android_target() {
+        return Err(
+            "Emulators on Android are installed from the Play Store; update them there.".to_owned(),
+        );
+    }
     let config = state.config();
     let latest = latest_release(&id, &config).await?;
     let installed = read_manifest(&state.emu_dir, &id);
@@ -56,6 +61,12 @@ pub async fn install_emulator(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Value, String> {
+    if is_android_target() {
+        return Err(
+            "Emulators on Android are installed from the Play Store; link the installed app by package instead."
+                .to_owned(),
+        );
+    }
     {
         let mut guard = installing().lock().map_err(|e| e.to_string())?;
         if !guard.insert(id.clone()) {
@@ -191,6 +202,12 @@ pub fn open_emulator_folder(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
+    if is_android_target() {
+        return Err(
+            "Emulators on Android are installed apps, not folders; launch them by package instead."
+                .to_owned(),
+        );
+    }
     let config = state.config();
     let definition = find_definition(&id, &config).ok_or_else(|| "Unknown emulator".to_owned())?;
     let exe = resolve_exe(&state.emu_dir, &id, &definition, &config);
@@ -209,6 +226,12 @@ pub fn pick_emulator_executable(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Option<Value>, String> {
+    if is_android_target() {
+        return Err(
+            "Link an installed emulator by package name on Android instead of picking a program."
+                .to_owned(),
+        );
+    }
     let Some(path) = app
         .dialog()
         .file()
@@ -244,14 +267,35 @@ pub fn add_custom_emulator(
     if name.is_empty() {
         return Err("Enter an emulator name.".to_owned());
     }
-    let Some(path) = app
-        .dialog()
-        .file()
-        .set_title(format!("Choose {name} program"))
-        .blocking_pick_file()
-        .and_then(|p| p.into_path().ok())
-    else {
-        return Ok(None);
+    let android_package = if is_android_target() {
+        let package = opts
+            .get("package")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_owned();
+        if !valid_android_package(&package) {
+            return Err(
+                "Enter a valid Android package name such as com.retroarch.aarch64.".to_owned(),
+            );
+        }
+        Some(package)
+    } else {
+        None
+    };
+    let path = if android_package.is_none() {
+        let Some(path) = app
+            .dialog()
+            .file()
+            .set_title(format!("Choose {name} program"))
+            .blocking_pick_file()
+            .and_then(|p| p.into_path().ok())
+        else {
+            return Ok(None);
+        };
+        Some(path)
+    } else {
+        None
     };
     let slug = name
         .to_lowercase()
@@ -274,7 +318,8 @@ pub fn add_custom_emulator(
         "id": id, "name": name,
         "systems": opts.get("systems").cloned().unwrap_or_else(|| json!([])),
         "args": opts.get("args").and_then(Value::as_str).unwrap_or("{rom}"),
-        "exe": path.to_string_lossy()
+        "exe": path.as_ref().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default(),
+        "package": android_package.clone()
     }));
     let next = config.clone();
     save_config(&state.config_path, &next)?;
@@ -296,6 +341,99 @@ pub(crate) fn find_definition(id: &str, config: &Value) -> Option<Value> {
                 .find(|e| e.get("id").and_then(Value::as_str) == Some(id))
                 .cloned()
         })
+}
+
+pub(crate) fn is_android_target() -> bool {
+    target_platform() == "android"
+}
+
+fn valid_android_package(package: &str) -> bool {
+    // Android package names are reverse-DNS: at least two segments,
+    // each starting with a letter or underscore.
+    let package = package.trim();
+    if package.is_empty() || package.len() > 255 {
+        return false;
+    }
+    let segments: Vec<_> = package.split('.').collect();
+    if segments.len() < 2 {
+        return false;
+    }
+    segments.iter().all(|segment| {
+        !segment.is_empty()
+            && segment
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && segment
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    })
+}
+
+pub(crate) fn linked_package(config: &Value, id: &str) -> Option<String> {
+    config
+        .get("emulators")
+        .and_then(|v| v.get(id))
+        .and_then(|v| v.get("package"))
+        .and_then(Value::as_str)
+        .filter(|package| valid_android_package(package))
+        .map(|package| package.trim().to_owned())
+        .or_else(|| {
+            config
+                .get("customEmulators")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .find(|entry| entry.get("id").and_then(Value::as_str) == Some(id))
+                .and_then(|entry| entry.get("package").and_then(Value::as_str))
+                .filter(|package| valid_android_package(package))
+                .map(|package| package.trim().to_owned())
+        })
+}
+
+#[tauri::command]
+pub fn link_android_emulator(
+    state: State<'_, AppState>,
+    id: String,
+    package: String,
+) -> Result<Value, String> {
+    let config = state.config();
+    find_definition(&id, &config).ok_or_else(|| "Unknown emulator".to_owned())?;
+    let package = package.trim().to_owned();
+    if !valid_android_package(&package) {
+        return Err("Enter a valid Android package name such as com.retroarch.aarch64.".to_owned());
+    }
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let entry = config["emulators"]
+        .as_object_mut()
+        .ok_or("Invalid emulator settings")?
+        .entry(id.clone())
+        .or_insert_with(|| json!({}));
+    entry["package"] = Value::String(package);
+    let next = config.clone();
+    save_config(&state.config_path, &next)?;
+    let definition = find_definition(&id, &next).ok_or_else(|| "Unknown emulator".to_owned())?;
+    Ok(emu_status(&state, &definition, &next))
+}
+
+#[tauri::command]
+pub fn unlink_android_emulator(state: State<'_, AppState>, id: String) -> Result<Value, String> {
+    let config = state.config();
+    find_definition(&id, &config).ok_or_else(|| "Unknown emulator".to_owned())?;
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    if let Some(entry) = config
+        .get_mut("emulators")
+        .and_then(|v| v.as_object_mut())
+        .and_then(|object| object.get_mut(&id))
+    {
+        if let Some(object) = entry.as_object_mut() {
+            object.remove("package");
+        }
+    }
+    let next = config.clone();
+    save_config(&state.config_path, &next)?;
+    let definition = find_definition(&id, &next).ok_or_else(|| "Unknown emulator".to_owned())?;
+    Ok(emu_status(&state, &definition, &next))
 }
 
 pub(crate) fn selected_definition(base: &Value, config: &Value, id: &str) -> Value {
@@ -330,6 +468,7 @@ fn selected_definition_for_target(
                     "source",
                     "repo",
                     "systems",
+                    "package",
                 ] {
                     if let Some(value) = data.get(key) {
                         object.insert(key.to_owned(), value.clone());
@@ -360,8 +499,11 @@ fn selected_definition_for_target(
             );
         }
     }
-    let available = custom || specific.is_some();
+    // Android has no managed desktop downloads: any catalog emulator can be
+    // linked manually by package, so it is always available but never managed.
+    let available = custom || specific.is_some() || platform == "android";
     let managed = !custom
+        && platform != "android"
         && available
         && selected
             .pointer("/source/repo")
@@ -428,6 +570,7 @@ fn emu_status(state: &AppState, base: &Value, config: &Value) -> Value {
     let definition = selected_definition(base, config, id);
     let manifest = read_manifest(&state.emu_dir, id);
     let exe = resolve_exe(&state.emu_dir, id, &definition, config);
+    let package = linked_package(config, id);
     let installed = manifest.as_ref().filter(|m| {
         manifest_matches_target(m, &definition)
             && m.get("exe")
@@ -447,7 +590,10 @@ fn emu_status(state: &AppState, base: &Value, config: &Value) -> Value {
         "args": definition.get("args"),
         "exe": exe.map(|p| p.to_string_lossy().to_string()),
         "installed": installed.map(|m| json!({"version":m.get("tag"),"name":m.get("releaseName"),"date":m.get("publishedAt")})),
-        "managed": definition.get("managed").and_then(Value::as_bool).unwrap_or(false)
+        "managed": definition.get("managed").and_then(Value::as_bool).unwrap_or(false),
+        "package": package.clone(),
+        "linked": package.is_some(),
+        "android": definition.get("platform").and_then(Value::as_str) == Some("android")
     })
 }
 
@@ -783,7 +929,10 @@ fn extract_zip(archive: &Path, destination: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CATALOG, manifest_matches_target, selected_definition_for_target};
+    use super::{
+        CATALOG, linked_package, manifest_matches_target, selected_definition_for_target,
+        valid_android_package,
+    };
     use serde_json::{Value, json};
 
     #[test]
@@ -801,7 +950,7 @@ mod tests {
                 }}
             }
         });
-        for platform in ["macos", "linux", "android"] {
+        for platform in ["macos", "linux"] {
             let selected =
                 selected_definition_for_target(&base, &json!({}), "emu", platform, "arm64");
 
@@ -811,6 +960,60 @@ mod tests {
             assert_eq!(selected["asset"], Value::Null);
             assert_eq!(selected["exe"], Value::Null);
         }
+        let selected = selected_definition_for_target(&base, &json!({}), "emu", "android", "arm64");
+        assert_eq!(selected["available"], true);
+        assert_eq!(selected["managed"], false);
+        assert_eq!(selected["source"], Value::Null);
+        assert_eq!(selected["asset"], Value::Null);
+        assert_eq!(selected["exe"], Value::Null);
+    }
+
+    #[test]
+    fn android_package_names_are_reverse_dns() {
+        assert!(valid_android_package("com.retroarch.aarch64"));
+        assert!(valid_android_package("org.ppsspp.ppsspp"));
+        assert!(valid_android_package("com.duckstation"));
+        assert!(!valid_android_package(""));
+        assert!(!valid_android_package("retroarch"));
+        assert!(!valid_android_package("com..app"));
+        assert!(!valid_android_package("1com.app"));
+        assert!(!valid_android_package("com.my app"));
+    }
+
+    #[test]
+    fn android_manual_link_is_available_without_managed_download() {
+        let base = json!({
+            "id": "emu",
+            "platforms": {"linux": {"x86_64": {
+                "source": {"repo":"linux-x64"},
+                "asset": "linux-x86_64.AppImage",
+                "exe": "program.AppImage"
+            }}}
+        });
+        let selected = selected_definition_for_target(&base, &json!({}), "emu", "android", "arm64");
+        assert_eq!(selected["available"], true);
+        assert_eq!(selected["managed"], false);
+        assert_eq!(selected["platform"], "android");
+    }
+
+    #[test]
+    fn linked_package_reads_config_overrides_and_custom_entries() {
+        let config = json!({"emulators":{"duckstation":{"package":"com.duckstation"}}});
+        assert_eq!(
+            linked_package(&config, "duckstation").as_deref(),
+            Some("com.duckstation")
+        );
+        assert_eq!(linked_package(&config, "missing"), None);
+        let config = json!({"emulators":{"duckstation":{"package":"not a package"}}});
+        assert_eq!(linked_package(&config, "duckstation"), None);
+        let config = json!({
+            "emulators": {},
+            "customEmulators": [{"id":"custom-one","package":"com.example.emu"}]
+        });
+        assert_eq!(
+            linked_package(&config, "custom-one").as_deref(),
+            Some("com.example.emu")
+        );
     }
 
     #[test]
