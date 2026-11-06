@@ -22,13 +22,13 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ env.TAG }}' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx electron-builder --win nsis --publish never
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: dist/PyroCade-Setup-*.exe
@@ -37,9 +37,9 @@ jobs:
   linux:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ env.TAG }}' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       # rpm builds the Fedora package, libarchive-tools the Arch one; xvfb runs the smoke test.
       - run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools xvfb
@@ -63,7 +63,7 @@ jobs:
           sudo apt-get install -y ./dist/pyrocade_*_amd64.deb
           timeout 120 xvfb-run -a pyrocade --no-sandbox
           test -s "$PYROCADE_SNAP"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: |
@@ -80,9 +80,9 @@ jobs:
       # Ad-hoc signed (no Apple developer certificate yet): skip looking for one.
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ env.TAG }}' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx electron-builder --mac --publish never
@@ -96,7 +96,7 @@ jobs:
           perl -e 'alarm 120; exec @ARGV' dist/mac-arm64/PyroCade.app/Contents/MacOS/PyroCade
           cat "$PYROCADE_SNAP.txt"; echo
           test -s "$PYROCADE_SNAP"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mac
           path: |
@@ -109,7 +109,7 @@ jobs:
     needs: [windows, linux, mac]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { path: out }
       - name: Attach to draft release
         env:
