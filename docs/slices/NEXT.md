@@ -1,25 +1,25 @@
 ---
-slice: P10a
+slice: P10b
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: c5525fc
+seededFrom: 5f3c2e1
 reads:
-  - package.json
-  - .github/workflows/release.yml
-  - src-tauri/Cargo.toml
-  - src-tauri/tauri.conf.json
-allowanceTokens: 85000
+  - src-tauri/src/backend.rs
+  - src-tauri/src/config.rs
+  - src-tauri/src/lib.rs
+  - renderer/tauri-bridge.js
+allowanceTokens: 120000
 ---
 
-**P10a — Sign and publish the Android release APK.** Configure Tauri Android signing (keystore, alias, password) and integrate it into the CI workflow so the release APK is signed and uploaded to release artifacts, while the debug build remains unsigned. The release APK is currently unsigned and withheld from uploads; this slice adds signing configuration and CI integration.
+**P10b — Implement Storage Access Framework (SAF) storage and import on Android.** Replace filesystem-path-based storage on Android with URI-aware I/O using persistent document-tree grants, since Tauri's dialog plugin does not support Android folder picking.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
 ## What is settled — do not re-derive
 
-- P1 through P9 are complete. Android Rust target and debug APK build/install on device succeeded. The release APK is unsigned and withheld from uploads. Do-Not #4 records the SAF URI constraint (not relevant to signing).
-- The CI workflow (`release.yml`) builds macOS ARM64, Linux ARM64, and Android ARM64 artifacts. The Android job produces an unsigned APK.
-- Tauri's Android signing is configured via `tauri.conf.json` (`androidSigning`) and/or `Cargo.toml` build script overrides.
+- P1 through P10a are complete. Android signing is configured; release APKs are signed and uploaded to release artifacts.
+- The CI workflow builds and signs Android ARM64 APKs for release builds. Debug CI builds remain unsigned.
+- Do-Not #4: Do not treat Android Storage Access Framework content URIs as filesystem paths; persistent document-tree grants and URI-aware I/O are required, and Tauri's dialog plugin does not support Android folder picking.
 
 ## Withdrawn — proven wrong, do not use
 
@@ -27,19 +27,19 @@ None.
 
 ## Code to touch
 
-- `package.json` — Add or update Android build scripts; reference signing config.
-- `.github/workflows/release.yml` — Add signing step to the Android ARM64 build job; upload signed APK to release artifacts.
-- `src-tauri/tauri.conf.json` — Add Android signing configuration (keystore path, alias, password source).
-- `src-tauri/Cargo.toml` — Ensure Android build script respects signing config.
+- `src-tauri/src/backend.rs` — Replace filesystem-path library/import functions with URI-aware versions for Android; use `open_document_tree`/`open_document` with persistent grants.
+- `src-tauri/src/config.rs` — Adapt settings path handling for Android's document-tree grants.
+- `src-tauri/src/lib.rs` — Add Android-specific storage path resolution.
+- `renderer/tauri-bridge.js` — Update library/import bridge to pass URIs instead of paths on Android.
 
 ## Read these first, and only these
 
-- `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction` (Android target section)
-- `.babysteps/tauri-migration.plan.md` — `Budget rows` (P10 row for reference)
+- `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction` (Android SAF section)
+- `.babysteps/tauri-migration.plan.md` — `Budget rows` (P10b row)
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. No entries apply to this signing-only slice.
+Total Do-Not count: 4. Entry #4 applies: Do not treat Android Storage Access Framework content URIs as filesystem paths; persistent document-tree grants and URI-aware I/O are required, and Tauri's dialog plugin does not support Android folder picking.
 
 ## The gate
 
@@ -49,4 +49,4 @@ Total Do-Not count: 4. No entries apply to this signing-only slice.
 
 ## When this slice closes
 
-Write the next seed with the next sub-slice (P10b — SAF storage/import), advance the state file, and re-verify the Do-Not count.
+Write the next seed with the next sub-slice (P10c — installed-emulator linking/launch), advance the state file, and re-verify the Do-Not count.

@@ -197,12 +197,36 @@ jobs:
       - run: npm ci
       - name: Generate Android project
         run: npm run tauri -- android init --ci --skip-targets-install
-      - name: Build Android ARM64 APK
+      - name: Build unsigned APK (PR only)
+        if: github.event_name == 'pull_request'
         run: npm run dist:android:arm64
+      - name: Build and sign release APK (non-PR only)
+        if: github.event_name != 'pull_request'
+        env:
+          KEYSTORE_B64: ${{ secrets.PYROCADE_ANDROID_KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.PYROCADE_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PYROCADE_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PYROCADE_ANDROID_KEY_PASSWORD }}
+        run: |
+          keystore_dir="$RUNNER_TEMP/android-signing"
+          mkdir -p "$keystore_dir"
+          echo "$KEYSTORE_B64" | base64 -d > "$keystore_dir/release.keystore"
+          chmod 600 "$keystore_dir/release.keystore"
+          export TAURI_ANDROID_KEYSTORE_PATH="$keystore_dir/release.keystore"
+          export TAURI_ANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export TAURI_ANDROID_KEY_ALIAS="$KEY_ALIAS"
+          export TAURI_ANDROID_KEY_PASSWORD="$KEY_PASSWORD"
+          npm run dist:android:arm64
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'pull_request'
         with:
           name: pyrocade-android-arm64-unsigned-ci
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: pyrocade-android-arm64
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 
@@ -257,6 +281,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           mapfile -d '' files < <(find out -type f -print0)
+          android_apks=$(find out/android-arm64 -name '*.apk' -print 2>/dev/null || true)
+          if [ -n "$android_apks" ]; then
+            mapfile -t android_files <<< "$android_apks"
+            files+=("${android_files[@]}")
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber
           else
