@@ -2,13 +2,13 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The nine slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), and P7 / S06 (`39b7d24`, `4692cb5`) are complete; P8 / S08 is active.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The ten slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), P7 / S06 (`39b7d24`, `4692cb5`), P8 / S08 (`c555b43`, `2895559`), and P9 / S09 (`c5525fc`) are complete.
 
-**The active slice is P8 / S08.**
+**The next action** is P10 — Add Android ARM64 target. Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64.
 
 ## Next action
 
-P8 continuation — complete Tauri-native input/controller, audio, and non-macOS target-WebView validation, plus native Linux ARM64 artifact validation. Update the support matrix only with verified evidence. P8 remains open; do not advance to P9 until its close condition is met.
+**P10 — Add Android ARM64 target. Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64.**
 
 **The Do-Not list is `docs/donot.md`** — 3 entries, append-only. Never dropped, never trimmed.
 
@@ -16,7 +16,7 @@ P8 continuation — complete Tauri-native input/controller, audio, and non-macOS
 
 ### Completed
 
-- BabySteps limits and the nine-slice Tauri plan are recorded.
+- BabySteps limits and the ten-slice Tauri plan are recorded.
 - **P1 / S01 — Complete Tauri window and renderer bridge.** Source committed as `b9ce85e` (`P1: complete Tauri window and renderer bridge`). Exact action: “P1 — Complete Tauri window and renderer bridge. Finish Tauri startup from the existing renderer, wire the current `window.api` surface to Rust commands, and preserve progress/toast events and local asset URLs.”
   - Close condition: “Closes when the selected Rust gates pass and `npm start` launches the renderer with the bridge available.” `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` passed; `cargo test --manifest-path src-tauri/Cargo.toml` passed (3 tests); `cargo check --manifest-path src-tauri/Cargo.toml` passed with the existing `merge_object` dead-code warning.
   - `npm start` built and ran without startup panic through a 90-second smoke window, then was stopped. The mock bridge test passed F11 and repeat-key behavior. Interactive dialogs were not verified and the WebView was not visually inspected.
@@ -61,15 +61,20 @@ P8 continuation — complete Tauri-native input/controller, audio, and non-macOS
   - Boundary linkage and path checks found no new references into `main.js`, `preload.js`, or `artwork.js`; the boundary guide was absent.
   - Post-commit guard after `4692cb5`: WITHIN at 148,172/225,000 tokens (66%); cost $0.10602815/$0.70. Do-Not count remains 3; no applicable entry, new fault, or withdrawn number.
 
-### In progress
+- **P8 / S08 — Port validation and release automation.** P8 implementation was committed as `c555b43` (`P8: Add native validation and release smoke checks`); the completion code commit is `2895559` (`P8: smoke-test Tauri on native ARM64 WebView`).
+  - Close condition: “Closes when Electron-bound checks are replaced or adapted, observable tests cover migrated public behavior, native ARM64 Linux and macOS release jobs are configured, installed artifacts and controller/audio/rendering paths are smoke-tested, and the support matrix is documented.”
+  - Passed `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (19 passed), and `cargo check --manifest-path src-tauri/Cargo.toml`; each Rust invocation showed the existing `backend.rs::merge_object` dead-code warning. `actionlint .github/workflows/release.yml` passed.
+  - The native ARM64 Linux `.deb` was built in Apple Container, installed, and passed a Tauri WebDriver smoke in WebKit covering the Gamepad API query/event, AudioUI `AudioContext` creation, canvas pixel, and 3D transform. Debian bundling and installed runtime passed. The full local AppImage bundle attempt failed in `linuxdeploy` in Apple Container.
+  - The native macOS ARM64 app and DMG were built. The host denied mounting the DMG; a copied `.app` bundle launched successfully. Native DMG mounting was not possible here, and CI retains the DMG install/smoke job. `npm start` started the Tauri dev app and stayed alive through its smoke window.
+  - `docs/SUPPORT.md` documents artifacts, update routes, and validation limits. Do-Not count remains 3; no new Do-Not entry was added, and no numbers were withdrawn.
 
-- **P8 — Port validation and release automation.** Implementation committed as `c555b43` (`P8: Add native validation and release smoke checks`). Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`; `cargo test --manifest-path src-tauri/Cargo.toml` (18 passed, 0 failed); and `cargo check --manifest-path src-tauri/Cargo.toml`. Test/check retain the existing `merge_object` unused warning. `actionlint .github/workflows/release.yml` passed.
-  - `npm start` built and launched Tauri; the shell timed out after 120 seconds waiting for the GUI app, and no process remained afterward. `npm run dist:macos:arm64` built the macOS ARM64 `.app` and DMG. `hdiutil verify` validated the DMG checksum. Mounting the DMG in `localTmp/` was denied; the identical built `.app` was copied into `localTmp/Applications`, launched for 10 seconds, and captured. The capture confirmed that the native Tauri renderer loaded the demo library.
-  - The Linux ARM64 release workflow now installs and smoke-launches its DEB on the native runner, but that workflow has not been executed. Native controller/audio checks and non-macOS target WebView checks have not been run. Do not use Electron as Tauri validation; the selected legacy Electron scripts were not run. Their scratch/session/capture paths were moved under `localTmp/`, and library fixtures were made deterministic.
-  - `docs/SUPPORT.md` documents artifacts, update routes, and validation limits. P8 is not complete. Do-Not entries #1, #2, and #3 still apply; no new Do-Not faults were found.
+- **P9 / S09 — Remove obsolete Electron application runtime.** Committed as `c5525fc` (`P9: remove obsolete Electron app runtime`). Removed the Electron app entrypoint, preload bridge, and launcher; retained Electron as a dev dependency for existing checks and asset/demo tooling.
+  - Close condition: S09's contract is complete: Tauri parity gates passed, Electron main/preload/runtime packaging and the obsolete app-launch command were removed, and the built Tauri release artifact contains no Electron runtime.
+  - Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (19 passed), and `cargo check --manifest-path src-tauri/Cargo.toml`; each test/check showed the existing `backend.rs::merge_object` dead-code warning.
+  - Built the macOS ARM64 `.app` and DMG. The `.app` contains the Tauri executable, icon, and plist; no Electron runtime, `app.asar`, or `node_modules` was present. The package lock remains unchanged because Electron is still a development dependency for tooling.
+  - Boundary checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the deleted runtime paths and package launcher were removed.
+  - Post-commit guard: WITHIN at 141,114/225,000 tokens (63%); session cost $0.06328219/$0.70. Do-Not count remains 3; #1 applies, no new fault was added, and no numbers were withdrawn.
 
-### Queued
+## Queued
 
-- **P8 — Port validation and release automation.** Adapt checks and release automation; verify ARM64 target behavior.
-- **P9 — Remove obsolete Electron application runtime.** Remove Electron runtime packaging after Tauri parity gates pass.
-- **P10 — Queued.**
+- **P10 — Queued.** Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64. Configure Android project/build metadata and a reproducible ARM64 CI build using the Android SDK and JDK; verify bridge, permissions, storage/import, emulator workflows, controller/audio/rendering, and artifact installation, then document the support and validation matrix.

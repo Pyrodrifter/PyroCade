@@ -1,73 +1,68 @@
 ---
-slice: P8
+slice: P10
 stateFile: docs/STATE.md
 donotCount: 3
-seededFrom: c555b43
+seededFrom: c5525fc
 reads:
   - package.json
-  - scripts/check-library-ui.cjs
-  - scripts/check-carousel.cjs
-  - scripts/check-artwork-ui.cjs
   - .github/workflows/release.yml
+  - src-tauri/Cargo.toml
+  - src-tauri/tauri.conf.json
   - src-tauri/src/lib.rs
   - src-tauri/src/backend.rs
+  - src-tauri/src/config.rs
   - src-tauri/src/emulators.rs
-  - src-tauri/src/artwork.rs
-allowanceTokens: 155000
+  - renderer/tauri-bridge.js
+  - README.md
 ---
 
-## The next action — verbatim
+# P10 — Add Android ARM64 target
 
-P8 — Port validation and release automation. Replace or adapt Electron-bound checks, add observable tests for migrated public behavior, configure native ARM64 Linux and macOS release jobs, smoke-test installed artifacts and controller/audio/rendering paths, and document the fork's support matrix.
+## Next action
 
-## What is settled — do not re-derive
+P10 — Add Android ARM64 target. Add Android ARM64 as an additional supported Tauri target without regressing macOS/Linux ARM64. Configure Android project/build metadata and a reproducible ARM64 CI build using the Android SDK and JDK; verify the renderer bridge, app permissions, storage/import, emulator-linking and launch behavior, controller/audio/rendering paths, and artifact installation on Android. Document the Android support and validation matrix. Use the Android SDK and tools already installed in the local environment for device or emulator validation when available.
 
-- P8 implementation is committed as `c555b43` (`P8: Add native validation and release smoke checks`); P8 remains active, not complete.
-- Passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`; `cargo test --manifest-path src-tauri/Cargo.toml` (18 passed, 0 failed); `cargo check --manifest-path src-tauri/Cargo.toml`; `actionlint .github/workflows/release.yml`. Test/check retain the existing `merge_object` unused warning.
-- `npm start` built and launched Tauri; the shell timed out after 120 seconds waiting for the GUI app, and no process remained afterward.
-- `npm run dist:macos:arm64` built the macOS ARM64 `.app` and DMG. `hdiutil verify` validated the DMG checksum. DMG mounting in `localTmp/` was denied; the identical `.app` was copied into `localTmp/Applications`, launched for 10 seconds, and captured. The capture confirmed the native Tauri renderer loaded the demo library.
-- The Linux ARM64 release workflow was updated to install and smoke-launch its DEB on the native runner; the workflow has not been executed. Native controller/audio checks and non-macOS target WebView checks remain unverified.
-- `docs/SUPPORT.md` documents artifacts, update routes, and validation limits; update the support matrix only with verified evidence.
-- Do not use Electron as Tauri validation. The selected legacy Electron scripts were not run; their scratch/session/capture paths were moved under `localTmp/`, and library fixtures were made deterministic.
-- P9 and P10 remain queued. Do-Not entries 1, 2, and 3 still apply; no new Do-Not faults were found.
+Closes when Android ARM64 build and installation, bridge, permissions, storage/import, emulator-linking and launch, controller/audio/rendering, and the documented support matrix are validated without regressing macOS/Linux ARM64.
 
-## Withdrawn — proven wrong, do not use
+## Settled
 
-None.
+- P9 removed the Electron app entrypoint, preload bridge, and app launcher; Electron remains dev-only for existing tooling.
+- The macOS ARM64 Tauri app and DMG build successfully and the `.app` contains no Electron runtime, `app.asar`, or `node_modules`.
+- Do-Not count is 3; entry #1 remains applicable to manual filesystem paths.
+
+## Withdrawn numbers
+
+- None.
 
 ## Code to touch
 
-- `package.json`
-- `scripts/check-library-ui.cjs`
-- `scripts/check-carousel.cjs`
-- `scripts/check-artwork-ui.cjs`
-- `.github/workflows/release.yml`
-- `src-tauri/src/lib.rs`
-- `src-tauri/src/backend.rs`
-- `src-tauri/src/emulators.rs`
-- `src-tauri/src/artwork.rs`
+| Path | P10 scope |
+|---|---|
+| `package.json` | Android build and validation commands |
+| `.github/workflows/release.yml` | Reproducible Android ARM64 CI build |
+| `src-tauri/Cargo.toml` | Android target/build configuration |
+| `src-tauri/tauri.conf.json` | Android application metadata and permissions |
+| `src-tauri/src/lib.rs` | Android host registration |
+| `src-tauri/src/backend.rs` | Android runtime behavior |
+| `src-tauri/src/config.rs` | Android storage/settings behavior |
+| `src-tauri/src/emulators.rs` | Android emulator-linking and launch behavior |
+| `renderer/tauri-bridge.js` | Android renderer bridge behavior |
+| `README.md` | Android support and validation matrix |
 
 ## Read these first, and only these
 
-- `.operator/specs/desktop-runtime.md` — section `Desktop Runtime Direction`.
-- `.operator/specs/artwork-service.md` — section `Contract`.
-- `.babysteps/tauri-migration.plan.md` — sections `Tauri v2 migration slices` and `Budget rows` (P8).
-- `.babysteps/tauri-migration.tasks.json` — task `S08`.
+- `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction`
+- `.operator/specs/artwork-service.md` — `Contract`
+- `.babysteps/tauri-migration.plan.md` — `Tauri v2 migration slices`, `Budget rows` (P10)
+- `.babysteps/tauri-migration.tasks.json` — task `S10`
 
-## Do-Not entries that apply here
-
-1, 2, and 3.
-
-Total Do-Not entries: 3.
-
-## The gate
+## Gate commands
 
 - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
 - `cargo test --manifest-path src-tauri/Cargo.toml`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
-- `actionlint .github/workflows/release.yml`
-- Run command (separate from `gateCommands`): `npm start`
+- Android ARM64 build/install and device or emulator validation when available
 
-## When this slice closes
+## Applicable Do-Not entries
 
-Closes when Electron-bound checks are replaced or adapted, observable tests cover migrated public behavior, native ARM64 Linux and macOS release jobs are configured, installed artifacts and controller/audio/rendering paths are smoke-tested, and the support matrix is documented.
+- #1
