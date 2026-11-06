@@ -2,7 +2,7 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
-## [Unreleased]
+## [0.6.0] - 2026-11-06
 
 Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](https://www.reddit.com/user/RiceDesperate5724/) on Reddit, who also built their own version of four of them.
 
@@ -172,6 +172,7 @@ Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](h
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.6.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.4...v0.5.0
 [0.4.4]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.2...v0.4.3

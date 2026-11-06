@@ -1,6 +1,6 @@
 {
   "name": "pyrocade",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "3D carousel front-end for emulators with built-in emulator downloader/updater",
   "license": "MIT",
   "main": "main.js",
