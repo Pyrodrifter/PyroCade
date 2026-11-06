@@ -17,6 +17,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - **GameCube mini discs:** GameCube games show an 8 cm disc, and the GameCube case tray matches it.
 - **PSP UMDs** are shown as a disc in its plastic shell. PlayStation discs have their black data side, Wii discs a white hub, Wii U discs a rounded edge, and Dreamcast discs the GD-ROM ring.
 - **Settings → Show cases at their real sizes:** a Game Boy box next to a PS2 case looks as small as it really is.
+- **Hide a system:** an empty system's shelf has a **Hide** button, and **Settings → Show** turns any system on or off. A hidden system and its games leave every shelf until you show it again.
 - **Settings → Used copies:** scuffed cases, worn corners, faded labels and light scratches on discs and cartridges.
 
 ### Changed

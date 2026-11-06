@@ -120,7 +120,9 @@ const lastGame = new Map(); // system id -> id of the game last selected there
 // Views that are not systems: favourites and recently played games.
 const VIEWS = { favorites: 'Favourites', recent: 'Recently played' };
 const viewName = id => id === 'all' ? 'All games' : VIEWS[id] || sysOf(id).name;
-const inView = (g, id) => id === 'all' || (id === 'favorites' ? !!g.favorite : id === 'recent' ? g.lastPlayed > 0 : g.system === id);
+// A hidden system (Settings → Show) leaves every shelf, including All games, Favourites and Recently played.
+const systemHidden = id => !!S.config?.systems.find(s => s.id === id)?.hidden;
+const inView = (g, id) => !systemHidden(g.system) && (id === 'all' || (id === 'favorites' ? !!g.favorite : id === 'recent' ? g.lastPlayed > 0 : g.system === id));
 // Sorting and filtering, applied inside the current system or view.
 const yearOf = g => parseInt(g.info?.year, 10) || 0;
 const genresOf = g => String(g.info?.genre || '').split(/[;,/]|\s+&\s+/).map(x => x.trim()).filter(Boolean);
@@ -143,7 +145,7 @@ function passesFilter(g) {
 }
 function setSystem(id) {
   const previousSystem=S.system;
-  S.system = (VIEWS[id] ? S.games.some(g => inView(g, id)) : S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && s.romDir)) ? id : 'all';
+  S.system = (VIEWS[id] ? S.games.some(g => inView(g, id)) : !systemHidden(id) && (S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && s.romDir))) ? id : 'all';
   if(previousSystem!==S.system)AudioUI.play('system');
   const current = S.list[S.sel];
   // Each system remembers its selected game, so going back to it shows the same game again.
@@ -165,8 +167,24 @@ function setSystem(id) {
   $('#empty').textContent = q ? `No games match “${S.query}”.` : S.filter ? 'No games match this filter. Change “Show” above the shelf.' : (() => { const s = S.config.systems.find(x => x.id === S.system);
       return s?.romDir ? `No games found in ${s.romDir.split('|').map(d => d.trim()).filter(Boolean).join(' or ')}` : 'No games for this system yet.'; })();
   $('#empty').classList.toggle('hidden', S.list.length > 0);
+  // An empty system can be hidden right here.
+  if (!S.list.length && !q && !S.filter && !VIEWS[S.system] && S.system !== 'all') {
+    const b = el('button', 'empty-hide', `Hide ${esc(viewName(S.system))}`); b.type = 'button';
+    b.title = 'Show it again in Settings'; b.onclick = () => hideSystem(S.system);
+    const box = el('div', 'empty-box'); box.append(el('span', '', esc($('#empty').textContent)), b);
+    $('#empty').replaceChildren(box);
+  }
   syncShelfTools();
   layout(); showInfo(); saveUi();
+}
+async function hideSystem(id) {
+  const c = structuredClone(S.config), sys = c.systems.find(s => s.id === id);
+  if (!sys) return;
+  sys.hidden = true;
+  try { S.config = await api.setConfig(c); } catch (e) { return toast(e.message); }
+  AudioUI.play('back');
+  toast(`${sys.name} is hidden. Show it again in Settings.`, 4500);
+  renderChips(); setSystem('all');
 }
 // The library is saved as it is left, so PyroCade opens on the same game next time.
 let uiTimer;
@@ -902,7 +920,8 @@ function renderSettings() {
     return opt('', 'None') + opt('__direct', 'Run the file itself') + (sel && !known ? opt(sel, `${sel} (not found)`) : '') + S.emus.map(e => opt(e.id, e.name)).join('');
   };
   c.systems.forEach((s, i) => {
-    const tr = el('tr', '', `
+    const tr = el('tr', s.hidden ? 'sys-hidden' : '', `
+      <td class="show"><input type="checkbox" data-k="show" ${s.hidden ? '' : 'checked'} aria-label="Show ${esc(s.name)} in the library"/></td>
       <td class="name"><i style="background:${esc(s.color)}"></i>${esc(s.name)}${s.custom ? ` <button class="sys-remove" data-remove-system="${esc(s.id)}" title="Remove this system">Remove</button>` : ''}</td>
       <td><input data-k="romDir" value="${esc(s.romDir)}" placeholder="Not set" id="rom${i}"/></td>
       <td><button data-browse="rom${i}">Browse…</button> <button data-browse="rom${i}" data-add="1" title="Add another ROM folder">+ Add</button></td>
@@ -996,7 +1015,8 @@ $('#btnSave').onclick = async () => {
     const s = c.systems[tr.dataset.i];
     tr.querySelectorAll('[data-k]').forEach(inp => {
       const v = inp.value.trim();
-      if (inp.dataset.k === 'extensions') s.extensions = v.split(/[\s,]+/).filter(Boolean).map(x => (x.startsWith('.') ? x : '.' + x).toLowerCase());
+      if (inp.dataset.k === 'show') { if (inp.checked) delete s.hidden; else s.hidden = true; }
+      else if (inp.dataset.k === 'extensions') s.extensions = v.split(/[\s,]+/).filter(Boolean).map(x => (x.startsWith('.') ? x : '.' + x).toLowerCase());
       else if (inp.dataset.k === 'args') { if (v) s.args = v; else delete s.args; }
       else if (inp.dataset.k === 'emulator') { s.direct = v === '__direct'; s.emulator = s.direct ? '' : v; }
       else s[inp.dataset.k] = v;

@@ -38,14 +38,15 @@ const LibraryUI=(()=>{
     const compact=cls==='system-tile';copy.append(element('span','system-name',compact?(shortNames[entry.id]||entry.name):entry.name),element('span','n',compact?entry.count.toLocaleString():entry.count?`${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`:'No games yet'));b.append(mark,copy);return b;
   }
   function render(){
-    const s=context.getState(),counts={};for(const g of s.games)counts[g.system]=(counts[g.system]||0)+1;
+    // Hidden systems (Settings → Show) are left out, and so are their games.
+    const s=context.getState(),hidden=new Set(s.config.systems.filter(x=>x.hidden).map(x=>x.id)),games=s.games.filter(g=>!hidden.has(g.system)),counts={};for(const g of games)counts[g.system]=(counts[g.system]||0)+1;
     // Favourites and Recently played appear once they have games in them.
-    const fav=s.games.filter(g=>g.favorite).length,recent=Math.min(30,s.games.filter(g=>g.lastPlayed>0).length);
-    entries=[{id:'all',name:'All games',count:s.games.length,color:'#ffad65'},...(fav?[{id:'favorites',name:'Favourites',count:fav,color:'#ffd166',view:true}]:[]),...(recent?[{id:'recent',name:'Recently played',count:recent,color:'#7cc6e3',view:true}]:[]),...s.config.systems.filter(sys=>counts[sys.id]||sys.romDir).map(sys=>({...sys,count:counts[sys.id]||0}))];
+    const fav=games.filter(g=>g.favorite).length,recent=Math.min(30,games.filter(g=>g.lastPlayed>0).length);
+    entries=[{id:'all',name:'All games',count:games.length,color:'#ffad65'},...(fav?[{id:'favorites',name:'Favourites',count:fav,color:'#ffd166',view:true}]:[]),...(recent?[{id:'recent',name:'Recently played',count:recent,color:'#7cc6e3',view:true}]:[]),...s.config.systems.filter(sys=>!sys.hidden&&(counts[sys.id]||sys.romDir)).map(sys=>({...sys,count:counts[sys.id]||0}))];
     const nav=$('#systems');nav.replaceChildren();for(const e of entries){const b=button(e,'system-tile');b.onclick=()=>context.select(e.id);nav.append(b)}
     const systems=entries.filter(e=>e.id!=='all'&&!e.view).length;
     $('#systemTotal').textContent=`${systems} systems`;
-    $('#systemPickerSummary').textContent=`${s.games.length.toLocaleString()} games · ${systems} systems`;
+    $('#systemPickerSummary').textContent=`${games.length.toLocaleString()} games · ${systems} systems`;
     if(pickerOpen())renderPicker();requestAnimationFrame(updateRail);
   }
   function select(){
