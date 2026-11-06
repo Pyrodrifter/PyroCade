@@ -3,7 +3,6 @@
   "version": "0.2.1",
   "description": "3D carousel front-end for emulators with built-in emulator downloader/updater",
   "license": "MIT",
-  "main": "main.js",
   "scripts": {
     "start": "tauri dev",
     "tauri": "tauri",
@@ -22,8 +21,7 @@
     "eshop:check": "electron scripts/check-eshop.cjs",
     "brand:build": "electron scripts/build-brand.cjs",
     "brand:check": "electron scripts/check-brand.cjs",
-    "demo:record": "electron scripts/record-reddit-demo.cjs",
-    "electron:start": "electron ."
+    "demo:record": "electron scripts/record-reddit-demo.cjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
