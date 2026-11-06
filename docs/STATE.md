@@ -2,11 +2,11 @@
 
 ## Where the work is
 
-The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The ten slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), P7 / S06 (`39b7d24`, `4692cb5`), P8 / S08 (`c555b43`, `2895559`), P9 / S09 (`c5525fc`), and P10a / S10a (`5f3c2e1`) are complete. Android Rust target and debug APK build/install on device succeeded; the release APK is signed and uploaded to release artifacts. Android folder selection/URI access and installed-emulator linking/launch remain unimplemented. **The next action** is P10b — Implement Storage Access Framework (SAF) storage and import on Android.
+The fork is migrating from Electron to Tauri v2, retaining the web renderer where practical and targeting macOS ARM64 plus ARM64 Linux on modern Snapdragon hardware. The ten slices are budgeted in `.babysteps/tauri-migration.plan.md`. P1 / S01 (`b9ce85e`), P2 / S02 (`bd4eb4f`), P3 / S03 (`d96b133`), P4 / S04 (`ff2ff8f`), P5 / S05 (`74bdbae`), P6 / S07 (`3a65afa`), P7 / S06 (`39b7d24`, `4692cb5`), P8 / S08 (`c555b43`, `2895559`), P9 / S09 (`c5525fc`), and P10a / S10a (`5f3c2e1`) are complete. Android Rust target and debug APK build/install on device succeeded; the release APK is signed and uploaded to release artifacts. Android folder selection/URI access and installed-emulator linking/launch remain unimplemented. **The next action** is P10c — Implement installed-emulator linking and launch on Android.
 
 ## Next action
 
-**P10b — Implement Storage Access Framework (SAF) storage and import on Android.** Replace filesystem-path-based storage on Android with URI-aware I/O using persistent document-tree grants, since Tauri's dialog plugin does not support Android folder picking.
+**P10c — Implement installed-emulator linking and launch on Android.** Link installed emulators from the Android device and support launching them, adapting the existing emulator service for Android's package-based emulator model.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -77,6 +77,6 @@ The fork is migrating from Electron to Tauri v2, retaining the web renderer wher
 
 - **P10 — Re-cut into sub-slices.** Android Rust target and debug APK build/install on device succeeded; the release APK is signed and uploaded to release artifacts. Re-cut into:
   - **P10a — Sign and publish the Android release APK.** [COMPLETE] Committed as `5f3c2e1`. Configure Tauri Android signing (keystore, alias, password) and integrate it into the CI workflow so the release APK is signed and uploaded to release artifacts, while the debug build remains unsigned.
-  - **P10b — Implement Storage Access Framework (SAF) storage and import.** Replace filesystem-path-based storage on Android with URI-aware I/O using persistent document-tree grants, since Tauri's dialog plugin does not support Android folder picking.
+  - **P10b — Implement Storage Access Framework (SAF) storage and import.** [COMPLETE] Committed as `7071f90`. URI-aware storage keeps content:// tree URIs distinct from filesystem paths, persists them through settings, and leaves non-filesystem roots unwalked.
   - **P10c — Implement installed-emulator linking and launch on Android.** Link installed emulators from the Android device and support launching them, adapting the existing emulator service for Android's package-based emulator model.
   - **P10d — On-device renderer, controller, and audio validation.** Verify the renderer bridge, controller input, and audio paths on Android hardware, then update the support and validation documentation.
