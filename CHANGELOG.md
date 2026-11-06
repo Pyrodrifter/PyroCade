@@ -25,7 +25,8 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 - **Each system remembers its selected game:** switching back to a system shows the game you had selected there.
 
 ### Fixed
-- **SteamOS Game Mode** (Steam Deck, Legion Go S): PyroCade could fail to open in Game Mode while working in Desktop Mode. In Game Mode it now starts on X11 (gamescope's X server) instead of Wayland. If you need the old behaviour, start it with `PYROCADE_OZONE=wayland`.
+- **SteamOS Game Mode** (Steam Deck, Legion Go S): PyroCade could open in Desktop Mode but not from Steam in Game Mode. When Steam starts it on Linux, PyroCade now restarts itself once without Steam's overlay and runtime libraries, without Chromium's sandbox, and on X11 under gamescope. No launch options needed. `PYROCADE_STEAM_FIX=off` turns this off.
+- **A log file** in `data/logs/pyrocade.log` (on Linux `~/.config/PyroCade/data/logs/`) records each start, so a start that fails can be looked into.
 - After clicking a button with the mouse, **Enter**, **Space** and the arrow keys no longer get stuck on that button. They control the shelf again.
 
 ## [0.4.4] - 2026-11-05

@@ -5,16 +5,32 @@ if(process.platform==='win32')app.setAppUserModelId('com.pyrodrifter.pyrocade');
 // PyroCade stays open behind a running game. Without this, Windows reports the covered window as
 // hidden and Chromium stops reading controllers, so "hold to quit" would never be seen.
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
-// SteamOS Game Mode (gamescope, e.g. Steam Deck, Legion Go S): Electron 38+ chooses Wayland by
-// itself, and gamescope's Wayland socket can't show a normal app window, so PyroCade never
-// appeared. gamescope also runs an X server for apps, so start again on X11 there. The display
-// server is chosen before this file runs, so a restart with the switch is the reliable way.
-// Desktop Mode is unaffected. PYROCADE_OZONE=wayland (or any --ozone-platform) skips this.
-if (process.platform === 'linux' && (process.env.XDG_CURRENT_DESKTOP === 'gamescope' || process.env.GAMESCOPE_WAYLAND_DISPLAY)
-  && !process.env.PYROCADE_OZONE && !process.argv.some(a => a.startsWith('--ozone-platform'))) {
-  process.env.PYROCADE_OZONE = 'x11';
-  app.relaunch({ ...(process.env.APPIMAGE ? { execPath: process.env.APPIMAGE } : {}), args: [...process.argv.slice(1), '--ozone-platform=x11'] });
-  app.exit(0);
+// Started by Steam on Linux (a non-Steam shortcut, in Game Mode or not): PyroCade opened from the
+// desktop but not from Steam's Game Mode. Steam's environment is what differs, so PyroCade starts
+// again once without the parts that commonly stop Electron apps there:
+//  - Steam's overlay (LD_PRELOAD) and Steam runtime libraries (LD_LIBRARY_PATH),
+//  - Chromium's sandbox, which can't always start inside Steam (--no-sandbox),
+//  - Wayland under gamescope, whose socket can't show a normal app window (--ozone-platform=x11).
+// These are chosen before this file can change them, hence the restart. Nothing changes on the
+// desktop. PYROCADE_STEAM_FIX=off turns it off; what was done is written to the log below.
+const startedBySteam = process.platform === 'linux' && !!(process.env.SteamGameId || process.env.SteamAppId || process.env.STEAM_COMPAT_APP_ID
+  || process.env.XDG_CURRENT_DESKTOP === 'gamescope' || process.env.GAMESCOPE_WAYLAND_DISPLAY);
+if (startedBySteam && !process.env.PYROCADE_STEAM_FIX) {
+  const gamescope = process.env.XDG_CURRENT_DESKTOP === 'gamescope' || !!process.env.GAMESCOPE_WAYLAND_DISPLAY;
+  const done = [];
+  if (process.env.LD_PRELOAD) { delete process.env.LD_PRELOAD; done.push('cleared LD_PRELOAD'); }
+  if (process.env.LD_LIBRARY_PATH) {
+    const kept = process.env.LD_LIBRARY_PATH.split(':').filter(d => d && !/steam-runtime|steamrt|ubuntu12_(32|64)|pressure-vessel|\/steam\//i.test(d));
+    if (kept.join(':') !== process.env.LD_LIBRARY_PATH) { if (kept.length) process.env.LD_LIBRARY_PATH = kept.join(':'); else delete process.env.LD_LIBRARY_PATH; done.push('removed Steam libraries from LD_LIBRARY_PATH'); }
+  }
+  const args = process.argv.slice(1);
+  if (!args.includes('--no-sandbox')) { args.push('--no-sandbox'); done.push('--no-sandbox'); }
+  if (gamescope && !args.some(x => x.startsWith('--ozone-platform'))) { args.push('--ozone-platform=x11'); done.push('--ozone-platform=x11'); }
+  process.env.PYROCADE_STEAM_FIX = done.length ? done.join(', ') : 'nothing needed';
+  if (done.length) {
+    app.relaunch({ ...(process.env.APPIMAGE ? { execPath: process.env.APPIMAGE } : {}), args });
+    app.exit(0);
+  }
 }
 const path = require('path');
 const fs = require('fs');
@@ -37,6 +53,23 @@ const ROOT = __dirname;
 const DATA = process.env.PORTABLE_EXECUTABLE_DIR ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
   : app.isPackaged ? path.join(app.getPath('appData'), 'PyroCade', 'data')
   : path.join(ROOT, 'data');
+// A short log in data/logs/pyrocade.log (Linux: ~/.config/PyroCade/data/logs), so a start that
+// fails on someone else's device can be looked at without asking them to run anything.
+const LOG_PATH = path.join(DATA, 'logs', 'pyrocade.log');
+function log(...parts) {
+  try {
+    fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true });
+    try { if (fs.statSync(LOG_PATH).size > 512 * 1024) fs.renameSync(LOG_PATH, LOG_PATH + '.old'); } catch {}
+    fs.appendFileSync(LOG_PATH, `${new Date().toISOString()} ${parts.map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(' ')}\n`);
+  } catch {}
+}
+log(`start ${require('./package.json').version}`, { platform: process.platform, electron: process.versions.electron, argv: process.argv.slice(1),
+  desktop: process.env.XDG_CURRENT_DESKTOP || '', session: process.env.XDG_SESSION_TYPE || '', wayland: !!process.env.WAYLAND_DISPLAY,
+  display: process.env.DISPLAY || '', steam: startedBySteam, steamFix: process.env.PYROCADE_STEAM_FIX || '', appImage: !!process.env.APPIMAGE });
+process.on('uncaughtExceptionMonitor', e => log('error', e?.stack || String(e)));
+app.on('child-process-gone', (_e, d) => log('child process gone', d));
+app.on('render-process-gone', (_e, _w, d) => log('window process gone', d));
+app.whenReady().then(() => log('ready')).catch(e => log('not ready', e?.stack || String(e)));
 const EMU_DIR = path.join(DATA, 'emulators');
 const CONFIG_PATH = path.join(DATA, 'config.json');
 const CATALOG = JSON.parse(fs.readFileSync(path.join(ROOT, 'emulators.json'), 'utf8'));
@@ -1129,6 +1162,8 @@ function createWindow() {
     webPreferences: { preload: path.join(ROOT, 'preload.js'), contextIsolation: true, sandbox: false, plugins: true, autoplayPolicy:'no-user-gesture-required',offscreen: previewMode, backgroundThrottling: !previewMode },
   });
   win.loadFile(path.join(ROOT, 'renderer', 'index.html'));
+  win.webContents.once('did-finish-load', () => log('window loaded', { visible: win.isVisible(), bounds: win.getBounds() }));
+  win.webContents.on('did-fail-load', (_e, code, desc) => log('window failed to load', code, desc));
   if (configWarning) win.webContents.once('did-finish-load', () => win.webContents.send('toast', configWarning));
   win.webContents.on('before-input-event', (_, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen());
