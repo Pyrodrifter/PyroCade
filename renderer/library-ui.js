@@ -20,9 +20,11 @@ const LibraryUI=(()=>{
     library:'<path d="M3 4h4v16H3zm7 0h4v16h-4zm7 0 4 1-1 15-4-1z"/>',
     download:'<path d="M12 2v13m-5-5 5 5 5-5M3 16v5h18v-5"/>',
     art:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
-    settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>'
+    settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>',
+    star:'<path d="m12 3 2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 16.8l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8L12 3Z"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>'
   };
-  const glyph={all:'grid',psp:'wide',switch:'switch',switch2:'switch',nds:'dual','3ds':'dual',gb:'handheld',gbc:'handheld',gba:'wide',wii:'remote',wiiu:'wide',gc:'cube',n64:'n64',nes:'nes',dreamcast:'swirl',a2600:'joystick',arcade:'arcade'};
+  const glyph={all:'grid',favorites:'star',recent:'clock',psp:'wide',switch:'switch',switch2:'switch',nds:'dual','3ds':'dual',gb:'handheld',gbc:'handheld',gba:'wide',wii:'remote',wiiu:'wide',gc:'cube',n64:'n64',nes:'nes',dreamcast:'swirl',a2600:'joystick',arcade:'arcade'};
   const shortNames={pc:'PC',ps1:'PS1',ps2:'PS2',ps3:'PS3',ps4:'PS4',switch:'Switch',switch2:'Switch 2',nds:'DS','3ds':'3DS',gb:'Game Boy',gbc:'GBC',gba:'GBA',n64:'N64',snes:'SNES',nes:'NES',gc:'GameCube',genesis:'Genesis',x360:'Xbox 360',a2600:'Atari'};
   function icon(id){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[glyph[id]||id]||shapes.pad}</svg>`}
   function element(tag,cls,text){const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n}
@@ -37,10 +39,13 @@ const LibraryUI=(()=>{
   }
   function render(){
     const s=context.getState(),counts={};for(const g of s.games)counts[g.system]=(counts[g.system]||0)+1;
-    entries=[{id:'all',name:'All games',count:s.games.length,color:'#ffad65'},...s.config.systems.filter(sys=>counts[sys.id]||sys.romDir).map(sys=>({...sys,count:counts[sys.id]||0}))];
+    // Favourites and Recently played appear once they have games in them.
+    const fav=s.games.filter(g=>g.favorite).length,recent=Math.min(30,s.games.filter(g=>g.lastPlayed>0).length);
+    entries=[{id:'all',name:'All games',count:s.games.length,color:'#ffad65'},...(fav?[{id:'favorites',name:'Favourites',count:fav,color:'#ffd166',view:true}]:[]),...(recent?[{id:'recent',name:'Recently played',count:recent,color:'#7cc6e3',view:true}]:[]),...s.config.systems.filter(sys=>counts[sys.id]||sys.romDir).map(sys=>({...sys,count:counts[sys.id]||0}))];
     const nav=$('#systems');nav.replaceChildren();for(const e of entries){const b=button(e,'system-tile');b.onclick=()=>context.select(e.id);nav.append(b)}
-    $('#systemTotal').textContent=`${entries.length-1} systems`;
-    $('#systemPickerSummary').textContent=`${s.games.length.toLocaleString()} games · ${entries.length-1} systems`;
+    const systems=entries.filter(e=>e.id!=='all'&&!e.view).length;
+    $('#systemTotal').textContent=`${systems} systems`;
+    $('#systemPickerSummary').textContent=`${s.games.length.toLocaleString()} games · ${systems} systems`;
     if(pickerOpen())renderPicker();requestAnimationFrame(updateRail);
   }
   function select(){

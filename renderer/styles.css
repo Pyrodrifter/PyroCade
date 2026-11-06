@@ -440,3 +440,67 @@ td.name i { display: inline-block; width: 10px; height: 10px; border-radius: 3px
 .update-banner button { padding: 4px 12px; font-size: 12px; border-radius: 999px; }
 .update-banner.busy button { display: none; }
 .update-version { color: var(--muted, #9aa0ad); font-size: 13px; }
+
+/* ---- Shelf tools: sort, show (filter), random ---- */
+.shelf-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; letter-spacing: .06em; text-transform: none; font-weight: 500; z-index: 6; position: relative; }
+.shelf-select { display: flex; align-items: center; gap: 6px; color: #a1a9bc; font-size: 10px; text-transform: uppercase; letter-spacing: .14em; }
+.shelf-select select, #btnRandom { font: inherit; font-size: 11px; letter-spacing: .02em; text-transform: none; color: var(--text, #e8eaf2); background: #12151d99; border: 1px solid #ffffff1c; border-radius: 999px; padding: 3px 10px; backdrop-filter: blur(10px); }
+.shelf-select select:disabled, #btnRandom:disabled { opacity: .45; }
+.shelf-select select option, .shelf-select select optgroup { background: #12151d; color: #e8eaf2; }
+#btnRandom:hover:not(:disabled), .shelf-select select:hover:not(:disabled) { border-color: var(--accent); }
+#btnFavorite[aria-pressed='true'] { color: #ffd166; border-color: #ffd16655; }
+
+/* ---- Case view: disc choice and your screenshots ---- */
+.disc-choice { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.disc-choice-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .14em; margin-right: 4px; }
+.disc-choice-option { font-size: 12px; padding: .35em .9em; border-radius: 999px; }
+.disc-choice-option[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.case-shots { max-width: 42vw; }
+.case-shots-head { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .14em; margin-bottom: 6px; }
+.case-shots-count { opacity: .7; margin-left: 4px; }
+.case-shots-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.case-shot { flex: 0 0 auto; width: 96px; aspect-ratio: 16 / 10; padding: 0; border-radius: 6px; background-size: cover; background-position: center; border: 1px solid #ffffff22; }
+.case-shot:hover, .case-shot:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+#shotViewer { width: min(1400px, 94vw); max-height: 94vh; padding: 0; border: 1px solid #ffffff18; border-radius: 12px; background: #07080c; color: inherit; overflow: hidden; }
+#shotViewer[open] { display: flex; flex-direction: column; }
+#shotViewer::backdrop { background: #000d; backdrop-filter: blur(6px); }
+#shotImage { display: block; width: 100%; max-height: calc(94vh - 52px); object-fit: contain; background: #000; }
+.shot-viewer-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid #ffffff12; font-size: 12px; }
+#shotCaption { flex: 1; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.shot-viewer-bar button { border-radius: 7px; padding: 6px 12px; font-size: 12px; }
+.shot-viewer-bar kbd { font-size: 10px; opacity: .7; margin-right: 4px; }
+
+/* ---- A game is running behind PyroCade: hold still ---- */
+html.in-game *, html.in-game *::before, html.in-game *::after { animation-play-state: paused !important; }
+
+/* ---- Disc looks per system ---- */
+/* PlayStation discs have a black data side, seen at the rim and around the hub. */
+.disc-ps1 .disc-metal { background: conic-gradient(#202128,#3f4250,#16171c,#33364a,#141519,#2a2c36); }
+/* Dreamcast GD-ROM: the high-density area starts part way out, seen as a ring at the hub. */
+.disc-dreamcast .disc-hub { background: radial-gradient(circle,transparent 0 7%,#e0e7f077 7.5% 9%,#aab5c788 9.5% 13%,#e2eaf070 13.5% 15%,transparent 15.5% 16.5%,#ffffff30 17% 17.6%,transparent 18%); }
+/* Wii discs: white hub ring. Wii U discs: rounded, matte edge. */
+.disc-wii .disc-metal { background: conic-gradient(#f4f6f8,#cfd5dc,#fbfcfd,#e2e7ec,#c9cfd6,#f2f4f6); }
+.disc-wiiu .disc-metal { box-shadow: 0 1px 0 #fff9, 2px 5px 2px #050610, inset 0 0 0 2px #ffffff55, inset 0 0 0 3px #0003; }
+/* A UMD sits in a rounded shell in its case. */
+.box[data-packaging='psp'] .tray::before { width: 62%; border-radius: 34% 34% 6% 6% / 20% 20% 4% 4%; background: linear-gradient(#ffffff10,#0002); }
+
+/* ---- Used copies: scuffs, worn corners, faded labels ---- */
+html[data-wear='on'] .box .f-front, html[data-wear='on'] .box .f-back, html[data-wear='on'] .box .f-left, html[data-wear='on'] .box .l-front { filter: saturate(.8) sepia(.12) brightness(.97); }
+html[data-wear='on'] .box .f-front::after, html[data-wear='on'] .box .l-front::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(17deg, transparent 0 37px, #ffffff24 37px 38px, transparent 38px 91px),
+    repeating-linear-gradient(-62deg, transparent 0 53px, #ffffff1c 53px 54px, transparent 54px 140px),
+    radial-gradient(ellipse at 88% 9%, #ffffff1c, transparent 22%),
+    radial-gradient(ellipse at 12% 94%, #0000002a, transparent 26%),
+    linear-gradient(115deg, rgba(255,255,255,.2) 0%, rgba(255,255,255,.04) 28%, transparent 45%, rgba(255,255,255,.05) 80%);
+  box-shadow: inset 0 0 0 1px #ffffff22, inset 0 0 10px #ffffff1a;
+}
+html[data-wear='on'] .disc-surface, html[data-wear='on'] .cartridge-label { filter: saturate(.78) sepia(.16); }
+html[data-wear='on'] .disc-surface::before { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; z-index: 1;
+  background: repeating-conic-gradient(from 10deg, transparent 0 7deg, #ffffff12 7deg 7.3deg, transparent 7.3deg 23deg); }
+html[data-wear='on'] .cartridge-label::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(-35deg, transparent 0 13px, #ffffff16 13px 14px, transparent 14px 40px), radial-gradient(ellipse at 90% 92%, #fff3 0, transparent 18%); }
+html[data-wear='on'] .item:not(.sel) .box .f-front::after { background: #080b1555; box-shadow: none; }
+
+.shelf-position:has(.shelf-tools:hover, .shelf-tools :focus-visible) { opacity: 1; }

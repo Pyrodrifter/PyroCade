@@ -6,6 +6,25 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ### Added
 - **An emulator per game:** the new **Emulator** button next to Play chooses the emulator for just that game, such as a fork made for one game, or **Run the file itself**. **Same as <system>** goes back to the system's emulator. The list shows the system's emulators first, then the ones you added or installed.
+- **Favourites:** press **F** (Select on a controller) or **☆ Favourite** to star a game. Starred games get their own **Favourites** shelf next to All games.
+- **Play time:** PyroCade counts how long each game runs and shows "12 h played" and "Last played yesterday" with the game's details. A **Recently played** shelf lists the last 30 games you played. Shortcuts opened through Windows (such as Steam `.url` files) count as played, but their time can't be measured.
+- **Sort and filter:** **Sort** (title, newest, oldest, most played, last played, developer) and **Show** (multiplayer, not played yet, or a genre) sit under the shelf.
+- **Random game:** **⚄ Random** under the shelf, or the left stick button, jumps to a random game.
+- **PyroCade opens where you left it:** the system, the selected game in each system, and the sort and filter are kept between starts.
+- **Multi-disc games:** "Game (Disc 1)", "(Disc 2)"… files become one game, with **Start with Disc 1 / 2 / 3** in the case view (LB/RB on a controller). The disc you choose is remembered. PlayStation games get a playlist (`.m3u`) so the emulator can still change discs during play.
+- **Your screenshots:** screenshots taken in the emulator appear under the open case. Click one to view it full size. PyroCade looks in the screenshot folders of DuckStation, PCSX2, Dolphin, PPSSPP, RetroArch and the game's own emulator, and matches screenshots by the game's title.
+- **Hold Select + Start to quit:** while a game is running, hold Select and Start (View and Menu, Share and Options, − and +) for 1.5 seconds to close it and return to PyroCade.
+- **GameCube mini discs:** GameCube games show an 8 cm disc, and the GameCube case tray matches it.
+- **PSP UMDs** are shown as a disc in its plastic shell. PlayStation discs have their black data side, Wii discs a white hub, Wii U discs a rounded edge, and Dreamcast discs the GD-ROM ring.
+- **Settings → Show cases at their real sizes:** a Game Boy box next to a PS2 case looks as small as it really is.
+- **Settings → Used copies:** scuffed cases, worn corners, faded labels and light scratches on discs and cartridges.
+
+### Changed
+- **PyroCade no longer minimizes when a game starts.** The game opens on top of it, and PyroCade comes back to the front when the game closes. While a game is running behind it, PyroCade stops its animations and ignores controller input other than **hold Select + Start**. The "Minimise PyroCade while a game is running" setting is removed.
+- **Each system remembers its selected game:** switching back to a system shows the game you had selected there.
+
+### Fixed
+- After clicking a button with the mouse, **Enter**, **Space** and the arrow keys no longer get stuck on that button. They control the shelf again.
 
 ## [0.4.4] - 2026-11-05
 

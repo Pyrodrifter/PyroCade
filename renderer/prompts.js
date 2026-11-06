@@ -21,10 +21,10 @@ const Prompts = (() => {
     const keyboard = family === 'keyboard';
     const groups = keyboard ? [
       ['keyboard',['left','right'],'Browse'],['keyboard',['up','down'],'System'],['keyboard',['enter'],'Play'],
-      ['keyboard',['space'],'Open case'],['keyboard',['m'],'Manual'],['keyboard',['pageup','pagedown'],'Jump 10'],['keyboard',['f11'],'Fullscreen']
+      ['keyboard',['space'],'Open case'],['keyboard',['m'],'Manual'],['keyboard',['f'],'Favourite'],['keyboard',['pageup','pagedown'],'Jump 10'],['keyboard',['f11'],'Fullscreen']
     ] : [
       [family,['left-stick-horizontal'],'Browse'],[family,['lb','rb'],'System'],[family,['south'],'Play'],
-      [family,['north'],'Open case'],[family,['west'],'Manual'],[family,['lt','rt'],'Jump 10']
+      [family,['north'],'Open case'],[family,['west'],'Manual'],[family,['select'],'Favourite'],[family,['left-stick-press'],'Random'],[family,['lt','rt'],'Jump 10']
     ];
     if(['vertical','swatches'].includes(layout)){
       groups[0]=keyboard?['keyboard',layout==='vertical'?['up','down']:['left','right','up','down'],'Browse']:[family,[layout==='vertical'?'left-stick-vertical':'left-stick'],'Browse'];

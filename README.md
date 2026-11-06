@@ -22,6 +22,12 @@ An emulator front end for Windows, macOS and Linux that shows your games as real
   - **Cartridges come in their real colours:** taken from a photo of the actual cartridge, or from a list of famous ones (gold Ocarina of Time, the coloured Pokémon cartridges…). You can also pick your own colour per game in **Artwork → Change an image**.
   - Generated spines follow each console's retail design, and real spine scans always win.
   - Open a case to turn it around, flip it and read the manual.
+- **Your library, your way:**
+  - **Favourites** (press **F**) and **Recently played** get their own shelves.
+  - **Play time** and **last played** show with each game.
+  - **Sort** by title, year, play time or developer, **show** only multiplayer, unplayed or one genre, or pick a **random** game.
+  - PyroCade opens on the system and game you had selected.
+- **Multi-disc games** are one game with a disc choice in the case view. **Your own screenshots** from the emulator appear under the open case.
 - **Start animation:** pressing Play spins the disc into a drive, or pushes the cartridge half-way into its slot, then starts the game. You can turn it off in Settings.
 - **Sharp artwork, no account needed:**
   - Covers, back covers, spines, disc scans, cartridge labels, clear logos, background art and screenshots come from the [LaunchBox Games Database](https://gamesdb.launchbox-app.com/), with GameTDB and Libretro as fallbacks.
@@ -67,8 +73,8 @@ On Linux, data lives in `~/.config/PyroCade/data` and the emulator downloader in
 3. **Artwork:** choose **Entire library** and **Download artwork**. The first download fetches LaunchBox's game list once (about 100 MB, refreshed monthly). Turn on **Replace low-resolution covers** to sharpen art you already have.
 
 **Controls:**
-- **Keyboard:** ← → browse, ↑ ↓ switch system, **Enter** play, **Space** open the case, **M** manual, **/** search, **Ctrl+K** all systems, **F11** fullscreen.
-- **Controllers:** the matching buttons work, and LB/RB switch system.
+- **Keyboard:** ← → browse, ↑ ↓ switch system, **Enter** play, **Space** open the case, **M** manual, **F** favourite, **/** search, **Ctrl+K** all systems, **F11** fullscreen.
+- **Controllers:** the matching buttons work, LB/RB switch system, Select stars a game and the left stick button picks a random one. While a game is running, hold **Select + Start** for 1.5 seconds to close it.
 
 ### Supported systems
 Each system's file types and emulator can be changed in **Settings**, and **Add system…** adds any system that isn't listed.

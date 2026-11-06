@@ -52,7 +52,16 @@
       <div id="empty" class="hidden">No games for this system yet.</div>
       <button id="shelfPrev" class="shelf-arrow previous" aria-label="Previous game" title="Previous game"></button>
       <button id="shelfNext" class="shelf-arrow next" aria-label="Next game" title="Next game"></button>
-      <div class="shelf-position"><span id="shelfPosition"></span><div class="shelf-progress" aria-hidden="true"><i id="shelfProgress"></i></div></div>
+      <div class="shelf-position"><span id="shelfPosition"></span><div class="shelf-progress" aria-hidden="true"><i id="shelfProgress"></i></div>
+        <div class="shelf-tools">
+          <label class="shelf-select"><span>Sort</span><select id="sortBy" aria-label="Sort the shelf">
+            <option value="title">Title</option><option value="year-new">Newest first</option><option value="year-old">Oldest first</option>
+            <option value="played">Most played</option><option value="recent">Last played</option><option value="developer">Developer</option>
+          </select></label>
+          <label class="shelf-select"><span>Show</span><select id="filterBy" aria-label="Show only some games"></select></label>
+          <button id="btnRandom" type="button" title="Pick a random game">⚄ Random</button>
+        </div>
+      </div>
     </div>
     <div id="selectionStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <section id="info">
@@ -67,6 +76,7 @@
           <button id="btnManual">▤ Manual</button>
           <button id="btnArtwork">Artwork</button>
           <button id="btnEmulator" title="Choose the emulator for this game">Emulator</button>
+          <button id="btnFavorite" aria-pressed="false" title="Add to Favourites (F)">☆ Favourite</button>
         </div>
       </div>
       <div id="gShot" class="shot"></div>
@@ -102,6 +112,8 @@
     <div id="caseScene"><div id="caseRig"></div></div>
     <div class="case-ui">
       <div class="case-title"><div id="cvSystem" class="eyebrow"></div><h2 id="cvTitle"></h2></div>
+      <div id="cvDiscs" class="disc-choice hidden" role="group" aria-label="Disc to start with"></div>
+      <div id="cvShots" class="case-shots hidden"><div class="case-shots-head">Your screenshots <span class="case-shots-count"></span></div><div class="case-shots-row"></div></div>
       <div class="actions">
         <button id="cvPlay" class="primary">▶ Play</button>
         <button id="cvFlip">⇋ Flip</button>
@@ -133,6 +145,17 @@
     </form>
     <div id="emuGrid" class="grid"></div>
   </main>
+
+  <!-- SCREENSHOT VIEWER -->
+  <dialog id="shotViewer" aria-label="Your screenshot">
+    <img id="shotImage" alt="" />
+    <div class="shot-viewer-bar">
+      <button id="shotPrev" type="button" aria-label="Previous screenshot">‹</button>
+      <span id="shotCaption"></span>
+      <button id="shotNext" type="button" aria-label="Next screenshot">›</button>
+      <button id="shotClose" type="button" aria-label="Close screenshot"><kbd>Esc</kbd> Close</button>
+    </div>
+  </dialog>
 
   <!-- MANUAL VIEWER -->
   <dialog id="manualViewer" aria-labelledby="manualViewerTitle">
@@ -227,6 +250,8 @@
       <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
       <label class="row"><span>Artwork folder (optional)</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
       <label class="row check"><input type="checkbox" id="sLaunchFx" /> Play the disc and cartridge start animation (about 2.5 seconds)</label>
+      <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes (a Game Boy box next to a PS2 case looks small)</label>
+      <label class="row check"><input type="checkbox" id="sWear" /> Used copies: scuffed cases and faded labels</label>
     </div>
     <div class="panel">
       <div class="row"><span>PyroCade updates</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>

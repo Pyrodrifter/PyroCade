@@ -112,7 +112,7 @@ const Ambient=(()=>{
   }
   function frame(now){
     raf=requestAnimationFrame(frame);
-    if(document.hidden||now-last<(isPixel()?45:33))return;
+    if(document.hidden||root.classList.contains('in-game')||now-last<(isPixel()?45:33))return;
     lastDt=Math.min(.1,(now-last)/1000)*(active?1.5:1);t+=lastDt;last=now;paint(now);
   }
   function run(){

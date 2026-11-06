@@ -2,6 +2,9 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, safeStorage } = require('electron');
 app.setName('PyroCade');
 if(process.platform==='win32')app.setAppUserModelId('com.pyrodrifter.pyrocade');
+// PyroCade stays open behind a running game. Without this, Windows reports the covered window as
+// hidden and Chromium stops reading controllers, so "hold to quit" would never be seen.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -130,6 +133,32 @@ function saveConfig(cfg) {
   fs.renameSync(tmp, CONFIG_PATH);
 }
 let config = loadConfig();
+
+// ---------- Library state: favourites, play time, last selection ----------
+// Kept apart from config.json: it changes after every game and every selection, and the window's
+// "Save & rescan" (which sends a whole config) must never overwrite it.
+const STATE_PATH = path.join(DATA, 'library-state.json');
+const emptyState = () => ({ favorites: {}, stats: {}, discs: {}, ui: {} });
+function loadState() {
+  try { const s = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); return { ...emptyState(), ...(s && typeof s === 'object' ? s : {}) }; }
+  catch { return emptyState(); }
+}
+let libraryState = loadState(), stateTimer = null;
+function writeState() {
+  clearTimeout(stateTimer); stateTimer = null;
+  try {
+    fs.mkdirSync(DATA, { recursive: true });
+    const tmp = `${STATE_PATH}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(libraryState));
+    fs.renameSync(tmp, STATE_PATH);
+  } catch (e) { console.error(`library-state.json could not be saved: ${e.message}`); }
+}
+const saveState = () => { clearTimeout(stateTimer); stateTimer = setTimeout(writeState, 800); };
+// What the window needs to know about one game: favourite, play time, last played, chosen disc.
+function gameState(id) {
+  const st = libraryState.stats[id] || {};
+  return { favorite: !!libraryState.favorites[id], playMs: st.ms || 0, lastPlayed: st.last || 0, plays: st.plays || 0, disc: libraryState.discs[id] || 0 };
+}
 
 // ---------- Library scanning ----------
 const IMG = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
@@ -318,6 +347,22 @@ async function scanLibrary() {
     const indexes = await Promise.all(roots.map(indexMediaRoot));
     const gamelist = new Map();
     for (const d of dirs) for (const [k, v] of await readGamelist(d)) if (!gamelist.has(k)) gamelist.set(k, v);
+    // Multi-disc games without an .m3u: "Game (USA) (Disc 1).cue", "(Disc 2).cue"… become one game
+    // with a disc list. Only discs of the same copy (same name apart from the disc number) are grouped.
+    const discTag = /\s*\(dis[ck]\s*(\d+)[^)]*\)/i;
+    for (const [key, chosen] of best) {
+      const copy = n => path.basename(n, path.extname(n)).replace(discTag, '').toLowerCase();
+      if (chosen.added || !discTag.test(chosen.name)) continue;
+      const seen = new Map();
+      for (const f of files) {
+        if (f.added || /\.m3u$/i.test(f.name) || copy(f.name) !== copy(chosen.name)) continue;
+        const n = Number(path.basename(f.name, path.extname(f.name)).match(discTag)?.[1]);
+        if (n && !seen.has(n)) seen.set(n, f);
+      }
+      if (seen.size < 2) continue;
+      const discs = [...seen].sort((a, b) => a[0] - b[0]);
+      best.set(key, { ...discs[0][1], score: chosen.score, discs: discs.map(([n, f]) => ({ n, path: f.path })) });
+    }
     for (const f of best.values()) {
       const base = path.basename(f.name, path.extname(f.name));
       const { media, info } = await findMedia(indexes, base);
@@ -331,6 +376,7 @@ async function scanLibrary() {
         base,
         title: meta.title || displayTitle(base),
         ...(f.added ? { added: f.added } : {}),
+        ...(f.discs ? { discs: f.discs.map(d => d.n), discPaths: f.discs.map(d => d.path) } : {}),
         ...(shell && /^#[0-9a-f]{6}$/i.test(shell) ? { shell } : {}),
         info: meta,
         media: Object.fromEntries(Object.entries(media).map(([k, v]) => [k, k === 'manual' ? v : fileUrl(v)])),
@@ -343,7 +389,8 @@ async function scanLibrary() {
   }
   games.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   libraryGames = games;
-  return games;
+  // The window gets the disc numbers and the game's own state, never the other disc paths.
+  return games.map(({ discPaths, ...g }) => ({ ...g, ...gameState(g.id) }));
 }
 
 // ---------- Artwork download ----------
@@ -792,6 +839,42 @@ function macAppBinary(p) {
   } catch {}
   return p;
 }
+// ---------- Running games: play time and "hold to quit" ----------
+// Each started game is tracked until its process exits, so play time and "last played" are counted.
+// Shortcuts opened through the system (.lnk, Steam .url) have no process to follow: they only count
+// as played.
+const running = new Map(); // game id -> { child, start }
+const sendWindow = (channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); };
+function recordPlay(gameId, ms = 0, started = !ms) {
+  const st = (libraryState.stats[gameId] ||= { ms: 0, last: 0, plays: 0 });
+  st.ms = (st.ms || 0) + Math.max(0, Math.round(ms)); st.last = Date.now(); st.plays = (st.plays || 0) + (started ? 1 : 0);
+  saveState();
+  const g = libraryGames.find(x => x.id === gameId);
+  return { gameId, ...gameState(gameId), title: g?.title };
+}
+function track(game, child) {
+  const start = Date.now();
+  running.set(game.id, { child, start });
+  sendWindow('game:started', recordPlay(game.id));
+  child.once('exit', () => {
+    if (running.get(game.id)?.child === child) running.delete(game.id);
+    // The game window opened on top of PyroCade, so there was nothing to minimize; just come back to the front.
+    sendWindow('game:ended', { ...recordPlay(game.id, Date.now() - start, false), running: running.size });
+    if (win && !win.isDestroyed()) win.focus();
+  });
+}
+// Ends the newest running game and everything it started (an emulator's helper processes).
+function quitGame() {
+  const last = [...running.values()].pop();
+  if (!last) return false;
+  const pid = last.child.pid;
+  try {
+    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' });
+    else process.kill(-pid, 'SIGTERM'); // detached: the game leads its own process group
+  } catch { try { last.child.kill(); } catch {} }
+  return true;
+}
+
 // PC games and other "run the file itself" systems: programs are started in their own folder;
 // shortcuts (.lnk, .url) and anything else are opened the way Windows would open them.
 async function launchDirect(game) {
@@ -802,26 +885,41 @@ async function launchDirect(game) {
   if (!program) {
     const err = await shell.openPath(file);
     if (err) throw new Error(`Couldn't open ${path.basename(file)}: ${err}`);
+    sendWindow('game:started', { ...recordPlay(game.id), untracked: true });
     return true;
   }
   const exe = macAppBinary(file);
   return new Promise((resolve, reject) => {
     const child = spawn(exe, [], { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
     child.once('error', e => reject(new Error(`Launch failed: ${e.message}`)));
-    child.once('spawn', () => {
-      // The game window opens on top of PyroCade, so there is no need to minimize; just come back to the front afterwards.
-      child.once('exit', () => { if (win && !win.isDestroyed()) win.focus(); });
-      child.unref();
-      resolve(true);
-    });
+    child.once('spawn', () => { track(game, child); child.unref(); resolve(true); });
   });
 }
-function launchGame(gameId) {
+// The disc to start a multi-disc game with. Systems whose emulators read .m3u playlists get one
+// (written to the data folder, chosen disc first), so the emulator can still swap discs in-game.
+function discFile(game, sys, index) {
+  if (!game.discPaths?.length) return game.romPath;
+  const i = Math.max(0, Math.min(game.discPaths.length - 1, Number(index) || 0));
+  if (!(sys.extensions || []).includes('.m3u')) return game.discPaths[i];
+  const order = [...game.discPaths.slice(i), ...game.discPaths.slice(0, i)];
+  const dir = path.join(DATA, 'playlists', sys.id);
+  const file = path.join(dir, `${(looseKey(game.base) || 'game').slice(0, 80)}-disc${game.discs[i]}.m3u`);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, order.join('\n') + '\n');
+  return file;
+}
+function launchGame(gameId, options = {}) {
   // The ROM path always comes from the scanned library, never from the renderer.
   const game = libraryGames.find(g => g.id === gameId);
   if (!game) throw new Error('This game is no longer in your library. Rescan in Settings and try again.');
   const sys = config.systems.find(s => s.id === game.system);
   if (!sys) throw new Error('Unknown system');
+  let disc = 0;
+  if (game.discPaths?.length) {
+    disc = Math.max(0, Math.min(game.discPaths.length - 1, Number(options.disc ?? libraryState.discs[game.id] ?? 0) || 0));
+    if (disc) libraryState.discs[game.id] = disc; else delete libraryState.discs[game.id];
+    saveState();
+  }
   // A game can have its own emulator (a fork for one game, say); otherwise the system's is used.
   const own = config.gameEmulators?.[game.id] || '';
   if (own === '__direct' || (!own && sys.direct)) return launchDirect(game);
@@ -832,18 +930,53 @@ function launchGame(gameId) {
   if (!exe) throw new Error(`${emuDef(emuId)?.name || emuId} isn't installed yet. Install it from the Emulators tab.`);
   // The system's custom arguments belong to the system's emulator; another emulator uses its own.
   const tpl = (emuId === sys.emulator && sys.args) || emuDef(emuId).args || '{rom}';
+  const rom = discFile(game, sys, disc);
   // split/join instead of replace(): "$&", "$$" etc. in a filename must stay literal.
-  const args = splitArgs(tpl).map(a => a.split('{rom}').join(game.romPath));
+  const args = splitArgs(tpl).map(a => a.split('{rom}').join(rom));
   return new Promise((resolve, reject) => {
     // detached: the game keeps running if PyroCade is closed or restarted while playing.
     const child = spawn(exe, args, { cwd: path.dirname(exe), detached: true, stdio: 'ignore' });
     child.once('error', e => reject(new Error(`Launch failed: ${e.message}`)));
-    child.once('spawn', () => {
-      // The game window opens on top of PyroCade, so there is no need to minimize; just come back to the front afterwards.
-      child.once('exit', () => { if (win && !win.isDestroyed()) win.focus(); });
-      resolve(true);
-    });
+    child.once('spawn', () => { track(game, child); resolve(true); });
   });
+}
+
+// ---------- Your own screenshots ----------
+// Screenshots taken in the emulator, found in the folders emulators save them to. A file belongs to
+// a game when its name, or its folder's name, contains the game's title.
+async function findScreenshots(gameId) {
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game) return [];
+  const keys = [looseKey(game.title), looseKey(game.base || '')].filter(k => k.length >= 4);
+  if (!keys.length) return [];
+  const where = name => { try { return app.getPath(name); } catch { return os.homedir(); } };
+  const roots = [where('documents'), where('appData')];
+  const sys = config.systems.find(s => s.id === game.system);
+  const emuIds = [...new Set([config.gameEmulators?.[game.id], sys?.emulator].filter(id => id && id !== '__direct'))];
+  const dirs = new Set();
+  const add = (...parts) => dirs.add(path.join(...parts));
+  for (const id of emuIds) {
+    const exe = resolveExe(id), name = emuDef(id)?.name || id;
+    if (exe) for (const sub of ['screenshots', 'snaps', 'ScreenShots', path.join('User', 'ScreenShots'), path.join('user', 'screenshots'), path.join('memstick', 'PSP', 'SCREENSHOT')]) add(path.dirname(exe), sub);
+    for (const root of roots) for (const sub of ['screenshots', 'snaps', 'ScreenShots', path.join('PSP', 'SCREENSHOT')]) add(root, name, sub);
+  }
+  for (const [folder, sub] of [['Dolphin Emulator', 'ScreenShots'], ['PPSSPP', path.join('PSP', 'SCREENSHOT')], ['RetroArch', 'screenshots'], ['DuckStation', 'screenshots'], ['PCSX2', 'snaps']]) for (const root of roots) add(root, folder, sub);
+  const found = [];
+  async function walk(dir, depth, parentMatch) {
+    for (const e of await listDir(dir)) {
+      const p = path.join(dir, e.name), k = looseKey(path.basename(e.name, e.isDirectory() ? '' : path.extname(e.name)));
+      const match = parentMatch || (!!k && keys.some(key => k.includes(key)));
+      if (e.isDirectory()) { if (depth < 2) await walk(p, depth + 1, match); }
+      else if (match && IMG.includes(path.extname(e.name).toLowerCase())) {
+        try { found.push({ path: p, time: (await fsp.stat(p)).mtimeMs }); } catch {}
+      }
+      if (found.length > 200) return;
+    }
+  }
+  // Windows folder names ignore case, so "screenshots" and "ScreenShots" are the same folder.
+  const unique = [...new Map([...dirs].map(d => [process.platform === 'win32' ? path.resolve(d).toLowerCase() : path.resolve(d), d])).values()];
+  for (const d of unique) if (await exists(d)) await walk(d, 0, false);
+  return found.sort((a, b) => b.time - a.time).slice(0, 12).map(f => ({ url: fileUrl(f.path), time: f.time }));
 }
 
 // ---------- PyroCade self-update ----------
@@ -1058,7 +1191,26 @@ handle('app:openRelease', url => {
   if (!/^https:\/\/github\.com\//.test(String(url))) throw new Error('Not a GitHub link');
   return shell.openExternal(url);
 });
-handle('game:launch', id => launchGame(id));
+handle('game:launch', (id, options) => launchGame(id, options || {}));
+handle('game:quit', () => quitGame());
+handle('game:running', () => [...running.keys()]);
+handle('game:screenshots', id => findScreenshots(id));
+handle('game:setFavorite', ({ gameId, favorite }) => {
+  if (!libraryGames.some(g => g.id === gameId)) throw new Error('Select a game in your library first.');
+  if (favorite) libraryState.favorites[gameId] = true; else delete libraryState.favorites[gameId];
+  saveState();
+  return gameState(gameId);
+});
+// What the library looked like when PyroCade was closed: system, selected game per system, sort and filter.
+handle('library:ui', () => libraryState.ui || {});
+handle('library:saveUi', patch => {
+  if (!patch || typeof patch !== 'object') return false;
+  const ui = { ...(libraryState.ui || {}) };
+  for (const k of ['system', 'game', 'perSystem', 'sort', 'filter']) if (k in patch) ui[k] = patch[k];
+  if (ui.perSystem && typeof ui.perSystem === 'object') ui.perSystem = Object.fromEntries(Object.entries(ui.perSystem).slice(-100).filter(([k, v]) => typeof k === 'string' && typeof v === 'string'));
+  libraryState.ui = ui; saveState();
+  return true;
+});
 // Add one game file (a PC game's .exe or shortcut, or any ROM) to a system, without a ROM folder.
 handle('game:add', async ({ system, title }) => {
   const sys = config.systems.find(s => s.id === system);
@@ -1305,6 +1457,7 @@ handle('manual:open', async p => { if (!knownManual(p)) throw new Error('Manual 
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', () => { if (stateTimer) writeState(); });
 app.on('browser-window-created', (_e, created) => { if (created !== webpWindow) created.on('closed', () => { if (BrowserWindow.getAllWindows().every(w => w === webpWindow)) closeWebpWindow(); }); });
 
 // Dev helper: PYROCADE_SNAP=<file.png> captures the window after load and quits.
