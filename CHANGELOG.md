@@ -4,15 +4,17 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](https://www.reddit.com/user/RiceDesperate5724/) on Reddit, who also built their own version of four of them.
+
 ### Added
-- **Hide a game:** **⊘ Hide** next to Favourite, the **Delete** key, or right-click → **Hide from the library** takes a game off every shelf. Nothing in your ROM folder is renamed, moved or deleted — the choice lives in PyroCade's own library file. **Show → Hidden games** lists everything you hid, with **⊙ Unhide** to bring one back.
-- **Right-click a game on the shelf** for Play, Open case, Manual, Favourite, Rename…, Hide, Emulator… and Artwork, all acting on the game you pointed at. Arrow keys and a controller work in the menu too.
-- **Rename a game:** right-click → **Rename…** sets the title PyroCade shows. The file on disk keeps its name, the shelf re-sorts straight away, and **Use the file name** (or typing the scanned title back) clears the override.
-- **Browsing no longer stops at the end of the shelf.** On a system's shelf, pressing right past the last game carries on into the next system that has games, and left past the first goes back into the previous one. All games, Favourites and Recently played are one list already, so they wrap round to the other end.
-- **Fullscreen is remembered and has a switch:** **Settings → Fullscreen**, as well as **F11**. **Ctrl/Cmd+Shift+F** does the same, for keyboards and desktops where F11 belongs to the window manager. `--fullscreen` and `--windowed` set it from a shortcut or from Steam's launch options.
+- **Hide a game:** **⊘ Hide** next to Favourite, the **Delete** key, or right-click → **Hide from the library** takes a game off every shelf. Nothing in your ROM folder is renamed, moved or deleted — the choice lives in PyroCade's own library file. **Show → Hidden games** lists everything you hid, with **⊙ Unhide** to bring one back. *(u/RiceDesperate5724)*
+- **Right-click a game on the shelf** for Play, Open case, Manual, Favourite, Rename…, Hide, Emulator… and Artwork, all acting on the game you pointed at. Arrow keys and a controller work in the menu too. *(u/RiceDesperate5724)*
+- **Rename a game:** right-click → **Rename…** sets the title PyroCade shows. The file on disk keeps its name, the shelf re-sorts straight away, and **Use the file name** (or typing the scanned title back) clears the override. *(u/RiceDesperate5724)*
+- **Browsing no longer stops at the end of the shelf.** On a system's shelf, pressing right past the last game carries on into the next system that has games, and left past the first goes back into the previous one. All games, Favourites and Recently played are one list already, so they wrap round to the other end. *(u/RiceDesperate5724)*
+- **Fullscreen is remembered and has a switch:** **Settings → Fullscreen**, as well as **F11**. **Ctrl/Cmd+Shift+F** does the same, for keyboards and desktops where F11 belongs to the window manager. `--fullscreen` and `--windowed` set it from a shortcut or from Steam's launch options. *(u/RiceDesperate5724)*
 
 ### Changed
-- **Nintendo Switch updates and DLC join their game.** Files are grouped by the title ID in their name (`Game [0100ABCD12345000][v0].nsp`): an update ends in `…800` and a DLC pack in `…1000` and up, so they all belong to the game ending in `…000` instead of each becoming a game of its own. The game itself is what the library lists and launches. Files without a title ID are grouped by name, as before.
+- **Nintendo Switch updates and DLC join their game.** Files are grouped by the title ID in their name (`Game [0100ABCD12345000][v0].nsp`): an update ends in `…800` and a DLC pack in `…1000` and up, so they all belong to the game ending in `…000` instead of each becoming a game of its own. The game itself is what the library lists and launches. Files without a title ID are grouped by name, as before. *(u/RiceDesperate5724)*
 
 ### Fixed
 - **The cartridge no longer covers the next game.** A wide cartridge (Game Boy Advance, SNES, Nintendo 64) or a 12 cm disc slid so far out from behind its case that it was drawn over its neighbour on the shelf. It now stops just clear of the case, whatever its size.

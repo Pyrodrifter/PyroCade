@@ -141,6 +141,13 @@ Everything personal lives in `data/` and is never part of this repository:
 - `emulators/`: emulators installed by PyroCade.
 - `media/`: downloaded artwork.
 
+## Thanks
+PyroCade is shaped by the people who use it and say what is missing.
+
+- **[u/RiceDesperate5724](https://www.reddit.com/user/RiceDesperate5724/)** asked for a way to take games off the shelf without touching the ROM folder, spotted that Switch update and DLC `.nsp` files were each being counted as a game, and reported that fullscreen was out of reach. They then built their own version with an endless carousel, a right-click menu and renaming, which is where those three came from.
+
+Found something, or want something? [Open an issue](https://github.com/Pyrodrifter/PyroCade/issues) — and if you have already written the fix, a pull request is very welcome.
+
 ## Legal
 PyroCade is only a launcher. It does not include or download games, BIOS files or console firmware/keys. Use dumps of games and systems you own. Emulators come from their own official GitHub releases, or a fork you choose, and remain under their own licenses. Artwork and game details come from the LaunchBox Games Database, GameTDB, Libretro thumbnails and (optionally) ScreenScraper, and belong to their respective owners. The screenshots show a personal library with artwork downloaded through PyroCade; the Emulators shot uses the demo setup.
 
