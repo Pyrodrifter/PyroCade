@@ -366,7 +366,12 @@ function setGameBackground(layer,game,a) {
 async function play(g = S.list[S.sel]) {
   if (!g) return;
   if (g.demo) return toast('This is a demo game — add your ROM folders in Settings to play for real.');
-  try { await api.launch(g.id);AudioUI.play('launch'); toast(`Launching ${g.title}…`); }
+  const start = Date.now();
+  try { await api.launch(g.id);AudioUI.play('launch'); toast(`Launching ${g.title}…`);
+    // Record play event with approximate duration (backend tracks actual exit).
+    const duration = (Date.now() - start) / 1000;
+    try { await api.recordPlay(g.id, duration); } catch(_) {}
+  }
   catch (e) {AudioUI.play('error');toast(e.message, 5000); }
 }
 function manual(g = S.list[S.sel]) {

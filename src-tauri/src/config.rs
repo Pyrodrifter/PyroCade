@@ -46,7 +46,14 @@ pub fn default_config() -> Value {
             system
         }).collect::<Vec<_>>(),
         "emulators": {},
-        "customEmulators": []
+        "customEmulators": [],
+        "favorites": [],
+        "recentlyPlayed": [],
+        "sortKey": "title",
+        "sortAsc": true,
+        "showFavoritesOnly": false,
+        "showRecentlyPlayed": false,
+        "recentlyPlayedLimit": 20
     })
 }
 
@@ -87,6 +94,52 @@ pub fn merge_config(saved: Value) -> Result<Value, String> {
     if !merged.get("customEmulators").is_some_and(Value::is_array) {
         merged["customEmulators"] = json!([]);
     }
+    // Preserve library state fields from saved config.
+    if !merged.get("favorites").is_some_and(Value::is_array) {
+        merged["favorites"] = saved.get("favorites").cloned().unwrap_or_else(|| json!([]));
+    }
+    if !merged.get("recentlyPlayed").is_some_and(Value::is_array) {
+        merged["recentlyPlayed"] = saved
+            .get("recentlyPlayed")
+            .cloned()
+            .unwrap_or_else(|| json!([]));
+    }
+    if merged.get("sortKey").is_none_or(|v| !v.is_string()) {
+        merged["sortKey"] = saved
+            .get("sortKey")
+            .cloned()
+            .unwrap_or_else(|| json!("title"));
+    }
+    if merged.get("sortAsc").is_none_or(|v| !v.is_boolean()) {
+        merged["sortAsc"] = saved.get("sortAsc").cloned().unwrap_or_else(|| json!(true));
+    }
+    if merged
+        .get("showFavoritesOnly")
+        .is_none_or(|v| !v.is_boolean())
+    {
+        merged["showFavoritesOnly"] = saved
+            .get("showFavoritesOnly")
+            .cloned()
+            .unwrap_or_else(|| json!(false));
+    }
+    if merged
+        .get("showRecentlyPlayed")
+        .is_none_or(|v| !v.is_boolean())
+    {
+        merged["showRecentlyPlayed"] = saved
+            .get("showRecentlyPlayed")
+            .cloned()
+            .unwrap_or_else(|| json!(false));
+    }
+    if merged
+        .get("recentlyPlayedLimit")
+        .is_none_or(|v| !v.is_number())
+    {
+        merged["recentlyPlayedLimit"] = saved
+            .get("recentlyPlayedLimit")
+            .cloned()
+            .unwrap_or_else(|| json!(20));
+    }
     Ok(merged)
 }
 
@@ -103,6 +156,35 @@ pub fn config_for_save(incoming: Value, current: &Value) -> Result<Value, String
         .get("customEmulators")
         .cloned()
         .unwrap_or_else(|| json!([]));
+    // Preserve library state fields from current config.
+    next["favorites"] = current
+        .get("favorites")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    next["recentlyPlayed"] = current
+        .get("recentlyPlayed")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    next["sortKey"] = current
+        .get("sortKey")
+        .cloned()
+        .unwrap_or_else(|| json!("title"));
+    next["sortAsc"] = current
+        .get("sortAsc")
+        .cloned()
+        .unwrap_or_else(|| json!(true));
+    next["showFavoritesOnly"] = current
+        .get("showFavoritesOnly")
+        .cloned()
+        .unwrap_or_else(|| json!(false));
+    next["showRecentlyPlayed"] = current
+        .get("showRecentlyPlayed")
+        .cloned()
+        .unwrap_or_else(|| json!(false));
+    next["recentlyPlayedLimit"] = current
+        .get("recentlyPlayedLimit")
+        .cloned()
+        .unwrap_or_else(|| json!(20));
     Ok(next)
 }
 

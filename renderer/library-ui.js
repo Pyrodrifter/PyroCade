@@ -2,6 +2,7 @@
 const LibraryUI=(()=>{
   const $=s=>document.querySelector(s);
   let context,entries=[],railFrame=null,pickerChosen=false;
+  let favoriteSet=new Set(),recentlyPlayed=[],sortKey='title',sortAsc=true;
   const shapes={
     grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     pad:'<path d="M7 7h10c3 0 4 3 4 7l-1 4c-.4 2-2 2-3 0l-2-3H9l-2 3c-1 2-2.6 2-3 0l-1-4c0-4 1-7 4-7Z"/><path d="M7 9v5m-2.5-2.5h5"/><circle cx="16" cy="10" r=".8"/><circle cx="18.5" cy="12.5" r=".8"/>',
@@ -20,10 +21,10 @@ const LibraryUI=(()=>{
     library:'<path d="M3 4h4v16H3zm7 0h4v16h-4zm7 0 4 1-1 15-4-1z"/>',
     download:'<path d="M12 2v13m-5-5 5 5 5-5M3 16v5h18v-5"/>',
     art:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
-    settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>'
+    settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>',
+    favorite:'<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>'
   };
-  const glyph={all:'grid',psp:'wide',switch:'switch',switch2:'switch',nds:'dual','3ds':'dual',gb:'handheld',gbc:'handheld',gba:'wide',wii:'remote',wiiu:'wide',gc:'cube',n64:'n64',nes:'nes',dreamcast:'swirl',a2600:'joystick',arcade:'arcade'};
-  const shortNames={ps1:'PS1',ps2:'PS2',ps3:'PS3',ps4:'PS4',switch:'Switch',switch2:'Switch 2',nds:'DS','3ds':'3DS',gb:'Game Boy',gbc:'GBC',gba:'GBA',n64:'N64',snes:'SNES',nes:'NES',gc:'GameCube',genesis:'Genesis',x360:'Xbox 360',a2600:'Atari'};
+  const glyph={all:'grid',ps1:'psp',ps2:'ps2',ps3:'ps3',ps4:'ps4',switch:'switch',switch2:'switch2',nds:'nds','3ds':'3ds',gb:'gb',gbc:'gbc',gba:'gba',n64:'n64',snes:'snes',nes:'nes',gc:'gc',genesis:'genesis',xbox:'xbox',x360:'x360',a2600:'a2600',arcade:'arcade'};
   function icon(id){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[glyph[id]||id]||shapes.pad}</svg>`}
   function isAndroid(){return /android/i.test(navigator.userAgent||'')||(navigator.platform||'').toLowerCase().includes('android')}
   function emulatorStateFor(system){
@@ -37,28 +38,61 @@ const LibraryUI=(()=>{
   }
   function element(tag,cls,text){const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n}
   const smooth=()=>document.documentElement.dataset.motion==='reduced'?'instant':'smooth';
+  async function toggleFavorite(entry){
+    try{const result=await window.api?.toggleFavorite?.(entry.id);if(result&&context?.refresh){favoriteSet=new Set(context.getState().config?.favorites||[]);context.refresh()}}catch(e){console.error('toggleFavorite failed:',e)}
+  }
   function button(entry,cls){
     const b=element('button',cls);b.type='button';b.dataset.id=entry.id;b.style.setProperty('--system-color',entry.color||'#ff954e');
     b.setAttribute('aria-pressed',String(entry.id===context.getState().system));
     const emu=entry.id==='all'?null:emulatorStateFor(entry);
     const emuSuffix=isAndroid()&&emu?`, emulator ${emu.label.toLowerCase()}`:'';
-    b.setAttribute('aria-label',`${entry.name}, ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}${emuSuffix}`);
-    b.title=`${entry.name} · ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}${emuSuffix?` · ${emu.label}`:''}`;
+    const isFav=favoriteSet.has(entry.id);
+    b.setAttribute('aria-label',`${entry.name}, ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}${emuSuffix}${isFav?' · Favorite':''}`);
+    b.title=`${entry.name} · ${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}${emuSuffix?` · ${emu.label}`:''}${isFav?' · ★ Favorite':''}`;
     if(emu)b.dataset.emulator=emu.label.toLowerCase().replace(/\s+/g,'-');
     const mark=element('span','system-glyph');mark.innerHTML=icon(entry.id);const copy=element('span','system-copy');
     const compact=cls==='system-tile';
     copy.append(element('span','system-name',compact?(shortNames[entry.id]||entry.name):entry.name),element('span','n',compact?entry.count.toLocaleString():entry.count?`${entry.count.toLocaleString()} ${entry.count===1?'game':'games'}`:'No games yet'));
     if(isAndroid()&&emu)copy.append(element('span','emu-state',emu.label));
+    // Favorite toggle button (visible on desktop, hidden on Android).
+    if(!isAndroid()){
+      const favBtn=element('button','fav-btn','F');
+      favBtn.type='button';favBtn.dataset.fav='true';
+      favBtn.innerHTML=`<svg viewBox="0 0 24 24" fill="${isFav?'currentColor':'none'}" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes.favorite}</svg>`;
+      favBtn.setAttribute('aria-label',`${isFav?'Remove from':'Add to'} favorites`);
+      favBtn.onclick=(e)=>{e.stopPropagation();toggleFavorite(entry)};
+      b.appendChild(favBtn);
+    }
     b.append(mark,copy);return b;
   }
   function render(){
     const s=context.getState(),counts={};for(const g of s.games)counts[g.system]=(counts[g.system]||0)+1;
     entries=[{id:'all',name:'All games',count:s.games.length,color:'#ffad65'},...s.config.systems.filter(sys=>counts[sys.id]||sys.romDir).map(sys=>({...sys,count:counts[sys.id]||0}))];
+    // Update library state from config.
+    favoriteSet=new Set(s.config?.favorites||[]);
+    recentlyPlayed=s.config?.recentlyPlayed||[];
+    sortKey=s.config?.sortKey||'title';
+    sortAsc=s.config?.sortAsc!==false;
     document.body.dataset.platform=isAndroid()?'android':'desktop';
     const nav=$('#systems');nav.replaceChildren();for(const e of entries){const b=button(e,'system-tile');b.onclick=()=>context.select(e.id);nav.append(b)}
+    // Update filter buttons.
+    updateFilterButtons(s.config);
     $('#systemTotal').textContent=`${entries.length-1} systems`;
     $('#systemPickerSummary').textContent=`${s.games.length.toLocaleString()} games · ${entries.length-1} systems`;
     if(pickerOpen())renderPicker();requestAnimationFrame(updateRail);
+  }
+  function updateFilterButtons(config){
+    const favOnly=config?.showFavoritesOnly||false;
+    const showRec=config?.showRecentlyPlayed||false;
+    const sortBtn=$('#sortButton');
+    const favBtn=$('#filterFavorites');
+    const recBtn=$('#filterRecentlyPlayed');
+    if(favBtn){favBtn.classList.toggle('active',favOnly);favBtn.setAttribute('aria-pressed',String(favOnly));}
+    if(recBtn){recBtn.classList.toggle('active',showRec);recBtn.setAttribute('aria-pressed',String(showRec));}
+    if(sortBtn){
+      const labels={title:'Title',system:'System',favorites:'Favorites',recent:'Recent'};
+      sortBtn.textContent=labels[sortKey]||'Title';
+    }
   }
   function select(){
     const s=context.getState();
@@ -72,7 +106,7 @@ const LibraryUI=(()=>{
   function updateRail(){
     const rail=$('#systems');if(!rail)return;const max=rail.scrollWidth-rail.clientWidth;
     $('#systemsPrev').disabled=rail.scrollLeft<2;$('#systemsNext').disabled=max-rail.scrollLeft<2;
-    rail.parentElement.classList.toggle('can-scroll-left',rail.scrollLeft>2);rail.parentElement.classList.toggle('can-scroll-right',max-rail.scrollLeft>2);
+    rail.parentElement.classList.toggle('can-scroll-left',rail.scrollLeft>2);rail.parentElement.classList.toggle('can-scroll-right',max-rail.scrollLeft<2);
   }
   function pageRail(direction){$('#systems').scrollBy({left:direction*$('#systems').clientWidth*.72,behavior:smooth()})}
   function pickerOpen(){return !!$('#systemPicker')?.open}
@@ -126,6 +160,29 @@ const LibraryUI=(()=>{
       buttons[n]?.focus();if(buttons[n])context.select(buttons[n].dataset.id);
     });
     $('#clearSearch').onclick=()=>{$('#search').value='';$('#search').dispatchEvent(new Event('input'));$('#search').focus()};
+    // Library state filter buttons.
+    const favBtn=$('#filterFavorites');
+    if(favBtn)favBtn.onclick=async()=>{
+      const s=context.getState();
+      const newVal=!s.config?.showFavoritesOnly;
+      try{await window.api?.updateLibraryPrefs?.({showFavoritesOnly:newVal});context?.refresh?.()}catch(e){console.error('updateLibraryPrefs failed:',e)}
+    };
+    const recBtn=$('#filterRecentlyPlayed');
+    if(recBtn)recBtn.onclick=async()=>{
+      const s=context.getState();
+      const newVal=!s.config?.showRecentlyPlayed;
+      try{await window.api?.updateLibraryPrefs?.({showRecentlyPlayed:newVal});context?.refresh?.()}catch(e){console.error('updateLibraryPrefs failed:',e)}
+    };
+    const sortBtn=$('#sortButton');
+    if(sortBtn){
+      const modes=['title','system','favorites','recent'];
+      let idx=modes.indexOf(sortKey);
+      sortBtn.onclick=async()=>{
+        idx=(idx+1)%modes.length;
+        const newKey=modes[idx];
+        try{await window.api?.updateLibraryPrefs?.({sortKey:newKey});context?.refresh?.()}catch(e){console.error('updateLibraryPrefs failed:',e)}
+      };
+    }
     new ResizeObserver(updateRail).observe($('#systems'));
   }
   return {init,render,select,pickerOpen,openPicker,controller,isAndroid,emulatorStateFor};

@@ -120,9 +120,276 @@ pub fn set_config(state: State<'_, AppState>, cfg: Value) -> Result<Value, Strin
 
 #[tauri::command]
 pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<Game>, String> {
-    let games = scan(&app, &state.config(), &state.data_dir)?;
+    let mut games = scan(&app, &state.config(), &state.data_dir)?;
+    // Apply library state filters and sorting.
+    apply_library_state(&mut games, &state.config());
     *state.games.write().map_err(|e| e.to_string())? = games.clone();
     Ok(games)
+}
+
+/// Apply favorites filtering, recently played injection, sorting, and ordering.
+fn apply_library_state(games: &mut Vec<Game>, config: &Value) {
+    let favorites: Vec<String> = config
+        .get("favorites")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let recently_played: Vec<Value> = config
+        .get("recentlyPlayed")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    let limit: usize = config
+        .get("recentlyPlayedLimit")
+        .and_then(Value::as_u64)
+        .unwrap_or(20) as usize;
+
+    let show_favorites_only = config
+        .get("showFavoritesOnly")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let show_recently_played = config
+        .get("showRecentlyPlayed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let sort_key: &str = config
+        .get("sortKey")
+        .and_then(Value::as_str)
+        .unwrap_or("title");
+
+    let sort_asc = config
+        .get("sortAsc")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+
+    // Build a set of favorite IDs for fast lookup.
+    let fav_set: std::collections::HashSet<&str> = favorites.iter().map(|s| s.as_str()).collect();
+
+    // Filter to favorites only if requested.
+    if show_favorites_only {
+        games.retain(|g| fav_set.contains(g.id.as_str()));
+    }
+
+    // Inject recently played games that are not already in the library.
+    if show_recently_played {
+        let existing_ids: std::collections::HashSet<&str> =
+            games.iter().map(|g| g.id.as_str()).collect();
+        let mut injected: Vec<Game> = recently_played
+            .iter()
+            .filter(|rp| {
+                let gid = rp.get("id").and_then(Value::as_str);
+                gid.map(|id| !existing_ids.contains(id)).unwrap_or(false)
+            })
+            .filter_map(|rp| {
+                let id = rp.get("id")?.as_str()?.to_owned();
+                let title = rp.get("title")?.as_str()?.to_owned();
+                Some(Game {
+                    id,
+                    system: String::new(),
+                    rom_path: String::new(),
+                    base: String::new(),
+                    title,
+                    info: Value::Object(serde_json::Map::new()),
+                    media: HashMap::new(),
+                })
+            })
+            .collect();
+        // Sort injected by timestamp descending (most recent first).
+        injected.sort_by(|a, b| {
+            let ta = recently_played
+                .iter()
+                .find(|rp| rp.get("id").and_then(Value::as_str) == Some(&a.id))
+                .and_then(|rp| rp.get("timestamp").and_then(Value::as_u64))
+                .unwrap_or(0);
+            let tb = recently_played
+                .iter()
+                .find(|rp| rp.get("id").and_then(Value::as_str) == Some(&b.id))
+                .and_then(|rp| rp.get("timestamp").and_then(Value::as_u64))
+                .unwrap_or(0);
+            tb.cmp(&ta)
+        });
+        let injected: Vec<Game> = injected.into_iter().take(limit).collect();
+        games.extend(injected);
+    }
+
+    // Sort by the configured key.
+    games.sort_by(|a, b| {
+        let cmp = match sort_key {
+            "title" => a.title.to_lowercase().cmp(&b.title.to_lowercase()),
+            "system" => a.system.cmp(&b.system),
+            "favorites" => {
+                let fa = fav_set.contains(a.id.as_str()) as u8;
+                let fb = fav_set.contains(b.id.as_str()) as u8;
+                fb.cmp(&fa) // favorites first
+            }
+            "recent" => {
+                let ta = config
+                    .get("recentlyPlayed")
+                    .and_then(Value::as_array)
+                    .and_then(|arr| {
+                        arr.iter().find_map(|rp| {
+                            rp.get("id").and_then(Value::as_str).and_then(|id| {
+                                if id == a.id {
+                                    rp.get("timestamp").and_then(Value::as_u64)
+                                } else {
+                                    None
+                                }
+                            })
+                        })
+                    })
+                    .unwrap_or(0);
+                let tb = config
+                    .get("recentlyPlayed")
+                    .and_then(Value::as_array)
+                    .and_then(|arr| {
+                        arr.iter().find_map(|rp| {
+                            rp.get("id").and_then(Value::as_str).and_then(|id| {
+                                if id == b.id {
+                                    rp.get("timestamp").and_then(Value::as_u64)
+                                } else {
+                                    None
+                                }
+                            })
+                        })
+                    })
+                    .unwrap_or(0);
+                tb.cmp(&ta) // most recent first
+            }
+            _ => a.title.to_lowercase().cmp(&b.title.to_lowercase()),
+        };
+        if sort_asc { cmp } else { cmp.reverse() }
+    });
+}
+
+#[tauri::command]
+pub fn toggle_favorite(state: State<'_, AppState>, game_id: String) -> Result<Value, String> {
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let mut favorites: Vec<String> = config
+        .get_mut("favorites")
+        .and_then(Value::as_array_mut)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let is_favorite = favorites.contains(&game_id);
+    if is_favorite {
+        favorites.retain(|id| id != &game_id);
+    } else {
+        favorites.push(game_id);
+    }
+    *config.get_mut("favorites").unwrap() =
+        Value::Array(favorites.into_iter().map(Value::String).collect());
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    Ok(json!({"isFavorite": !is_favorite}))
+}
+
+#[tauri::command]
+pub fn record_play(
+    state: State<'_, AppState>,
+    game_id: String,
+    play_time: f64,
+) -> Result<(), String> {
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let mut recently_played: Vec<Value> = config
+        .get_mut("recentlyPlayed")
+        .and_then(Value::as_array_mut)
+        .map(|arr| arr.iter().cloned().collect())
+        .unwrap_or_default();
+
+    // Remove existing entry for this game if present.
+    recently_played.retain(|rp| rp.get("id").and_then(Value::as_str) != Some(&game_id));
+
+    // Add new entry at the front.
+    let entry = json!({
+        "id": game_id,
+        "timestamp": chrono::Utc::now().timestamp_millis(),
+        "playTime": play_time
+    });
+    recently_played.insert(0, entry);
+
+    let limit: usize = config
+        .get("recentlyPlayedLimit")
+        .and_then(Value::as_u64)
+        .unwrap_or(20) as usize;
+    recently_played.truncate(limit);
+
+    *config.get_mut("recentlyPlayed").unwrap() = Value::Array(
+        recently_played
+            .into_iter()
+            .map(|v| Value::Object(v.as_object().unwrap().clone()))
+            .collect(),
+    );
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_library_prefs(state: State<'_, AppState>, prefs: Value) -> Result<Value, String> {
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    if let Some(sort_key) = prefs.get("sortKey").and_then(Value::as_str) {
+        config["sortKey"] = json!(sort_key);
+    }
+    if let Some(sort_asc) = prefs.get("sortAsc").and_then(Value::as_bool) {
+        config["sortAsc"] = json!(sort_asc);
+    }
+    if let Some(show_fav) = prefs.get("showFavoritesOnly").and_then(Value::as_bool) {
+        config["showFavoritesOnly"] = json!(show_fav);
+    }
+    if let Some(show_rec) = prefs.get("showRecentlyPlayed").and_then(Value::as_bool) {
+        config["showRecentlyPlayed"] = json!(show_rec);
+    }
+    if let Some(limit) = prefs.get("recentlyPlayedLimit").and_then(Value::as_u64) {
+        config["recentlyPlayedLimit"] = json!(limit);
+    }
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    Ok(config_clone)
+}
+
+#[tauri::command]
+pub fn get_favorites(state: State<'_, AppState>) -> Vec<String> {
+    state
+        .config()
+        .get("favorites")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn get_recently_played(
+    state: State<'_, AppState>,
+    _limit: usize,
+) -> Vec<Value> {
+    state
+        .config()
+        .get("recentlyPlayed")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn wait_for_child(
@@ -1217,5 +1484,236 @@ mod library_tests {
         let result = fs::read_to_string(&marker);
         let _ = fs::remove_dir_all(&root);
         assert_eq!(result.unwrap(), "done");
+    }
+
+    #[test]
+    fn favorites_filter_keeps_only_favorited_games() {
+        let config = json!({
+            "favorites": ["snes:zelda", "nes:mario"],
+            "showFavoritesOnly": true,
+            "recentlyPlayed": [],
+            "sortKey": "title",
+            "sortAsc": true
+        });
+        let mut games = vec![
+            Game {
+                id: "snes:zelda".to_owned(),
+                system: "snes".to_owned(),
+                rom_path: String::new(),
+                base: "zelda".to_owned(),
+                title: "Zelda".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "nes:mario".to_owned(),
+                system: "nes".to_owned(),
+                rom_path: String::new(),
+                base: "mario".to_owned(),
+                title: "Mario".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "ps1:finalfantasy".to_owned(),
+                system: "ps1".to_owned(),
+                rom_path: String::new(),
+                base: "finalfantasy".to_owned(),
+                title: "Final Fantasy".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+        ];
+        super::apply_library_state(&mut games, &config);
+        assert_eq!(games.len(), 2);
+        let ids: Vec<&str> = games.iter().map(|g| g.id.as_str()).collect();
+        assert!(ids.contains(&"snes:zelda"));
+        assert!(ids.contains(&"nes:mario"));
+        assert!(!ids.contains(&"ps1:finalfantasy"));
+    }
+
+    #[test]
+    fn sort_by_favorites_places_favorites_first() {
+        let config = json!({
+            "favorites": ["snes:zelda"],
+            "showFavoritesOnly": false,
+            "recentlyPlayed": [],
+            "sortKey": "favorites",
+            "sortAsc": true
+        });
+        let mut games = vec![
+            Game {
+                id: "nes:mario".to_owned(),
+                system: "nes".to_owned(),
+                rom_path: String::new(),
+                base: "mario".to_owned(),
+                title: "Mario".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "snes:zelda".to_owned(),
+                system: "snes".to_owned(),
+                rom_path: String::new(),
+                base: "zelda".to_owned(),
+                title: "Zelda".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "ps1:ff".to_owned(),
+                system: "ps1".to_owned(),
+                rom_path: String::new(),
+                base: "ff".to_owned(),
+                title: "Final Fantasy".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+        ];
+        super::apply_library_state(&mut games, &config);
+        assert_eq!(games[0].id, "snes:zelda"); // favorites first
+    }
+
+    #[test]
+    fn recently_played_injection_adds_missing_games() {
+        let config = json!({
+            "favorites": [],
+            "showFavoritesOnly": false,
+            "showRecentlyPlayed": true,
+            "recentlyPlayed": [
+                {"id": "ps1:crash", "title": "Crash Bandicoot", "timestamp": 1000000},
+                {"id": "snes:zelda", "title": "Zelda", "timestamp": 900000}
+            ],
+            "recentlyPlayedLimit": 20,
+            "sortKey": "title",
+            "sortAsc": true
+        });
+        let mut games = vec![Game {
+            id: "snes:zelda".to_owned(),
+            system: "snes".to_owned(),
+            rom_path: String::new(),
+            base: "zelda".to_owned(),
+            title: "Zelda".to_owned(),
+            info: Value::Null,
+            media: HashMap::new(),
+        }];
+        super::apply_library_state(&mut games, &config);
+        // Crash Bandicoot should be injected (not in original library).
+        assert!(games.iter().any(|g| g.id == "ps1:crash"));
+        // Zelda should still be present.
+        assert!(games.iter().any(|g| g.id == "snes:zelda"));
+    }
+
+    #[test]
+    fn sort_by_title_ascending_and_descending() {
+        let mut games = vec![
+            Game {
+                id: "a".to_owned(),
+                system: String::new(),
+                rom_path: String::new(),
+                base: "a".to_owned(),
+                title: "Zebra".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "b".to_owned(),
+                system: String::new(),
+                rom_path: String::new(),
+                base: "b".to_owned(),
+                title: "Apple".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "c".to_owned(),
+                system: String::new(),
+                rom_path: String::new(),
+                base: "c".to_owned(),
+                title: "Mango".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+        ];
+        let config_asc = json!({"favorites":[],"showFavoritesOnly":false,"showRecentlyPlayed":false,"recentlyPlayed":[],"recentlyPlayedLimit":20,"sortKey":"title","sortAsc":true});
+        let config_desc = json!({"favorites":[],"showFavoritesOnly":false,"showRecentlyPlayed":false,"recentlyPlayed":[],"recentlyPlayedLimit":20,"sortKey":"title","sortAsc":false});
+        super::apply_library_state(&mut games, &config_asc);
+        assert_eq!(games[0].title, "Apple");
+        assert_eq!(games[2].title, "Zebra");
+        let mut games2 = vec![
+            Game {
+                id: "a".to_owned(),
+                system: String::new(),
+                rom_path: String::new(),
+                base: "a".to_owned(),
+                title: "Zebra".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "b".to_owned(),
+                system: String::new(),
+                rom_path: String::new(),
+                base: "b".to_owned(),
+                title: "Apple".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+            Game {
+                id: "c".to_owned(),
+                system: String::new(),
+                rom_path: String::new(),
+                base: "c".to_owned(),
+                title: "Mango".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+            },
+        ];
+        super::apply_library_state(&mut games2, &config_desc);
+        assert_eq!(games2[0].title, "Zebra");
+        assert_eq!(games2[2].title, "Apple");
+    }
+
+    #[test]
+    fn multidisc_handling_preserves_root_index() {
+        let files = vec![
+            RomFile {
+                name: "Game (USA).chd".to_owned(),
+                path: PathBuf::from("Game (USA).chd"),
+                root: PathBuf::from("roms"),
+                root_index: 0,
+                size: 0,
+            },
+            RomFile {
+                name: "Game (USA) (Disc 2).chd".to_owned(),
+                path: PathBuf::from("Game (USA) (Disc 2).chd"),
+                root: PathBuf::from("roms"),
+                root_index: 1,
+                size: 0,
+            },
+        ];
+        let best = select_best_roms(files);
+        assert_eq!(best.len(), 1);
+        let best_file = best.values().next().unwrap();
+        assert_eq!(best_file.root_index, 0);
+        // Disc 2 should reference root_index 1.
+        let files2 = vec![
+            RomFile {
+                name: "Game (USA).chd".to_owned(),
+                path: PathBuf::from("Game (USA).chd"),
+                root: PathBuf::from("roms"),
+                root_index: 0,
+                size: 0,
+            },
+            RomFile {
+                name: "Game (USA) (Disc 2).chd".to_owned(),
+                path: PathBuf::from("Game (USA) (Disc 2).chd"),
+                root: PathBuf::from("roms"),
+                root_index: 1,
+                size: 0,
+            },
+        ];
+        let best2 = select_best_roms(files2);
+        assert_eq!(best2.len(), 1);
     }
 }
