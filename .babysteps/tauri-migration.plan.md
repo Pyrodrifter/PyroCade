@@ -1,48 +1,32 @@
-# Tauri v2 migration slices
+# Main-to-Tauri feature-parity follow-up
 
-Generated with `babysteps_slice_plan` for `opencode-go/gpt-6-luna`.
+This is a feature-parity follow-up, not a whole-branch merge. At planning time, the target was `tauri-port` at `0657352aa24a7d0ef6dea19bcbda7a4f805208f0`; comparison source `main` was at `96fd68ce93c67299b2354db26d6eebe8aed4f6be`, with merge base `96aac041ee6af2b347afba60c9bb2d08b5a930df`. There were 49 main-only and 32 tauri-port-only commits.
 
-- Work-unit budget: 225,000 tokens (`workBudgetTokens` and `contextCeilingTokens`).
-- Cost ceiling: $0.70 per session/slice guard.
-- All proposals fit both limits; no task was refused.
-- Input tokens are measured from each task's `reads` set. Cache-read, cache-write, and output stages are planning estimates declared in `tauri-migration.tasks.json`.
-- The planner uses base rates for these slices; its maximum stage-priced slice estimate is $0.0243187. The budget table's combined allowance is conservatively priced as output by the guard; its highest forecast is $0.0827521. Both are below the $0.70 ceiling.
-- Budget rows use each proposal's combined cache-read/cache-write/output estimate as its allowance, so the seed gate remains conservative when it prices allowance as output.
+Keep Tauri v2 as the product runtime. The six planner estimates below are each under 225,000 tokens and the configured $0.70 cap; they are estimates, not guarantees. The conservative budget-check forecast prices each allowance as output and peaks at $0.0767032. P1-P5 exceed the local host's 153,354-token usable window and need the configured model; P6 fits locally. Existing desktop/Android target and release constraints remain in force; existing docs/specs, especially the Android support limitations and `docs/donot.md`, remain authoritative.
 
-| Slice | Task | Scope | Total tokens | Headroom | Estimated cost (USD) |
+| Slice | Task | Scope | Total tokens | Headroom | Conservative cost forecast (USD) |
 |---|---|---|---:|---:|---:|
-| P1 | S01 | Tauri window and renderer bridge | 206,787 | 18,213 | 0.0220537 |
-| P2 | S02 | Settings and ROM library service | 203,347 | 21,653 | 0.0232597 |
-| P3 | S03 | Platform/architecture-aware emulator catalog | 202,858 | 22,142 | 0.0216608 |
-| P4 | S04 | Emulator install, management, and launch | 218,437 | 6,563 | 0.0243187 |
-| P5 | S05 | Artwork download and import | 185,400 | 39,600 | 0.0214650 |
-| P6 | S07 | macOS and Linux ARM64 packaging | 157,267 | 67,733 | 0.0171017 |
-| P7 | S06 | App updater and release behavior | 167,793 | 57,207 | 0.0186043 |
-| P8 | S08 | Validation and release automation | 204,010 | 20,990 | 0.0228760 |
-| P9 | S09 | Remove obsolete Electron runtime | 163,456 | 61,544 | 0.0166206 |
-| P10 | S10 | Add Android ARM64 target | 180,263 | 44,737 | 0.0194013 |
-| P10a | S10a | Sign and publish the Android release APK | 85,000 | 140,000 | 0.0085000 |
-| P10b | S10b | Implement Storage Access Framework storage and import | 120,000 | 105,000 | 0.0120000 |
-| P10c | S10c | Implement installed-emulator linking and launch on Android | 110,000 | 115,000 | 0.0110000 |
-| P10d | S10d | On-device renderer, controller, and audio validation | 130,000 | 95,000 | 0.0130000 |
+| P1 | M01 | Renderer presentation and library-view parity: ambient scenes, bookshelf/spinner and carousel refinements, physical media models, manual/booklet presentation, appearance/performance settings, renderer checks. | 179,070 | 45,930 | 0.0679070 |
+| P2 | M02 | Library state and play-history workflows: favorites, recently played/play time, sorting/filtering, multidisc handling, screenshots; preserve renderer payload and backend-owned state. | 177,773 | 47,227 | 0.0717773 |
+| P3 | M03 | Collection administration and per-game controls: hide/group/rename, user-added systems/games, per-game emulator selection. | 184,286 | 40,714 | 0.0704286 |
+| P4 | M04 | Artwork enrichment and manual workflows: compare main's LaunchBox/ScreenScraper and manual discovery/download/viewing with current Rust Libretro/GameTDB services; preserve safe write/import/cancellation/progress/library-sync/path contracts. | 187,032 | 37,968 | 0.0767032 |
+| P5 | M05 | Platform-aware launch/emulator behavior: Steam/SteamOS, Linux X11/gamescope launch, logging and metadata/custom-PC config only where missing; preserve OS/CPU, Android package launch, safe extraction, and no-x86-on-ARM64 invariants. | 179,836 | 45,164 | 0.0679836 |
+| P6 | M06 | Parity checks, Tauri release docs, target validation. | 132,438 | 92,562 | 0.0572438 |
 
-Execution order is dependency-aware; packaging (S07) precedes updater integration (S06), and Android ARM64 target work (S10) follows Electron runtime removal (S09).
+## Dependencies and exclusions
+
+- Order: M01; M02 after M01; M03 and M04 after M02; M05 after M03; M06 after M01, M04, and M05.
+- P1/M01 is complete as `b1b29ac`; start P2/M02 next. Parity implementation for M02 has not started.
+- Do not reintroduce Electron `main.js`/`preload.js`, the separate Capacitor Android project, or the Windows launcher from `main`. Do not port all of `main` or copy runtime pieces incompatible with Tauri.
+- The approved task list is `.babysteps/main-to-tauri.tasks.json`; do not change its scope, estimates, or priority order.
 
 ## Budget rows
 
 | Slice | Reads | Allowance |
 |---|---|---:|
-| P1 | `package.json`, `main.js`, `preload.js`, `renderer/index.html`, `renderer/tauri-bridge.js`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/src/main.rs`, `src-tauri/src/lib.rs`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `src-tauri/src/emulators.rs`, `src-tauri/src/artwork.rs` | 140000 |
-| P2 | `main.js`, `emulators.json`, `src-tauri/src/config.rs`, `src-tauri/src/backend.rs`, `renderer/app.js` | 150000 |
-| P3 | `emulators.json`, `main.js`, `src-tauri/src/emulators.rs`, `src-tauri/src/backend.rs`, `renderer/app.js` | 140000 |
-| P4 | `main.js`, `preload.js`, `emulators.json`, `src-tauri/src/emulators.rs`, `src-tauri/src/backend.rs`, `renderer/app.js` | 155000 |
-| P5 | `artwork.js`, `renderer/artwork-ui.js`, `renderer/art.js`, `src-tauri/src/artwork.rs`, `src-tauri/src/backend.rs` | 150000 |
-| P6 | `package.json`, `package-lock.json`, `.github/workflows/release.yml`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` | 140000 |
-| P7 | `main.js`, `package.json`, `.github/workflows/release.yml`, `src-tauri/src/backend.rs`, `src-tauri/tauri.conf.json` | 135000 |
-| P8 | `package.json`, `scripts/check-library-ui.cjs`, `scripts/check-carousel.cjs`, `scripts/check-artwork-ui.cjs`, `.github/workflows/release.yml`, `src-tauri/src/lib.rs`, `src-tauri/src/backend.rs`, `src-tauri/src/emulators.rs`, `src-tauri/src/artwork.rs` | 155000 |
-| P9 | `package.json`, `package-lock.json`, `main.js`, `preload.js`, `artwork.js`, `.github/workflows/release.yml`, `src-tauri/tauri.conf.json` | 125000 |
-| P10 | `package.json`, `.github/workflows/release.yml`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `src-tauri/src/lib.rs`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `src-tauri/src/emulators.rs`, `renderer/tauri-bridge.js`, `README.md` | 140000 |
-| P10a | `package.json`, `.github/workflows/release.yml`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` | 85000 |
-| P10b | `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `src-tauri/src/lib.rs`, `renderer/tauri-bridge.js` | 120000 |
-| P10c | `src-tauri/src/emulators.rs`, `src-tauri/src/backend.rs`, `src-tauri/src/lib.rs`, `renderer/library-ui.js` | 110000 |
-| P10d | `package.json`, `.github/workflows/release.yml`, `src-tauri/src/lib.rs`, `src-tauri/src/backend.rs`, `src-tauri/src/emulators.rs`, `renderer/tauri-bridge.js`, `renderer/ui-audio.js`, `README.md`, `docs/SUPPORT.md` | 130000 |
+| P1 | `docs/STATE.md`, `.babysteps/tauri-migration.plan.md`, `.babysteps/main-to-tauri.tasks.json`, `.operator/specs/desktop-runtime.md`, `docs/donot.md`, `renderer/app.js`, `renderer/appearance.js`, `renderer/library-ui.js`, `renderer/cartridges.js`, `renderer/packaging.js`, `renderer/styles.css`, `renderer/index.html`, `scripts/check-carousel.cjs`, `scripts/check-library-ui.cjs` | 114037 |
+| P2 | `renderer/app.js`, `renderer/library-ui.js`, `renderer/tauri-bridge.js`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `scripts/check-library-ui.cjs` | 135000 |
+| P3 | `renderer/app.js`, `renderer/tauri-bridge.js`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `src-tauri/src/emulators.rs`, `scripts/check-library-ui.cjs` | 130000 |
+| P4 | `artwork.js`, `renderer/art.js`, `renderer/artwork-ui.js`, `src-tauri/src/artwork.rs`, `src-tauri/src/backend.rs`, `scripts/check-artwork.cjs`, `scripts/check-artwork-ui.cjs` | 145000 |
+| P5 | `emulators.json`, `renderer/app.js`, `src-tauri/src/backend.rs`, `src-tauri/src/emulators.rs`, `src-tauri/src/config.rs` | 125000 |
+| P6 | `scripts/check-library-ui.cjs`, `scripts/check-carousel.cjs`, `scripts/check-artwork.cjs`, `scripts/check-artwork-ui.cjs`, `.github/workflows/release.yml`, `README.md`, `docs/SUPPORT.md`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` | 110000 |

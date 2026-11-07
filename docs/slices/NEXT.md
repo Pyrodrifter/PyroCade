@@ -1,45 +1,68 @@
 ---
-slice: exhausted
+slice: P2
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: P10d
+seededFrom: feature-parity-plan
 reads:
   - docs/STATE.md
+  - .babysteps/tauri-migration.plan.md
+  - .babysteps/main-to-tauri.tasks.json
   - .operator/specs/desktop-runtime.md
-allowanceTokens: 0
+  - docs/donot.md
+  - renderer/app.js
+  - renderer/library-ui.js
+  - renderer/tauri-bridge.js
+  - src-tauri/src/backend.rs
+  - src-tauri/src/config.rs
+  - scripts/check-library-ui.cjs
+allowanceTokens: 135000
 ---
 
-**Next action:** The migration queue is exhausted. Do not start a new slice until a new task is added to `docs/STATE.md` and priced in `.babysteps/tauri-migration.plan.md`.
+**P2 / M02 — Library state and play-history workflows.** Depends on M01. M01 is committed as `b1b29ac`.
 
-## What is settled
+Baseline: `tauri-port` at `b1b29ac`; compare against `main` at `96fd68ce93c67299b2354db26d6eebe8aed4f6be`.
 
-- P1 through P10d are complete.
-- P10d built and installed the current Android ARM64 debug APK on an Odin2 running Android 13/API 33 and system WebView 101.0.4951.61.
-- On-device renderer checks passed for stage availability, Gamepad API query, canvas paint, CSS preserve-3d/perspective, and AudioContext running at 48 kHz/stereo on the speaker route. Controller navigation was confirmed by the operator. Subjective audio quality was not assessed; repeated WebView tile-memory-limit warnings appeared during rendering.
-- The Android-only build required desktop process-launch setup in `backend.rs` to be excluded from Android builds. The configured Rust gates pass.
-- Android release APKs are signed in non-PR CI and uploaded as release artifacts; PR APKs remain unsigned. Android updates are manual downloads.
-- The Do-Not list has 4 entries; #4 applies to future Android SAF work.
+The 177,773-token estimate fits the 225,000-token work budget but exceeds the local host's 153,354-token usable window; use the configured model context for this slice.
 
-## Withdrawn
+## Action
 
-None.
+Add and persist favorites, recently played and play time, sorting and filtering, multidisc handling, and screenshots where missing. Preserve the renderer game payload and backend-owned state contracts with migration-safe config handling and focused renderer/Rust tests.
+
+## Scope and exclusions
+
+- Keep the existing renderer payload and backend-owned state behavior intact; make Tauri bridge/backend changes only if necessary to honor that existing behavior contract.
+- Keep Tauri v2 as the product runtime. Do not port all of `main` or reintroduce Electron `main.js`/`preload.js`, the separate Capacitor Android project, or the Windows launcher from `main`.
+- Preserve existing desktop/Android target and release constraints. Existing docs/specs remain authoritative, especially Android support limitations and `docs/donot.md`.
+- Do not change the approved task list's scope, estimates, or priority order.
 
 ## Code to touch
 
-None until a new task is queued.
+M02 renderer, bridge, and Rust state/config work, plus the library check. Keep new persistence behind the Tauri bridge and migration-safe config handling.
 
-## Read these first, and only these
+## Read these first
 
-- `.operator/specs/desktop-runtime.md` — `Desktop Runtime Direction` (Android SAF section)
+- `docs/STATE.md`
+- `.operator/specs/desktop-runtime.md`
+- `docs/donot.md`
+- `renderer/app.js`
+- `renderer/library-ui.js`
+- `renderer/tauri-bridge.js`
+- `src-tauri/src/backend.rs`
+- `src-tauri/src/config.rs`
+- `scripts/check-library-ui.cjs`
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. Entry #4 applies.
+Total Do-Not count: 4. Consult `docs/donot.md` before changing paths or state payloads; entry #1 applies if manual paths are touched.
 
 ## Gate
 
-No slice is queued; do not run gates until a new task is priced and seeded.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
+- `cargo test --manifest-path src-tauri/Cargo.toml`
+- `cargo check --manifest-path src-tauri/Cargo.toml`
+- `node scripts/check-carousel.cjs`
+- `node scripts/check-library-ui.cjs`
 
 ## When this seed closes
 
-This exhausted-queue seed closes when a new priced task is added to `docs/STATE.md` and `.babysteps/tauri-migration.plan.md` and a replacement seed is written.
+Close M02 when favorites, recently played/play time, sorting/filtering, multidisc handling, and screenshots are implemented or verified present with migration-safe persistence and focused checks; record the result in `docs/STATE.md` and seed P3/M03 or P4/M04 according to `.babysteps/tauri-migration.plan.md` and `.babysteps/main-to-tauri.tasks.json`.

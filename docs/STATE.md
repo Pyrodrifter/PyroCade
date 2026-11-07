@@ -2,13 +2,13 @@
 
 ## Where the work is
 
-The fork's Tauri v2 migration is complete for macOS ARM64, Linux ARM64 on modern Snapdragon hardware, and Android ARM64. The slices are budgeted in `.babysteps/tauri-migration.plan.md`. Android Rust target and debug APK build/install succeeded; signed release APKs are uploaded to release artifacts. SAF URI-aware storage and installed-emulator package linking/launch are implemented. P10d on-device validation is complete on an Odin2 running Android 13/API 33 with system WebView 101.0.4951.61: renderer visible, controller navigation verified, Gamepad API query available, AudioContext reached running at 48 kHz/stereo on the speaker route, canvas and preserve-3d/perspective checks passed. WebView emitted repeated tile-memory-limit warnings; subjective audio quality was not assessed. **The queue is exhausted.**
+The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on modern Snapdragon hardware, and Android ARM64. Its completed history is preserved below. A new main-to-Tauri feature-parity follow-up queue is now active; it is not a whole-branch merge. The follow-up plan is in `.babysteps/tauri-migration.plan.md`, and its approved task list is `.babysteps/main-to-tauri.tasks.json`. Existing Android support limitations and release constraints remain authoritative.
 
 ## Next action
 
-**P10d — On-device renderer, controller, and audio validation.** Verify the renderer bridge, controller input, and audio paths on Android hardware, then update the support and validation documentation. [COMPLETE]
+The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first parity slice, **P1 / M01 — Renderer presentation and library-view parity**, is committed. Their verification records remain in the completed history below.
 
-**Next action:** The queue is exhausted.
+**Next action:** Start **P2 / M02 — Library state and play-history workflows** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -84,10 +84,20 @@ The fork's Tauri v2 migration is complete for macOS ARM64, Linux ARM64 on modern
   - Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (26 passed), and `cargo check --manifest-path src-tauri/Cargo.toml`. Existing dead-code warnings remain; Android build also reports unreachable/dead-code warnings for desktop-only launch helpers.
   - `README.md` and `docs/SUPPORT.md` now describe signed Android release APKs, SAF/emulator support, and the tested-device validation scope. Do-Not count remains 4; #4 applies, no new fault was added, and no numbers were withdrawn.
 
+- **P1 / M01 — Renderer presentation and library-view parity.** Source committed as `b1b29ac` (`Port renderer presentation parity from main`). Ported the canvas ambient scene stack (ribbon, orbit, constellation, towers, loom, pixel day/night) with the idle screensaver, bookshelf and spinner layouts, flat-cover mode, real-size and worn-case options, PSP UMD and GameCube mini-disc media, and the thicker booklet model. Added the game-details-bar options and the matching renderer check assertions.
+  - Close condition: the approved M01 renderer presentation and library-view scope is implemented and renderer checks were updated for the new behavior.
+  - Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (26 passed), and `cargo check --manifest-path src-tauri/Cargo.toml`; the existing dead-code warnings remain.
+  - `node scripts/check-carousel.cjs` could not run on this host: plain `node` has no Electron `app` (`TypeError: Cannot read properties of undefined (reading 'setPath')`) and `node_modules/.bin/electron` fails with `spawn ENOEXEC`. Its new assertions are syntax-checked but unexecuted. `node scripts/check-library-ui.cjs` could not run: `spawn tauri-driver ENOENT`, and the Linux ARM64 release binary is unavailable on macOS.
+  - Boundary linkage and path checks on this slice's diff found no changes to `main.js`, `preload.js`, or `artwork.js`.
+  - Post-commit guard: EXHAUSTED at 247,705/225,000 tokens (110%, 1 compaction); session cost $0.15860209/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
-- **P10 — Re-cut into sub-slices.** Android Rust target and debug APK build/install on device succeeded; the release APK is signed and uploaded to release artifacts. Re-cut into:
-  - **P10a — Sign and publish the Android release APK.** [COMPLETE] Committed as `5f3c2e1`. Configure Tauri Android signing (keystore, alias, password) and integrate it into the CI workflow so the release APK is signed and uploaded to release artifacts, while the debug build remains unsigned.
-  - **P10b — Implement Storage Access Framework (SAF) storage and import.** [COMPLETE] Committed as `7071f90`. URI-aware storage keeps content:// tree URIs distinct from filesystem paths, persists them through settings, and leaves non-filesystem roots unwalked.
-  - **P10c — Implement installed-emulator linking and launch on Android.** [COMPLETE] Committed as `ac63358`. Package-based linking, Android Intent launch with ROM URI pass-through, and library emulator-state display are implemented.
-  - Queue exhausted; no task remains queued.
+- **P1 / M01 — Renderer presentation and library-view parity.** [COMPLETE] Committed as `b1b29ac`.
+- **P2 / M02 — Library state and play-history workflows.** [PENDING] Depends on M01.
+- **P3 / M03 — Collection administration and per-game controls.** [PENDING] Depends on M02.
+- **P4 / M04 — Artwork enrichment and manual workflows.** [PENDING] Depends on M02.
+- **P5 / M05 — Platform-aware launch/emulator behavior.** [PENDING] Depends on M03.
+- **P6 / M06 — Parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05.
+
+Task scope and planner estimates are recorded in `.babysteps/tauri-migration.plan.md`; the approved task definitions are in `.babysteps/main-to-tauri.tasks.json`.
