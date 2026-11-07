@@ -133,7 +133,9 @@ const Cartridges=(()=>{
     }else if(system==='gba'){
       relief(2,1,96,5,1.2);relief(2,22,96,4,.9);
     }else if(system==='n64'){
-      for(const x of [3,84])relief(x,26,13,37,.7,PhysicalGeometry.rounded(10));
+      // Nothing raised on the face. A real cartridge is smooth either side of the label; the two
+      // panels that used to sit there read as rectangles stuck on the front. The moulding seams in
+      // p.details still draw the lines that are actually there.
     }else if(system==='genesis'){
       for(const x of [3,93])for(let i=0;i<9;i++)rib(x,15+i*5,4,2,.75);
     }else if(system==='a2600'){
