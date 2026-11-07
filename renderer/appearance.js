@@ -64,12 +64,21 @@ const Appearance=(()=>{
     const d=i-sel,a=Math.abs(d),s=Math.sign(d);
     if(mode==='bookshelf') {
       // Cases stand spine-out side by side on one baseline; the selected one slides out to face you.
-      const k=itemScale*.6,ks=itemScale*.82,base=323*k/2;
-      if(d===0){const [,H]=size(i);return {transform:`translate3d(0px,${base-H*ks/2-34*scale}px,150px) scale3d(${ks},${ks},${ks})`,hidden:false}}
-      const [Ws]=size(sel);let x=Ws*ks/2+18*scale;
-      for(let j=sel+s;j!==i;j+=s)x+=size(j)[2]*k+1.5;
+      // Spines are what this layout is for, and a 24px-deep case has very little spine to print a
+      // title on, so the shelf is sized from the stage instead of from the shared scale. That scale
+      // stops at 1.16, which on a 1920x1080 screen left the shelf 600px wide in the middle and
+      // spine titles 8px tall. Standing cases now fill about 55% of the stage height; the case
+      // pulled out towards you is a little larger, but capped so that, with the extra size the
+      // 150px of perspective gives it, it still fits under the header. Everything is measured from
+      // the middle of the stage, where #carousel sits.
+      const fit=itemScale/scale,h=stage.clientHeight;
+      const k=fit*Math.max(scale*.6,h*.55/323),ks=fit*Math.max(scale*.82,Math.min(h*.55/323*1.37,h*.7/323));
+      const floor=Math.max(323*Math.max(scale*.6,h*.55/323)/2,h*.28);   // one floor for every case, whatever its own displayScale
+      if(d===0){const [,H]=size(i);return {transform:`translate3d(0px,${floor-h*.04-H*ks/2}px,150px) scale3d(${ks},${ks},${ks})`,hidden:false}}
+      const [Ws]=size(sel);let x=Ws*ks/2+26*k;
+      for(let j=sel+s;j!==i;j+=s)x+=size(j)[2]*k+2*k;
       const [,H,D]=size(i);x+=D*k/2;
-      return {transform:`translate3d(${s*x}px,${base-H*k/2}px,0px) rotateY(90deg) scale3d(${k},${k},${k})`,hidden:x>stage.clientWidth/2+40};
+      return {transform:`translate3d(${s*x}px,${floor-H*k/2}px,0px) rotateY(90deg) scale3d(${k},${k},${k})`,hidden:x>stage.clientWidth/2+40};
     }
     if(mode==='spinner') {
       // A store tower: columns of three cases around a turning post; the selected case pops out.

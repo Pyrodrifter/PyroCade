@@ -5,6 +5,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 ## [Unreleased]
 
 ### Changed
+- **Bookshelf spines are twice the size and readable.** The layout took its size from the same scale as every other layout, which stops growing at 1.16, so on a 1920×1080 screen the whole shelf sat 600px wide in the middle with spine titles 8px tall. It now sizes the shelf from the room it has: standing cases fill about half the stage height, titles come out around 16px on that screen (24px on 2560×1440), and the case you pulled out grows with them while staying clear of the header and the game details. Every case also stands on the same line now; the cardboard boxes used to sit slightly lower than the rest.
 - **The cartridges look like moulded plastic rather than modelling clay.** Every shell now catches a sheen off the top left, bounces a little light back from the bottom right, darkens where the face turns into its own walls and ends on a crisp lit edge, instead of sitting under one flat wash. Ribs, raised panels and the label recess all got the same lift.
 - **The Nintendo 64 cartridge has lost the two raised rectangles** either side of its label. A real cartridge is smooth there; the moulding seams that are genuinely on the face are unchanged.
 
