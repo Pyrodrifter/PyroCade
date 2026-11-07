@@ -20,3 +20,6 @@ dist/
 src-tauri/target/
 src-tauri/gen/schemas/
 src-tauri/gen/android/
+.opencode/
+.operator/
+.rnsk-memory/

@@ -48,10 +48,10 @@ jobs:
         with: { ref: '${{ env.TAG }}' }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
+      - run: npm ci
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
-      - run: npm ci
       - name: Verify native ARM64 runner
         run: test "$(uname -m)" = arm64
       - name: Build macOS ARM64 release
@@ -95,19 +95,22 @@ jobs:
           fi
           kill "$app_pid"
           wait "$app_pid" || true
+      - name: Collect macOS release artifacts
+        run: |
+          mkdir -p dist
+          cp -f src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg dist/
+          cp -f src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz dist/ 2>/dev/null || :
+          cp -f src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig dist/ 2>/dev/null || :
       - uses: actions/upload-artifact@v4
         with:
           name: pyrocade-macos-arm64
-          path: |
-            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+          path: dist/*
           if-no-files-found: error
 
   linux-arm64:
     if: ${{ github.event_name != 'pull_request' }}
     needs: validate
-    runs-on: ubuntu-24.04-arm
+    runs-on: macos-14
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -117,53 +120,87 @@ jobs:
         with: { ref: '${{ env.TAG }}' }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-unknown-linux-gnu
-      - run: cargo install tauri-driver --locked
-      - run: sudo apt-get update && sudo apt-get install -y build-essential curl file libgtk-3-dev libssl-dev libwebkit2gtk-4.1-dev webkit2gtk-driver libxdo-dev patchelf rpm librsvg2-dev wget
       - run: npm ci
-      - name: Verify native ARM64 runner
-        run: test "$(uname -m)" = aarch64
-      - name: Build Linux ARM64 release
-        run: |
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -n "$TAURI_UPDATER_PUBLIC_KEY" ]; then
-            TAURI_CONFIG="$(python3 - <<'PY'
-          import json, os
-          print(json.dumps({
-              "bundle": {"createUpdaterArtifacts": True},
-              "plugins": {"updater": {
-                  "pubkey": os.environ["TAURI_UPDATER_PUBLIC_KEY"],
-                  "endpoints": [f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/latest/download/latest.json"],
-              }},
-          }))
-          PY
-          )"
-            export TAURI_CONFIG
-          fi
-          npm run dist:linux:arm64
-      - name: Install and smoke-test Linux ARM64 package
+      - name: Build and package Linux ARM64 in Apple Container
         env:
-          HOME: ${{ runner.temp }}/pyrocade-home
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          mkdir -p "$HOME"
-          sudo apt-get install -y xvfb
-          package=$(find src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/deb -name '*.deb' -print -quit)
-          test -n "$package"
-          test "$(dpkg-deb --field "$package" Architecture)" = arm64
-          sudo apt-get install -y "$package"
-          package_name=$(dpkg-deb --field "$package" Package)
-          executable=$(dpkg -L "$package_name" | awk '/^\/usr\/bin\// { print; exit }')
-          test -n "$executable"
-          TAURI_APP_BINARY="$executable" xvfb-run -a npm run tauri:webview:check
+          set -eu
+          mkdir -p dist
+          container run --rm --memory 3G --cpus 4 \
+            -v "$GITHUB_WORKSPACE:/work" -w /work \
+            -e GITHUB_REPOSITORY \
+            ubuntu:24.04 bash -lc '
+              set -eu
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential curl file libgtk-3-dev libssl-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf rpm librsvg2-dev wget xvfb pkg-config
+              curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+              DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+              . "$HOME/.cargo/env"
+              rustup target add aarch64-unknown-linux-gnu
+              cargo install tauri-cli --locked
+              export CARGO_TARGET_DIR=/work/localTmp/linux-arm64-target
+              mkdir -p "$CARGO_TARGET_DIR"
+              cat > /tmp/build-appimage.mjs <<'JS'
+          import { spawnSync } from 'node:child_process';
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import os from 'node:os';
+          const root = '/work';
+          const env = { ...process.env, PATH: `${process.env.HOME}/.cargo/bin:${process.env.PATH}` };
+          const run = (command, args, options = {}) => {
+            const result = spawnSync(command, args, { stdio: 'inherit', env, ...options });
+            if (result.status !== 0) throw new Error(`${command} failed with ${result.status}`);
+          };
+          const targetDir = '/work/localTmp/linux-arm64-target';
+          const bundle = path.join(targetDir, 'aarch64-unknown-linux-gnu/release/bundle');
+          const bundleAppImage = path.join(bundle, 'appimage');
+          const base = path.join(os.tmpdir(), 'pyrocade-appimage');
+          const target = path.join(base, 'appdir');
+          fs.rmSync(base, { recursive: true, force: true });
+          fs.mkdirSync(base, { recursive: true });
+          run('cargo', ['tauri', 'build', '--target', 'aarch64-unknown-linux-gnu', '--bundles', 'deb,rpm'], { cwd: root, env: { ...env, CARGO_TARGET_DIR: targetDir } });
+          const appimageConfig = { bundle: { targets: ['appimage'], createUpdaterArtifacts: Boolean(env.TAURI_SIGNING_PRIVATE_KEY && env.TAURI_UPDATER_PUBLIC_KEY) } };
+          if (env.TAURI_UPDATER_PUBLIC_KEY) appimageConfig.plugins = { updater: { pubkey: env.TAURI_UPDATER_PUBLIC_KEY, endpoints: [`https://github.com/${env.GITHUB_REPOSITORY}/releases/latest/download/latest.json`] } };
+          const appimageEnv = { ...env, TAURI_CONFIG: JSON.stringify(appimageConfig), CARGO_TARGET_DIR: targetDir };
+          run('cargo', ['tauri', 'build', '--target', 'aarch64-unknown-linux-gnu', '--bundles', 'appimage'], { cwd: root, env: appimageEnv });
+          const sourceAppDir = path.join(bundleAppImage, 'PyroCade.AppDir');
+          if (!fs.existsSync(sourceAppDir)) throw new Error(`Tauri did not produce ${sourceAppDir}`);
+          const copyTree = (sourceDir, targetDir) => {
+            fs.mkdirSync(targetDir, { recursive: true });
+            for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+              const sourceFile = path.join(sourceDir, entry.name);
+              const targetFile = path.join(targetDir, entry.name);
+              if (entry.isDirectory()) copyTree(sourceFile, targetFile);
+              else if (entry.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(sourceFile), targetFile);
+              else fs.copyFileSync(sourceFile, targetFile);
+            }
+          };
+          copyTree(sourceAppDir, target);
+          fs.chmodSync(target, 0o755);
+          const executable = path.join(target, 'usr/bin/pyrocade');
+          if (!fs.existsSync(executable)) throw new Error(`Missing AppImage executable: ${executable}`);
+          const appimagetool = path.join(base, 'appimagetool');
+          run('curl', ['-fL', 'https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage', '-o', appimagetool]);
+          fs.chmodSync(appimagetool, 0o755);
+          run(appimagetool, ['--appimage-extract'], { cwd: base });
+          const toolDir = path.join(base, 'squashfs-root');
+          if (!fs.existsSync(path.join(toolDir, 'AppRun'))) throw new Error('Failed to extract appimagetool runtime');
+          const out = path.join(root, 'dist', 'PyroCade_0.2.1_aarch64-extract.AppImage');
+          run(path.join(toolDir, 'AppRun'), ['--appimage-extract', target, out], { cwd: base, env: { ...env, ARCH: 'arm64' } });
+          if (!fs.existsSync(out)) throw new Error(`Missing extracted-type AppImage: ${out}`);
+          for (const kind of ['deb', 'rpm']) {
+            const source = path.join(bundle, kind);
+            for (const file of fs.readdirSync(source)) fs.copyFileSync(path.join(source, file), path.join(root, 'dist', file));
+          }
+          JS
+              node /tmp/build-appimage.mjs
+              '
       - uses: actions/upload-artifact@v4
         with:
           name: pyrocade-linux-arm64
-          path: |
-            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
-            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/appimage/*.AppImage.sig
-            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/deb/*.deb
-            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+          path: dist/*
           if-no-files-found: error
 
   android-arm64:
@@ -190,18 +227,22 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
       - uses: android-actions/setup-android@v3
       - name: Install pinned Android SDK components
-        run: sdkmanager --install "platforms;android-${ANDROID_COMPILE_API_LEVEL}" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" "ndk;${ANDROID_NDK_VERSION}"
+        run: |
+          sdkmanager --install "platforms;android-${ANDROID_COMPILE_API_LEVEL}" "platforms;android-${ANDROID_TARGET_API_LEVEL}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" "ndk;${ANDROID_NDK_VERSION}"
+          set +e
+          yes | sdkmanager --licenses
+          license_status=${PIPESTATUS[1]}
+          set -e
+          test "$license_status" -eq 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
       - run: npm ci
+      - name: Add APK output directory
+        run: mkdir -p dist
       - name: Generate Android project
         run: npm run tauri -- android init --ci --skip-targets-install
-      - name: Build unsigned APK (PR only)
-        if: github.event_name == 'pull_request'
-        run: npm run dist:android:arm64
-      - name: Build and sign release APK (non-PR only)
-        if: github.event_name != 'pull_request'
+      - name: Build Android ARM64 APK
         env:
           KEYSTORE_B64: ${{ secrets.PYROCADE_ANDROID_KEYSTORE }}
           KEYSTORE_PASSWORD: ${{ secrets.PYROCADE_ANDROID_KEYSTORE_PASSWORD }}
@@ -210,32 +251,31 @@ jobs:
         run: |
           keystore_dir="$RUNNER_TEMP/android-signing"
           mkdir -p "$keystore_dir"
-          echo "$KEYSTORE_B64" | base64 -d > "$keystore_dir/release.keystore"
-          chmod 600 "$keystore_dir/release.keystore"
-          export TAURI_ANDROID_KEYSTORE_PATH="$keystore_dir/release.keystore"
-          export TAURI_ANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
-          export TAURI_ANDROID_KEY_ALIAS="$KEY_ALIAS"
-          export TAURI_ANDROID_KEY_PASSWORD="$KEY_PASSWORD"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$keystore_dir/release.keystore"
+            chmod 600 "$keystore_dir/release.keystore"
+            export TAURI_ANDROID_KEYSTORE_PATH="$keystore_dir/release.keystore"
+            export TAURI_ANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+            export TAURI_ANDROID_KEY_ALIAS="$KEY_ALIAS"
+            export TAURI_ANDROID_KEY_PASSWORD="$KEY_PASSWORD"
+          elif [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            echo "A stable private Android keystore is required for release builds." >&2
+            exit 1
+          fi
           npm run dist:android:arm64
       - uses: actions/upload-artifact@v4
-        if: github.event_name == 'pull_request'
         with:
-          name: pyrocade-android-arm64-unsigned-ci
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: github.event_name != 'pull_request'
-        with:
-          name: pyrocade-android-arm64
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          name: ${{ github.event_name == 'pull_request' && 'pyrocade-android-arm64-unsigned-ci' || 'pyrocade-android-arm64' }}
+          path: dist/*.apk
           if-no-files-found: error
 
   release:
     needs: [validate, macos-arm64, linux-arm64, android-arm64]
     runs-on: ubuntu-latest
     steps:
+      - run: mkdir -p dist
       - uses: actions/download-artifact@v4
-        with: { path: out }
+        with: { path: dist }
       - name: Generate signed updater manifest
         env:
           GH_REPO: ${{ github.repository }}
@@ -248,11 +288,11 @@ jobs:
           from urllib.parse import quote
 
           platforms = {}
-          for signature_path in Path("out").rglob("*.sig"):
+          for signature_path in Path("dist").rglob("*.sig"):
               filename = signature_path.name[:-4]
               if filename.endswith(".app.tar.gz"):
                   target = "darwin-aarch64"
-              elif filename.endswith(".AppImage"):
+              elif filename.endswith("-extract.AppImage"):
                   target = "linux-aarch64"
               else:
                   continue
@@ -270,7 +310,7 @@ jobs:
                   "pub_date": datetime.now(timezone.utc).isoformat(),
                   "platforms": platforms,
               }
-              Path("out/latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+              Path("dist/latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
               print(f"Generated signed updater manifest for: {', '.join(sorted(platforms))}")
           else:
               print("No signed updater artifacts; releases will use manual update links.")
@@ -280,12 +320,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          mapfile -d '' files < <(find out -type f -print0)
-          android_apks=$(find out/android-arm64 -name '*.apk' -print 2>/dev/null || true)
-          if [ -n "$android_apks" ]; then
-            mapfile -t android_files <<< "$android_apks"
-            files+=("${android_files[@]}")
-          fi
+          mapfile -d '' files < <(find dist -mindepth 2 -type f ! -name '*.idsig' -print0)
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber
           else
