@@ -74,7 +74,7 @@ const Art = (() => {
   function memo(key, fn) { if (!cache.has(key)) cache.set(key, fn()); return cache.get(key); }
 
   function front(game, sys, W, H) {
-    return memo('f' + game.id, () => {
+    return memo('f' + JSON.stringify([game.id, game.title, sys.id]), () => {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height; const p = palette(game.title);
       scenery(ctx, w, h, p);
       const bh = h * 0.07; band(ctx, w, bh, sys);
@@ -86,7 +86,7 @@ const Art = (() => {
   }
 
   function back(game, sys, W, H) {
-    return memo('b' + game.id, () => {
+    return memo('b' + JSON.stringify([game.id, game.title, sys.id]), () => {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height; const p = palette(game.title);
       ctx.fillStyle = '#0d0f16'; ctx.fillRect(0, 0, w, h);
       const g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, p.a); g.addColorStop(1, '#05060a');
@@ -109,7 +109,7 @@ const Art = (() => {
   }
 
   function disc(game, sys, size) {
-    return memo('d' + game.id, () => {
+    return memo('d' + JSON.stringify([game.id, game.title, sys.id]), () => {
       const [c, ctx] = canvas(size * 2, size * 2); const s = c.width, R = s / 2; const p = palette(game.title);
       ctx.save(); ctx.beginPath(); ctx.arc(R, R, R, 0, 7); ctx.moveTo(R + R * 0.16, R); ctx.arc(R, R, R * 0.16, 0, 7); ctx.clip('evenodd');
       // label art
@@ -127,7 +127,7 @@ const Art = (() => {
   }
 
   function cart(game, sys, W, H) {
-    return memo('c' + game.id + ':' + W + ':' + H, () => {
+    return memo('c' + JSON.stringify([game.id, game.title, sys.id]) + ':' + W + ':' + H, () => {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height; const p = palette(game.title);
       scenery(ctx, w, h, p);
       ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, h * 0.62, w, h * 0.38);
@@ -137,7 +137,7 @@ const Art = (() => {
   }
 
   function manual(game, sys, frontUrl, W, H) {
-    return memo('m' + game.id, () => new Promise(res => {
+    return memo('m' + JSON.stringify([game.id, game.title, sys.id]), () => new Promise(res => {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height;
       const img = new Image();
       img.onload = () => {

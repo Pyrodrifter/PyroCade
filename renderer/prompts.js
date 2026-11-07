@@ -21,7 +21,7 @@ const Prompts = (() => {
     const keyboard = family === 'keyboard';
     const groups = keyboard ? [
       ['keyboard',['left','right'],'Browse'],['keyboard',['up','down'],'System'],['keyboard',['enter'],'Play'],
-      ['keyboard',['space'],'Open case'],['keyboard',['m'],'Manual'],['keyboard',['f'],'Favourite'],['keyboard',['pageup','pagedown'],'Jump 10'],['keyboard',['f11'],'Fullscreen']
+      ['keyboard',['space'],'Open case'],['keyboard',['m'],'Manual'],['keyboard',['f'],'Favourite'],['keyboard',['i'],'Details'],['keyboard',['o'],'UI mode'],['keyboard',['pageup','pagedown'],'Jump 10'],['keyboard',['f11'],'Fullscreen']
     ] : [
       [family,['left-stick-horizontal'],'Browse'],[family,['lb','rb'],'System'],[family,['south'],'Play'],
       [family,['north'],'Open case'],[family,['west'],'Manual'],[family,['select'],'Favourite'],[family,['left-stick-press'],'Random'],[family,['lt','rt'],'Jump 10']

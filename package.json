@@ -52,7 +52,9 @@
       "package.json",
       "LICENSE",
       "renderer/**/*",
-      "!renderer/assets/prompts/png/**"
+      "!renderer/assets/prompts/png/**",
+      "leia-output.js",
+      "leia-mirror-preload.js"
     ],
     "win": {
       "target": [
@@ -136,7 +138,13 @@
     },
     "pacman": {
       "artifactName": "pyrocade-${version}-x86_64.pkg.tar.zst"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "native/bin/PyroCadeLeia.exe",
+        "to": "leia/PyroCadeLeia.exe"
+      }
+    ]
   },
   "homepage": "https://github.com/Pyrodrifter/PyroCade"
 }

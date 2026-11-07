@@ -17,3 +17,10 @@ Desktop.ini
 
 # Installer builds
 dist/
+
+# Local native build dependencies and output
+native/SR-lib/
+native/build/
+native/build-tools/
+native/bin/
+native/cmake.zip

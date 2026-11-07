@@ -8,7 +8,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const CASES = { dvd: [230, 323, 24], gc: [226, 318, 24], jewel: [250, 222, 17], bluray: [230, 289, 20], umd: [178, 300, 22], ds: [213, 233, 22],
   switch: [184, 296, 18], cartbox: [238, 221, 58], bigbox: [320, 228, 62], nesbox: [232, 318, 58] };
 
-const S = { config: null, games: [], list: [], sel: 0, system: 'all', query: '', sort: 'title', filter: '', demo: false, emus: [], latest: {}, progress: {}, running: new Set(), pendingGame: null };
+const S = { orders: {}, config: null, games: [], list: [], sel: 0, system: 'all', query: '', sort: 'title', filter: '', demo: false, emus: [], latest: {}, progress: {}, running: new Set(), pendingGame: null };
 let eShopStyle='enhanced';
 
 const DEMO = [
@@ -29,8 +29,14 @@ const DEMO = [
 const sysOf = id => S.config.systems.find(s => s.id === id) || { id, name: id, caseType: 'dvd', media: 'disc', color: '#333' };
 const toast = (m, ms = 3200) => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), ms); };
 
+function physicalSystem(game) {
+  const sys=sysOf(game.system);if(!game.mediaType)return sys;
+  if(game.mediaType==='disc')return {...sys,id:'physical-disc',media:'disc',caseType:'dvd'};
+  const profiles={switch:'switch',switch2:'switch',gba:'cartbox',n64:'bigbox',nds:'ds'};
+  return {...sys,id:game.mediaType,media:'cart',caseType:profiles[game.mediaType]||sys.caseType};
+}
 function art(game) {
-  const sys = sysOf(game.system);
+  const sys = physicalSystem(game);
   let [W, H, D] = Packaging.profiles[sys.id]?.size || CASES[sys.caseType] || CASES.dvd;
   // Recognised systems retain their physical case proportions regardless of scan margins.
   if (game._aspect && !Packaging.profiles[sys.id]) {
@@ -53,6 +59,125 @@ function art(game) {
   };
 }
 
+// Library chrome visibility is independent of the game-details (I) shortcut.
+const LibraryChrome = (() => {
+  let mode = 'shown', pinned = false, saves = Promise.resolve();
+  function refresh() {
+    const library = $('#view-library').classList.contains('active') && !caseShown() && !document.querySelector('dialog[open]');
+    document.documentElement.dataset.chromeMode = mode;
+    document.documentElement.dataset.detailsPinned = String(pinned);
+    const hidden = library && mode === 'hidden';
+    document.documentElement.dataset.chromeHidden = String(hidden);
+    for (const node of [document.querySelector('header'), $('#libraryHints'), $('.shelf-position'), ...document.querySelectorAll('.banner'), ...document.querySelectorAll('.shelf-arrow')]) if (node) node.inert = hidden;
+    $('#info').inert = hidden && !pinned;
+  }
+  function activity() { refresh(); }
+  function persist() {
+    S.config.libraryChromeMode = mode; S.config.libraryDetailsPinned = pinned;
+    delete S.config.libraryChromeIdleSeconds;
+    saves = saves.catch(() => {}).then(() => api.setConfig(structuredClone(S.config))).catch(() => toast('UI preference could not be saved.'));
+    return saves;
+  }
+  function configure(next, save = true) {
+    if (['shown','hidden'].includes(next.mode)) mode = next.mode;
+    if (typeof next.pinned === 'boolean') pinned = next.pinned;
+    $('#sChromeMode').value = mode;
+    $('#sDetailsPinned').checked = pinned; $('#appearanceDetailsPinned').checked = pinned;
+    Ambient.exit(); refresh(); if (save) persist();
+  }
+  function cycle() {
+    configure({ mode: mode === 'shown' ? 'hidden' : 'shown' });
+    toast(mode === 'shown' ? 'Overlay on · O: hide overlay' : 'Overlay off · O: show overlay', 3200);
+  }
+  function init() {
+    configure({mode:S.config.libraryChromeMode === 'hidden' ? 'hidden' : 'shown',pinned:!!S.config.libraryDetailsPinned}, false);
+    setInterval(refresh, 200);
+    $('#sChromeMode').onchange = event => configure({mode:event.target.value});
+    $('#sDetailsPinned').onchange = event => configure({pinned:event.target.checked});
+    $('#appearanceDetailsPinned').onchange = event => configure({pinned:event.target.checked});
+  }
+  return {init,activity,refresh,configure,cycle,persist,mode:()=>mode};
+})();
+
+const DetailsResize = (() => {
+  const min = 128;
+  let drag = null;
+  const topPadding = 22;
+  const shotAspect = 16 / 10;
+  const shotWidthLimit = () => Math.min(420, innerWidth * .23, (innerHeight * .36 - topPadding) * shotAspect);
+  // The screenshot sets the top edge of the expanded panel, with room for the grip.
+  const max = () => Math.max(min + 1, Math.ceil(shotWidthLimit() / shotAspect) + topPadding);
+  function align() {
+    const root=document.documentElement,view=$('#view-library'),mode=root.dataset.infoBar||'small';
+    const resized=root.dataset.detailsResized==='true';
+    const height = S.config.libraryDetailsHeight ?? min;
+    const flow=String(!['compact','hidden'].includes(mode));if(root.dataset.detailsFlow!==flow)root.dataset.detailsFlow=flow;
+    const width = resized ? Math.min(shotWidthLimit(), (height - topPadding) * shotAspect)
+      : mode === 'xlarge' ? shotWidthLimit()
+      : mode === 'large' ? Math.min(shotWidthLimit(), 360, innerWidth * .22)
+      : Math.min(shotWidthLimit(), Math.max(145, Math.min(210, innerWidth * .16)));
+    const shotHeight = width / shotAspect;
+    const tight = String(shotHeight < 165);
+    if (root.dataset.detailsShotTight !== tight) root.dataset.detailsShotTight = tight;
+    const padding = innerWidth <= 1250 ? 44 : 60;
+    const expansion = resized ? (height - min) / (max() - min) : mode === 'xlarge' ? 1 : mode === 'large' ? 0.55 : 0;
+    const center = innerWidth * (0.4 + 0.1 * expansion);
+    const leading=Math.max(0,center-padding-width/2-24);
+    const dimensions = {
+      '--details-leading': Math.round(leading * 2) / 2,
+      '--details-shot-width': width,
+      '--details-shot-height': shotHeight,
+      '--details-title-cap': Math.max(18, shotHeight * .24),
+      '--details-max-height': max(),
+    };
+    for (const [name, value] of Object.entries(dimensions)) {
+      const pixels = value + 'px';
+      if (view.style.getPropertyValue(name) !== pixels) view.style.setProperty(name, pixels);
+    }
+  }
+  function setHeight(value) {
+    const height = Math.max(min, Math.min(max(), Math.round(value)));
+    const root = document.documentElement, view = $('#view-library');
+    root.dataset.detailsResized = 'true';root.dataset.detailsTiny = String(height < 175);
+    view.style.setProperty('--details-height',height+'px');
+    view.style.setProperty('--details-title-size',Math.max(18,Math.min(58,height*.14))+'px');
+    view.style.setProperty('--details-meta-size',Math.max(12,Math.min(19,height*.05))+'px');
+    view.style.setProperty('--details-desc-size',Math.max(12,Math.min(20,height*.055))+'px');
+    S.config.libraryDetailsHeight = height;
+    const tab = $('#detailsResizeHandle');tab.setAttribute('aria-valuenow',height);tab.setAttribute('aria-valuemin',min);tab.setAttribute('aria-valuemax',max());
+    resizeShelf();layout();return height;
+  }
+  function reset() {
+    delete S.config.libraryDetailsHeight;
+    delete document.documentElement.dataset.detailsResized;
+    delete document.documentElement.dataset.detailsTiny;
+  }
+  function init() {
+    const tab = $('#detailsResizeHandle');
+    if (Number.isFinite(S.config.libraryDetailsHeight)) setHeight(S.config.libraryDetailsHeight);
+    tab.onpointerdown = event => {
+      if(event.button!==0)return;event.preventDefault();event.stopPropagation();
+      drag = {y:event.clientY,height:$('#info').getBoundingClientRect().height};
+      try{tab.setPointerCapture(event.pointerId);}catch{}
+      setHeight(drag.height);Appearance.apply({infoBar:'xlarge'},false);LibraryChrome.configure({pinned:true},false);
+      document.documentElement.classList.add('details-dragging');
+    };
+    tab.onpointermove = event => {if(drag){event.preventDefault();const requested=drag.height+drag.y-event.clientY,applied=setHeight(requested);if(applied!==Math.round(requested))drag={y:event.clientY,height:applied};}};
+    const finish = () => {if(!drag)return;drag=null;document.documentElement.classList.remove('details-dragging');Appearance.persist();LibraryChrome.persist();};
+    tab.onpointerup=finish;tab.onpointercancel=finish;tab.onlostpointercapture=finish;
+    tab.onkeydown = event => {
+      if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+      event.preventDefault();event.stopPropagation();
+      const height=$('#info').getBoundingClientRect().height;
+      setHeight(event.key==='Home'?min:event.key==='End'?max():height+(event.key==='ArrowUp'?24:-24));
+      Appearance.apply({infoBar:'xlarge'},false);LibraryChrome.configure({pinned:true},false);Appearance.persist();LibraryChrome.persist();
+    };
+    $('#infoBarOptions').addEventListener('click',event=>{if(event.target.closest('button[data-info-bar]:not([data-info-bar="hidden"])'))reset();},true);
+    addEventListener('resize',()=>{if(Number.isFinite(S.config.libraryDetailsHeight))setHeight(S.config.libraryDetailsHeight);else resizeShelf();});
+  }
+  return {init,setHeight,reset,max,align};
+})();
+
 // ---------- boot ----------
 // The header spells out PYROCADE when the app opens, then folds down to "PC" (hover to spell it out again).
 function foldBrand() {
@@ -61,9 +186,10 @@ function foldBrand() {
 }
 async function boot() {
   S.config = await api.getConfig();
+  S.orders = await (api.gameOrders?.() || Promise.resolve({})).catch(()=>({}));
   LibraryUI.init({getState:()=>S,select:setSystem});
   AudioUI.init(S.config.uiSound);
-  Ambient.init({initial:S.config.ambient,canRun:()=>!inGame()&&libraryActive()&&!caseShown()&&!LibraryUI.pickerOpen()&&!Appearance.panelOpen()&&!document.activeElement?.matches?.('input,select,textarea'),advance:()=>select(S.sel+1>=S.list.length?0:S.sel+1)});
+  Ambient.init({initial:S.config.ambient,canRun:()=>false&&!inGame()&&libraryActive()&&!caseShown()&&!LibraryUI.pickerOpen()&&!Appearance.panelOpen()&&!document.activeElement?.matches?.('input,select,textarea'),advance:()=>select(S.sel+1>=S.list.length?0:S.sel+1)});
   Appearance.init({getState:()=>S,toast,refresh:()=>{resizeShelf();for(const it of items.values()){const game=S.games.find(g=>g.id===it.dataset.id);if(game)fillItem(it,game)}if(S.list.length)layout();promptFamilyRendered='';renderPrompts()}});
   eShopStyle=S.config.eShopStyle==='original'?'original':'enhanced';
   promptPreference = validPromptPreference(S.config.promptFamily);
@@ -86,31 +212,87 @@ async function boot() {
   api.onArtMedia?.(updateArtwork); // background re-encoding of oversized images
   api.onLibraryInfo?.(list => { for (const {gameId, info} of list) { const g = S.games.find(x => x.id === gameId); if (g) g.info = info; } showInfo(); });
   await loadLibrary();
+  LibraryChrome.init();
+  DetailsResize.init();
+  LeiaUI.init(S.config);
   initAppUpdates();
-  new ResizeObserver(resizeShelf).observe($('#info'));
-  new ResizeObserver(() => { if (S.config && libraryActive()) layout(); }).observe($('#stage'));
+  let shelfResizeFrame=0;const scheduleShelfResize=()=>{if(shelfResizeFrame)return;shelfResizeFrame=requestAnimationFrame(()=>{shelfResizeFrame=0;resizeShelf();if(S.config&&libraryActive())layout();});};
+  const shelfObserver=new ResizeObserver(scheduleShelfResize);shelfObserver.observe($('#info'));shelfObserver.observe($('#stage'));
   renderEmus();
   renderSettings();
   setInterval(() => ($('#clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })), 1000);
   requestAnimationFrame(pollPad);
 }
 
-async function loadLibrary() {
-  let games = [];
+async function loadLibrary(withReport = false) {
   $('#loading').classList.remove('hidden');
-  try { games = await api.scan(); } catch (e) { toast('Scan failed: ' + e.message); }
-  $('#loading').classList.add('hidden');
+  let result;
+  try {
+    result = await api.scan(withReport);
+  } catch (error) {
+    if (withReport) throw error;
+    toast('Scan failed: ' + error.message);
+    return;
+  } finally {
+    $('#loading').classList.add('hidden');
+  }
+  let games = withReport ? result.games : result;
   S.demo = games.length === 0;
   if (S.demo) games = DEMO.map(([system, title, year, developer, genre, players, description]) => ({
     id: `${system}:demo-${title}`, system, title, romPath: null, demo: true, media: {},
     info: { year, developer, publisher: developer, genre, players, description },
   }));
   S.games = games;
+  renderHiddenGames();
   $('#demoBanner').classList.toggle('hidden', !S.demo);
   renderChips();
   renderShelfTools();
   setSystem(S.system);
+  return result;
 }
+
+let lastDetailsSize = 'small', editingGameId = null;
+function toggleGameDetails() {
+  const current = document.documentElement.dataset.infoBar || 'small';
+  const overlayHidesDetails = document.documentElement.dataset.chromeHidden === 'true' && document.documentElement.dataset.detailsPinned !== 'true';
+  const show = current === 'hidden' || overlayHidesDetails;
+  if (current !== 'hidden') { lastDetailsSize = current; S.config.libraryLastDetailsSize = current; }
+  if (show) {
+    const size = current === 'hidden' ? S.config.libraryLastDetailsSize || lastDetailsSize : current;
+    LibraryChrome.configure({pinned:true},false);
+    Appearance.apply({infoBar:size});
+    LibraryChrome.persist();
+  } else Appearance.apply({infoBar:'hidden'});
+}
+$('#btnToggleDetails').onclick = toggleGameDetails;
+function editGameDetails(game = S.list[S.sel]) {
+  if (!game || game.demo) return toast('Add your own games to edit details.');
+  editingGameId = game.id;
+  $('#editGameTitle').value = game.title;
+  $('#editGameVersion').value = game.version || '';
+  $('#editGameMediaType').value = game.mediaType || '';
+  $('#gameDetailsError').textContent = '';
+  $('#gameDetailsSave').disabled = false;
+  $('#gameDetailsEditor').showModal();
+  $('#editGameTitle').focus();
+}
+$('#btnEditDetails').onclick = () => editGameDetails();
+$('#gameDetailsCancel').onclick = () => $('#gameDetailsEditor').close();
+$('#gameDetailsForm').onsubmit = async event => {
+  event.preventDefault();
+  const game = S.games.find(g => g.id === editingGameId);
+  if (!game) return;
+  $('#gameDetailsSave').disabled = true;
+  try {
+    Object.assign(game, await api.setMetadata({ gameId: game.id, title: $('#editGameTitle').value, version: $('#editGameVersion').value, mediaType:$('#editGameMediaType').value }));
+    $('#gameDetailsEditor').close();
+    // Regenerate fallback artwork and shelf labels using the new title.
+    setSystem(S.system); renderHiddenGames();
+    toast('Game details saved.');
+  } catch (e) { $('#gameDetailsError').textContent = e.message; }
+  finally { $('#gameDetailsSave').disabled = false; }
+};
+$('#gameDetailsEditor').addEventListener('close', () => { editingGameId = null; $('#carousel').focus({preventScroll:true}); });
 
 // ---------- system chips ----------
 function renderChips() {
@@ -122,7 +304,7 @@ const VIEWS = { favorites: 'Favourites', recent: 'Recently played' };
 const viewName = id => id === 'all' ? 'All games' : VIEWS[id] || sysOf(id).name;
 // A hidden system (Settings → Show) leaves every shelf, including All games, Favourites and Recently played.
 const systemHidden = id => !!S.config?.systems.find(s => s.id === id)?.hidden;
-const inView = (g, id) => !systemHidden(g.system) && (id === 'all' || (id === 'favorites' ? !!g.favorite : id === 'recent' ? g.lastPlayed > 0 : g.system === id));
+const inView = (g, id) => !g.hidden && !systemHidden(g.system) && (id === 'all' || (id === 'favorites' ? !!g.favorite : id === 'recent' ? g.lastPlayed > 0 : g.system === id));
 // Sorting and filtering, applied inside the current system or view.
 const yearOf = g => parseInt(g.info?.year, 10) || 0;
 const genresOf = g => String(g.info?.genre || '').split(/[;,/]|\s+&\s+/).map(x => x.trim()).filter(Boolean);
@@ -130,6 +312,7 @@ const maxPlayers = g => Math.max(0, ...(String(g.info?.players || '').match(/\d+
 const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
 const SORTS = {
   title: null,
+  custom: null,
   'year-new': (a, b) => yearOf(b) - yearOf(a),
   'year-old': (a, b) => (yearOf(a) || 9999) - (yearOf(b) || 9999),
   played: (a, b) => (b.playMs || 0) - (a.playMs || 0),
@@ -143,9 +326,28 @@ function passesFilter(g) {
   if (S.filter.startsWith('genre:')) return genresOf(g).some(x => x.toLowerCase() === S.filter.slice(6).toLowerCase());
   return true;
 }
-function setSystem(id) {
+function manualGameSort(system) {
+  const ranks=new Map((S.orders[system]||[]).map((id,index)=>[id,index]));
+  return (a,b)=>(ranks.get(a.id)??Number.MAX_SAFE_INTEGER)-(ranks.get(b.id)??Number.MAX_SAFE_INTEGER)||byTitle(a,b);
+}
+let gameDrag=null,suppressGameClickUntil=0;
+function clearGameDrag(){gameDrag?.ghost?.remove();gameDrag=null;for(const node of document.querySelectorAll('.drop-before,.drop-after,.game-dragging'))node.classList.remove('drop-before','drop-after','game-dragging');}
+async function dropGame(sourceId,targetId,system,after){
+  if(sourceId===targetId)return;
+  const games=S.games.filter(g=>g.system===system&&!g.demo).sort(S.sort==='custom'?manualGameSort(system):SORTS[S.sort]?(a,b)=>SORTS[S.sort](a,b)||byTitle(a,b):byTitle);
+  const order=games.map(g=>g.id),oldOrder=S.orders[system],oldSort=S.sort;
+  const index=order.indexOf(sourceId);if(index<0||!order.includes(targetId))return;
+  order.splice(index,1);order.splice(order.indexOf(targetId)+(after?1:0),0,sourceId);
+  S.orders[system]=order;S.sort='custom';
+  const keep=new Map([...items.values()].map(node=>[node.dataset.id,node]));
+  S.list.sort(manualGameSort(system));items.clear();for(let i=0;i<S.list.length;i++){const node=keep.get(S.list[i].id);if(node){node.id='shelf-game-'+i;items.set(i,node);}}
+  S.sel=Math.max(0,S.list.findIndex(g=>g.id===sourceId));layout();showInfo();syncShelfTools();saveUi();
+  try{S.orders[system]=await api.saveGameOrder({system,gameIds:order});toast('Game order saved.');}
+  catch(error){S.orders[system]=oldOrder;S.sort=oldSort;setSystem(system);toast(error.message,5000);}
+}
+function setSystem(id, edge = null) {
   const previousSystem=S.system;
-  S.system = (VIEWS[id] ? S.games.some(g => inView(g, id)) : !systemHidden(id) && (S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && s.romDir))) ? id : 'all';
+  S.system = (VIEWS[id] ? S.games.some(g => inView(g, id)) : !systemHidden(id) && (S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && (s.romDir || s.id === 'recomp')))) ? id : 'all';
   if(previousSystem!==S.system)AudioUI.play('system');
   const current = S.list[S.sel];
   // Each system remembers its selected game, so going back to it shows the same game again.
@@ -158,12 +360,15 @@ function setSystem(id) {
   const q = S.query.trim().toLowerCase();
   let list = S.games.filter(g => inView(g, S.system) && (!q || g.title.toLowerCase().includes(q)) && passesFilter(g));
   if (S.system === 'recent') list = list.sort(SORTS.recent).slice(0, 30);
+  else if (S.sort === 'custom') list.sort(manualGameSort(S.system));
+  else if (S.sort === 'title') list.sort(byTitle);
   else if (SORTS[S.sort]) list = list.sort((a, b) => SORTS[S.sort](a, b) || byTitle(a, b));
   S.list = list;
   LibraryUI.select();
-  $('#carousel').innerHTML = ''; items.clear();
+  $('#carousel').innerHTML = ''; items.clear();revealNode=null;
   const k = keep ? S.list.indexOf(keep) : -1;
   S.sel = k >= 0 ? k : previousSystem !== S.system ? 0 : Math.min(S.sel, Math.max(0, S.list.length - 1));
+  if (edge !== null) S.sel = edge > 0 ? 0 : Math.max(0, S.list.length - 1);
   $('#empty').textContent = q ? `No games match “${S.query}”.` : S.filter ? 'No games match this filter. Change “Show” above the shelf.' : (() => { const s = S.config.systems.find(x => x.id === S.system);
       return s?.romDir ? `No games found in ${s.romDir.split('|').map(d => d.trim()).filter(Boolean).join(' or ')}` : 'No games for this system yet.'; })();
   $('#empty').classList.toggle('hidden', S.list.length > 0);
@@ -172,10 +377,32 @@ function setSystem(id) {
     const b = el('button', 'empty-hide', `Hide ${esc(viewName(S.system))}`); b.type = 'button';
     b.title = 'Show it again in Settings'; b.onclick = () => hideSystem(S.system);
     const box = el('div', 'empty-box'); box.append(el('span', '', esc($('#empty').textContent)), b);
+    if (S.system === 'recomp') { const add = el('button','empty-hide','+ Add standalone game…'); add.type='button'; add.onclick=addRecompGame; box.prepend(add); }
     $('#empty').replaceChildren(box);
   }
   syncShelfTools();
   layout(); showInfo(); saveUi();
+}
+function renderHiddenGames() {
+  const box = $('#hiddenGamesList'); box.replaceChildren();
+  const games = S.games.filter(g => g.hidden);
+  $('#hiddenGames summary').textContent = 'Hidden games (' + games.length + ')';
+  if (!games.length) box.append(el('p', '', 'No hidden games. Right-click a game on the shelf to hide it.'));
+  for (const game of games) {
+    const row = el('li');
+    const name = el('span'); name.textContent = game.title + ' · ' + sysOf(game.system).name;
+    name.title = game.romPath || '';
+    const button = el('button', '', 'Restore'); button.type = 'button';
+    button.onclick = async () => {
+      button.disabled = true;
+      try { Object.assign(game, await api.setHidden({ gameId: game.id, hidden: false })); refreshHiddenGames(); }
+      catch (e) { button.disabled = false; toast(e.message); }
+    };
+    row.append(name, button); box.append(row);
+  }
+}
+function refreshHiddenGames() {
+  renderChips(); renderShelfTools(); setSystem(S.system); renderHiddenGames();
 }
 async function hideSystem(id) {
   const c = structuredClone(S.config), sys = c.systems.find(s => s.id === id);
@@ -199,7 +426,7 @@ function saveUi() {
 // Sort, Show (filter) and Random, above the shelf.
 function renderShelfTools() {
   const counts = new Map();
-  for (const g of S.games) for (const x of genresOf(g)) { const k = x.toLowerCase(); const c = counts.get(k) || { name: x, n: 0 }; c.n++; counts.set(k, c); }
+  for (const g of S.games.filter(g => !g.hidden)) for (const x of genresOf(g)) { const k = x.toLowerCase(); const c = counts.get(k) || { name: x, n: 0 }; c.n++; counts.set(k, c); }
   const genres = [...counts.values()].filter(c => c.n >= 2 || counts.size <= 12).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 40);
   const opt = (value, label) => `<option value="${esc(value)}">${esc(label)}</option>`;
   $('#filterBy').innerHTML = opt('', 'All games') + opt('multi', 'Multiplayer (2+)') + opt('unplayed', 'Not played yet')
@@ -228,8 +455,9 @@ function cycleSystem(dir) {
 }
 
 // ---------- 3D carousel ----------
+const shelfModels=new Map();
 const items = new Map(); // list index -> element
-let revealTimer, revealId = null, announceTimer;
+let revealTimer, revealNode, revealId = null, announceTimer;
 // Discs and cartridges; a PSP UMD is a disc inside a plastic shell, so it is built like a cartridge.
 const hasShell = sys => sys.media === 'cart' || !!Cartridges.profiles[sys.id]?.shell;
 function createMedia(game, a) {
@@ -262,18 +490,20 @@ function createMedia(game, a) {
 }
 
 function resizeShelf() {
+  DetailsResize.align();
   $('#view-library').style.setProperty('--info-clearance', `${$('#info').offsetHeight + 114}px`);
 }
-function revealSelection() {
+function revealSelection(delay = 720) {
   clearTimeout(revealTimer);
   for (const [i,e] of items) if (i !== S.sel) e.classList.remove('media-revealed');
   const game = S.list[S.sel];
   revealId = game?.id || null;
   if (!game) return;
-  const selected = items.get(S.sel);
+  const selected = revealNode = items.get(S.sel);
   const reveal = () => { if (S.list[S.sel]?.id === game.id && selected?.isConnected) selected.classList.add('media-revealed'); };
+  if ($('#carousel').classList.contains('shelf-transfer') || shelfTransition) return;
   if (document.documentElement.dataset.motion === 'reduced') reveal();
-  else revealTimer = setTimeout(reveal,420);
+  else revealTimer = setTimeout(reveal,delay);
 }
 
 function buildBox(game, cls = '') {
@@ -302,12 +532,51 @@ function fillItem(it, game) {
 
 function makeItem(i) {
   const game = S.list[i];
+  const signature=JSON.stringify([game.title,game.media,game.mediaType,game._aspect,game._eShop,S.config?.realCaseSizes,Appearance.mode()]);
+  const cached=shelfModels.get(game.id);
+  if(cached&&cached.game===game&&cached.signature===signature){const node=cached.node;node.id='shelf-game-'+i;node.classList.remove('sel','media-revealed','console-arrival');node.draggable=!game.demo&&S.system!=='all'&&!VIEWS[S.system];$('#carousel').append(node);return node;}
   const it = el('div', 'item far');
+  shelfModels.delete(game.id);shelfModels.set(game.id,{node:it,signature,game});if(shelfModels.size>96)shelfModels.delete(shelfModels.keys().next().value);
   it.dataset.id = game.id;
   it.id = `shelf-game-${i}`;
   it.setAttribute('role','option'); it.setAttribute('aria-label',`${game.title}, ${sysOf(game.system).name}`);
   fillItem(it, game);
-  it.onclick = () => { if (S.list[S.sel] === game) openCase(); else select(S.list.indexOf(game)); };
+  it.oncontextmenu = async event => {
+    event.preventDefault();
+    if (game.demo) return toast('Add your own games to hide library entries.');
+    try {
+      const state = await api.gameContextMenu(game.id);
+      if (state?.action === 'addRecomp') return await addRecompGame();
+      if (state?.action === 'artwork') {
+        const result = await api.artImport({gameId:game.id,kind:'front'});
+        if (result) { updateArtwork(result); toast('Cover artwork updated.'); }
+        return;
+      }
+      if (state?.action === 'executable') return await chooseRecompExecutable(game);
+      if (state?.action === 'folder') return await api.openGameFolder(game.id);
+      if (state?.action === 'mediaType') {editGameDetails(game);$('#editGameMediaType').focus();return;}
+      if (state?.action === 'edit') return editGameDetails(game);
+      if (state) { Object.assign(game, state); refreshHiddenGames(); toast('Game hidden. Restore it in Settings → Hidden games.', 4500); }
+    } catch (e) { toast(e.message); }
+  };
+  it.draggable = !game.demo && S.system !== 'all' && !VIEWS[S.system];
+  it.ondragstart = event => {
+    if(!it.draggable)return event.preventDefault();
+    gameDrag={id:game.id,system:game.system};event.dataTransfer.setData('text/plain',game.id);event.dataTransfer.effectAllowed='move';
+    const front=art(game).front,ghost=el('div','cover-drag-preview');ghost.setAttribute('data-leia-ignore','');ghost.style.backgroundImage='url("'+front+'")';document.body.append(ghost);gameDrag.ghost=ghost;event.dataTransfer.setDragImage?.(ghost,52,72);setTimeout(()=>ghost.remove(),0);
+    it.classList.add('game-dragging');suppressGameClickUntil=performance.now()+600;
+  };
+  it.ondragover = event => {
+    if(!gameDrag||gameDrag.system!==game.system||gameDrag.id===game.id)return;event.preventDefault();event.dataTransfer.dropEffect='move';
+    const after=event.clientX>it.getBoundingClientRect().x+it.getBoundingClientRect().width/2;
+    for(const node of document.querySelectorAll('.drop-before,.drop-after'))node.classList.remove('drop-before','drop-after');it.classList.add(after?'drop-after':'drop-before');
+  };
+  it.ondrop = async event => {
+    if(!gameDrag||gameDrag.system!==game.system)return;event.preventDefault();event.stopPropagation();
+    const source=gameDrag.id,after=it.classList.contains('drop-after');clearGameDrag();suppressGameClickUntil=performance.now()+400;await dropGame(source,game.id,game.system,after);
+  };
+  it.ondragend = () => {clearGameDrag();suppressGameClickUntil=performance.now()+400;};
+  it.onclick = () => { if(performance.now()<suppressGameClickUntil)return; if (S.list[S.sel] === game) openCase(); else select(S.list.indexOf(game)); };
   $('#carousel').append(it);
   ensureArt(game);
   return it;
@@ -373,7 +642,7 @@ function updateArtwork(result) {
 // Physical case size of the game at a list position (no artwork work, unlike art()).
 function caseSize(i) {
   const g = S.list[i]; if (!g) return [230, 323, 24];
-  const sys = sysOf(g.system);
+  const sys = physicalSystem(g);
   return Packaging.profiles[sys.id]?.size || CASES[sys.caseType] || CASES.dvd;
 }
 function layout() {
@@ -389,8 +658,8 @@ function layout() {
     const itemScale = scale * Number(e.dataset.displayScale || 1);
     const placement=Appearance.position(i,S.sel,scale,itemScale,stage,view,caseSize),t=placement.transform;
     e.style.setProperty('--rack-shade',placement.shade||0);
-    if(placement.width){e.style.width=placement.width+'px';e.style.height=placement.height+'px'}else{e.style.removeProperty('width');e.style.removeProperty('height')}
-    if (fresh) { e.style.transition = 'none'; e.style.transform = t + ' translateY(40px)'; e.offsetWidth; e.style.transition = ''; }
+    e.style.width=(placement.width||caseSize(i)[0])+'px';e.style.height=(placement.height||caseSize(i)[1])+'px';
+    if (fresh && !$('#carousel').classList.contains('shelf-transfer')) { e.style.transition = 'none'; e.style.transform = t + ' translateY(40px)'; e.offsetWidth; e.style.transition = ''; }
     e.style.transform = t;
     e.style.zIndex = 100 - a;
     e.classList.toggle('sel', d === 0);
@@ -401,20 +670,144 @@ function layout() {
   $('#counter').textContent = S.list.length ? `${(S.sel + 1).toLocaleString()} / ${S.list.length.toLocaleString()}` : '';
   $('#shelfPosition').textContent = S.list.length ? `${String(S.sel+1).padStart(2,'0')} / ${S.list.length.toLocaleString()}` : '0 games';
   $('#shelfProgress').style.width = `${S.list.length ? (S.sel+1)/S.list.length*100 : 0}%`;
-  $('#shelfPrev').disabled = !S.list.length || S.sel === 0;
-  $('#shelfNext').disabled = !S.list.length || S.sel === S.list.length-1;
+  $('#shelfPrev').disabled = !S.list.length;
+  $('#shelfNext').disabled = !S.list.length;
   $('#shelfLabel').textContent = viewName(S.system)+' / '+Appearance.layouts[Appearance.mode()].name;
   if (S.list.length) $('#carousel').setAttribute('aria-activedescendant',`shelf-game-${S.sel}`);
   else $('#carousel').removeAttribute('aria-activedescendant');
   if (!S.list.length) $('#mediaType').textContent = '';
-  if (revealId !== (S.list[S.sel]?.id || null) || !items.get(S.sel)?.classList.contains('media-revealed')) revealSelection();
+  renderConsolePreviews();
+  if (revealId !== (S.list[S.sel]?.id || null) || items.get(S.sel)!==revealNode) revealSelection();
 }
 
+let shelfTransition = null;
+function nextConsole(dir) {
+  const q = S.query.trim().toLowerCase();
+  const ids = S.config.systems.filter(sys => !sys.hidden && S.games.some(g => !g.hidden && g.system === sys.id && (!q || g.title.toLowerCase().includes(q)) && passesFilter(g))).map(sys => sys.id);
+  const index = ids.indexOf(S.system);
+  return index < 0 || !ids.length ? S.system : ids[(index + dir + ids.length) % ids.length];
+}
+function renderConsolePreviews(force = false) {
+  const stage = $('#stage');
+  // Keep the outgoing previews intact until their fade has finished.
+  if (stage.classList.contains('console-moving') && !force) return;
+  for (const dir of [-1, 1]) {
+    const cls = dir > 0 ? 'next' : 'previous';
+    let preview = stage.querySelector('.console-preview.' + cls + ':not(.preview-departing)');
+    const remaining = dir > 0 ? S.list.length - 1 - S.sel : S.sel;
+    const target = S.list.length && remaining < Math.min(5, S.list.length) ? nextConsole(dir) : S.system;
+    if (target === S.system || !S.list.length || remaining >= Math.min(5, S.list.length)) { preview?.remove(); continue; }
+    const q = S.query.trim().toLowerCase();
+    let games = S.games.filter(g => inView(g, target) && (!q || g.title.toLowerCase().includes(q)) && passesFilter(g));
+    games.sort(S.sort==='custom'?manualGameSort(target):SORTS[S.sort] ? (a,b) => SORTS[S.sort](a,b) || byTitle(a,b) : byTitle);
+    games = dir > 0 ? games.slice(0, 3) : games.slice(-3).reverse();
+    if (!games.length) { preview?.remove(); continue; }
+    if (!preview) {
+      preview = el('div', 'console-preview ' + cls);
+      preview.setAttribute('aria-hidden', 'true'); preview.inert = true;
+      stage.append(preview);
+    }
+    const key = JSON.stringify([target, ...games.map(g => [g.id, g.title, g.media.front])]);
+    if (preview._key !== key) {
+      preview._key = key; preview.replaceChildren();
+      const name = el('div', 'console-preview-name'); name.textContent = viewName(target);
+      const covers = el('div', 'console-preview-covers');
+      for (const game of games) {
+        const card = el('div', 'console-preview-cover'); card.dataset.gameId = game.id;
+        card.title = game.title;
+        card.append(EshopCovers.face(game, art(game), 'console-preview-face'));
+        covers.append(card); ensureArt(game);
+      }
+      preview.append(name, covers);
+    }
+    preview.style.opacity = .65 * (1 - remaining / Math.min(5, S.list.length));
+  }
+}
+function navigateGame(dir) {
+  if (!S.list.length || shelfTransition) return;
+  const index = S.sel + dir;
+  if (index >= 0 && index < S.list.length) return select(index);
+  const carousel = $('#carousel');
+  const peek = $('#stage').querySelector('.console-preview.' + (dir > 0 ? 'next' : 'previous') + ' .console-preview-cover')?.getBoundingClientRect();
+  const reduced = document.documentElement.dataset.motion === 'reduced';
+  clearTimeout(revealTimer);revealId=null;for(const node of items.values())node.classList.remove('media-revealed');
+  const outgoing = reduced ? null : carousel.cloneNode(true);
+  if (outgoing) {
+    const originals = carousel.querySelectorAll('.item, .sway');
+    outgoing.querySelectorAll('.item, .sway').forEach((node, i) => {
+      node.style.transform = getComputedStyle(originals[i]).transform;
+      node.style.animation = 'none';
+      node.style.transition = 'none';
+    });
+    outgoing.removeAttribute('id'); outgoing.classList.add('shelf-continuation');
+    outgoing.removeAttribute('role'); outgoing.removeAttribute('tabindex'); outgoing.removeAttribute('aria-activedescendant');
+    outgoing.setAttribute('aria-hidden', 'true'); outgoing.inert = true;
+    for (const node of outgoing.querySelectorAll('[id]')) node.removeAttribute('id');
+    carousel.parentElement.append(outgoing);
+  }
+  const target = nextConsole(dir);
+  const oldPreviews = reduced ? [] : [...$('#stage').querySelectorAll('.console-preview')];
+  if (!reduced) { carousel.classList.add('shelf-transfer'); $('#stage').classList.add('console-moving'); }
+  setSystem(target, dir);
+  // Resolve the new details-bar height before animating the shelf.
+  if (!reduced) { resizeShelf(); layout(); }
+  AudioUI.play('scroll', dir);
+  if (reduced) return;
+  // Grow the incoming shelf from the adjacent console's peeking cover.
+  const distance = Math.max(500, $('#stage').clientWidth * .65);
+  const options = { duration: 580, easing: 'cubic-bezier(.2,.75,.2,1)' };
+  const exit = outgoing.animate([
+    { transform: 'translateX(0)' },
+    { transform: 'translateX(' + (-dir * distance) + 'px)' }
+  ], options);
+  const selected = items.get(S.sel);
+  const face = selected.querySelector('.swatch-cover, .f-front') || selected;
+  let startScale = .25, startX = dir * distance, startY = 0;
+  carousel.style.transformOrigin = '0 0';
+  if (peek?.width && peek.height) {
+    const restingWidth = face.getBoundingClientRect().width;
+    startScale = Math.max(.12, Math.min(.45, peek.width / restingWidth));
+    // Fit the projected front face to the preview on either side of the shelf.
+    carousel.style.transform = `scale(${startScale})`;
+    const projected = face.getBoundingClientRect();
+    startX = peek.x + peek.width / 2 - projected.x - projected.width / 2;
+    startY = peek.y + peek.height / 2 - projected.y - projected.height / 2;
+    carousel.style.transform = '';
+  }
+  const enter = carousel.animate([
+    { transform: 'translate3d(' + startX + 'px,' + startY + 'px,0) scale(' + startScale + ')' },
+    { transform: 'translate3d(0,0,0) scale(1)' }
+  ], options);
+  // Build the destination previews before the shared animation starts.
+  for (const node of oldPreviews) node.classList.add('preview-departing');
+  renderConsolePreviews(true);
+  // Preview labels stay near the edge: only the actual game shelf makes
+  // the large zoom from its peeking cover into the active position.
+  const previewFades = oldPreviews.map(node => node.animate([
+    { transform:'translateY(-50%) translate3d(0,0,0) scale(1)', opacity:Number(getComputedStyle(node).opacity) },
+    { transform:'translateY(-50%) translate3d(' + (-dir * 72) + 'px,0,0) scale(1.025)', opacity:0 }
+  ], {...options,fill:'forwards'}));
+  const incomingPreviews = [...$('#stage').querySelectorAll('.console-preview:not(.preview-departing)')];
+  for (const node of incomingPreviews) previewFades.push(node.animate([
+    { transform:'translateY(-50%) translate3d(' + (dir * 72) + 'px,0,0) scale(.975)', opacity:0 },
+    { transform:'translateY(-50%) translate3d(0,0,0) scale(1)', opacity:Number(node.style.opacity) }
+  ], options));
+  for (const node of items.values()) node.classList.add('console-arrival');
+  shelfTransition = { exit, enter, outgoing, previewFades };
+  Promise.allSettled([exit.finished, enter.finished, ...previewFades.map(animation => animation.finished)]).then(() => {
+    outgoing.remove();
+    for (const node of oldPreviews) node.remove();
+    $('#stage').classList.remove('console-moving');
+    layout(); carousel.offsetWidth;
+    carousel.classList.remove('shelf-transfer'); shelfTransition = null;revealSelection(60);
+  });
+}
 function select(i) {
   if (!S.list.length) return;
   const n = Math.max(0, Math.min(S.list.length - 1, i));
   if (n === S.sel) return;
   if(!Ambient.active())AudioUI.play('scroll',Math.sign(n-S.sel));
+  for (const node of items.values()) node.classList.remove('console-arrival');
   S.sel = n; layout(); showInfo(); saveUi();
 }
 
@@ -471,6 +864,28 @@ function regionOf(g) {
   for (const t of tags) { const r = REGIONS[t.toLowerCase()] || (/^(usa|europe|japan|world)/i.test(t) && t.split(',')[0]); if (r) return r; }
   return null;
 }
+function renderGameScreenshot(game) {
+  const shot = $('#gShot'), image = game.media.screenshot || game.media.title;
+  const video = !image && game.media.video;
+  const key = JSON.stringify([game.id,image,video]);
+  if (shot._mediaKey === key) return;
+  shot._mediaKey = key; shot.replaceChildren(); shot.style.display = '';
+  shot.style.backgroundImage = image ? 'url("' + image + '")' : '';
+  shot.classList.toggle('shot-empty', !image && !video);
+  shot.title = 'Right-click to add or change the screenshot image';
+  if (video) { const node = el('video');Object.assign(node,{src:video,muted:true,autoplay:true,loop:true});shot.append(node); }
+  else if (!image) shot.append(el('span','screenshot-placeholder','Right-click to add screenshot'));
+}
+async function chooseGameScreenshot() {
+  const game = S.list[S.sel];if (!game || game.demo) return;
+  try {
+    if (!await api.screenshotContextMenu(game.id)) return;
+    const result = await api.artImport({gameId:game.id,kind:'screenshot'});
+    if (result) { updateArtwork(result);if(S.list[S.sel]===game)renderGameScreenshot(game);toast('Screenshot updated.'); }
+  } catch(e) { toast(e.message,5000); }
+}
+$('#gShot').oncontextmenu = event => {event.preventDefault();return chooseGameScreenshot();};
+$('#gShot').onkeydown = event => {if(['ContextMenu','Enter',' '].includes(event.key)||event.shiftKey&&event.key==='F10'){event.preventDefault();event.stopPropagation();chooseGameScreenshot();}};
 async function showInfo(quiet) {
   const g = S.list[S.sel];
   const info = $('#info');
@@ -484,17 +899,16 @@ async function showInfo(quiet) {
   // A clear logo replaces the title text when there is one; the text stays for screen readers.
   const titleEl = $('#gTitle');
   titleEl.textContent = g.title;
-  titleEl.classList.toggle('has-logo', !!g.media.logo);
+  titleEl.classList.toggle('has-logo', !!g.media.logo && !g.customTitle);
   titleEl.style.setProperty('--logo', g.media.logo ? `url("${g.media.logo}")` : 'none');
   const ext = !g.romPath ? null : /[\\/]exefs[\\/]main$/i.test(g.romPath) ? 'FOLDER DUMP' : g.romPath.split('.').pop().toUpperCase();
-  $('#gMeta').innerHTML = [g.info.year, g.info.developer, g.info.genre, g.info.players && `${g.info.players} player${g.info.players === '1' ? '' : 's'}`, regionOf(g), ext,
+  $('#gMeta').innerHTML = [g.info.year, g.info.developer, g.info.genre, g.version && `Version ${g.version}`, g.info.players && `${g.info.players} player${g.info.players === '1' ? '' : 's'}`, regionOf(g), ext,
     g.discs?.length > 1 && `${g.discs.length} discs`, ...playSummary(g)]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
   $('#btnManual').disabled = !g.media.manual;
   updateEmuButton(); updateFavButton();
+  renderGameScreenshot(g);
   if (quiet) {
-    const shot = $('#gShot');
-    if (g.media.screenshot || g.media.title) { shot.style.backgroundImage = `url("${g.media.screenshot || g.media.title}")`; shot.style.display = ''; }
     const bg=$(bgFlip ? '#bgB' : '#bgA');setGameBackground(bg,g,a);
     const tint = await Art.tint(a.digital?.source||a.front,a.digital?.crop||a.packshot);
     if (S.list[S.sel] === g) document.documentElement.style.setProperty('--tint', tint);
@@ -503,10 +917,6 @@ async function showInfo(quiet) {
   $('#gDesc').textContent = g.info.description || '';
   $('#gDesc').classList.toggle('hidden',!g.info.description);
   $('#btnManual').disabled = !g.media.manual;
-  const shot = $('#gShot');
-  shot.innerHTML = ''; shot.style.backgroundImage = g.media.screenshot || g.media.title ? `url("${g.media.screenshot || g.media.title}")` : '';
-  if (g.media.video) { const v = el('video'); Object.assign(v, { src: g.media.video, muted: true, autoplay: true, loop: true }); shot.append(v); }
-  shot.style.display = g.media.screenshot || g.media.title || g.media.video ? '' : 'none';
   info.classList.remove('swap'); info.offsetWidth; info.classList.add('swap');
   resizeShelf();
   clearTimeout(announceTimer);
@@ -900,10 +1310,14 @@ function initAppUpdates() {
 }
 
 // ---------- settings ----------
+const expandedSystemGames = new Set();
+const systemSettingsDrafts = new Map();
 function renderSettings() {
   const c = S.config;
   $('#sPrompts').value = promptPreference;
   $('#sMotion').value = motionPreference;
+  $('#sChromeMode').value = S.config.libraryChromeMode === 'hidden' ? 'hidden' : 'shown';
+  $('#sDetailsPinned').checked = !!S.config.libraryDetailsPinned;
   $('#sEshop').value = eShopStyle;
   $('#sAmbient').value = String(c.ambient?.idleMinutes ?? 2);
   $('#sBackground').value = c.ambient?.background || (c.ambient?.ribbon === false ? 'off' : 'ribbon');
@@ -921,17 +1335,82 @@ function renderSettings() {
     return opt('', 'None') + opt('__direct', 'Run the file itself') + (sel && !known ? opt(sel, `${sel} (not found)`) : '') + S.emus.map(e => opt(e.id, e.name)).join('');
   };
   c.systems.forEach((s, i) => {
-    const tr = el('tr', s.hidden ? 'sys-hidden' : '', `
-      <td class="show"><input type="checkbox" data-k="show" ${s.hidden ? '' : 'checked'} aria-label="Show ${esc(s.name)} in the library"/></td>
+    const draft = systemSettingsDrafts.get(s.id) || {};
+    const hidden = draft.hidden ?? !!s.hidden;
+    const tr = el('tr', hidden ? 'sys-hidden' : '', `
+      <td class="show"><input type="checkbox" data-k="show" ${hidden ? '' : 'checked'} aria-label="Show ${esc(s.name)} in the library"/></td>
       <td class="name"><i style="background:${esc(s.color)}"></i>${esc(s.name)}${s.custom ? ` <button class="sys-remove" data-remove-system="${esc(s.id)}" title="Remove this system">Remove</button>` : ''}</td>
-      <td><input data-k="romDir" value="${esc(s.romDir)}" placeholder="Not set" id="rom${i}"/></td>
+      <td><input data-k="romDir" value="${esc(draft.romDir ?? s.romDir)}" placeholder="Not set" id="rom${i}"/></td>
       <td><button data-browse="rom${i}">Browse…</button> <button data-browse="rom${i}" data-add="1" title="Add another ROM folder">+ Add</button></td>
       <td><select data-k="emulator">${emuOpts(s.emulator, s.direct)}</select></td>
       <td><input data-k="extensions" value="${esc(s.extensions.join(' '))}"/></td>
       <td><input data-k="args" value="${esc(s.args || '')}" placeholder="emulator default"/></td>`);
     tr.dataset.i = i; body.append(tr);
+    const show = tr.querySelector('[data-k="show"]');
+    const hiddenLabel = el('span', 'system-hidden-label', 'Hidden');
+    hiddenLabel.hidden = show.checked;
+    const folder = tr.querySelector('[data-k="romDir"]');
+    folder.oninput = () => {
+      draft.romDir = folder.value;
+      systemSettingsDrafts.set(s.id, draft);
+    };
+    show.onchange = () => {
+      draft.hidden = !show.checked;
+      systemSettingsDrafts.set(s.id, draft);
+      tr.classList.toggle('sys-hidden', !show.checked);
+      hiddenLabel.hidden = show.checked;
+    };
+    const games = S.games.filter(g => g.system === s.id && !g.demo);
+    const toggle = el('button','system-games-toggle'); toggle.type='button';
+    toggle.textContent = '▸ ' + s.name + ' · ' + games.length + ' games';
+    toggle.setAttribute('aria-expanded',String(expandedSystemGames.has(s.id)));
+    toggle.setAttribute('aria-controls','system-games-' + i);
+    const name = tr.querySelector('.name');
+    for (const node of [...name.childNodes]) if (node.nodeType === Node.TEXT_NODE) node.remove();
+    name.querySelector('i').after(toggle, hiddenLabel);
+    const row = el('tr','system-games-row');row.classList.toggle('hidden',!expandedSystemGames.has(s.id));
+    const cell = el('td');cell.colSpan=7;const group=el('div','system-games-panel');group.id='system-games-'+i;cell.append(group);row.append(cell);body.append(row);
+    const populate = () => renderSystemGameGroup(s.id,group,toggle);
+    toggle.onclick = () => {
+      const open = row.classList.contains('hidden');row.classList.toggle('hidden',!open);
+      if(open)expandedSystemGames.add(s.id);else expandedSystemGames.delete(s.id);
+      toggle.setAttribute('aria-expanded',String(open));populate();
+    };
+    populate();
   });
+  const recompRow = [...body.querySelectorAll('tr')].find(row => c.systems[Number(row.dataset.i)]?.id === 'recomp');
+  if (recompRow) {
+    for (const node of recompRow.querySelectorAll('[data-k]:not([data-k="show"]),[data-browse]')) node.disabled = true;
+    recompRow.querySelector('[data-k="romDir"]').placeholder = 'Use + Recomp game to add folders';
+  }
   renderAddedGames();
+}
+function renderSystemGameGroup(systemId, box, toggle) {
+  const games = S.games.filter(g => g.system === systemId && !g.demo).sort(manualGameSort(systemId));
+  const system = sysOf(systemId), expanded = toggle.getAttribute('aria-expanded') === 'true';
+  const arrow=el('span','system-games-chevron','›');arrow.setAttribute('aria-hidden','true');
+  const caption=el('span','system-games-caption');caption.textContent=system.name+' · '+games.length+' games';
+  toggle.replaceChildren(arrow,caption);
+  box.replaceChildren();
+  if (!games.length) {box.append(el('p','sub','No games found. Set a folder and rescan, or add a standalone game.'));return;}
+  const controls = el('div','system-games-controls');
+  const count = el('span','sub',games.filter(g=>!g.hidden).length + ' of ' + games.length + ' games shown');
+  controls.append(count);
+  const refresh = () => {refreshHiddenGames();renderSystemGameGroup(systemId,box,toggle);};
+  for (const [text,hidden] of [['Show all games',false],['Hide all games',true]]) {
+    const button=el('button','',text);button.type='button';
+    button.onclick=async()=>{button.disabled=true;try{const states=await api.setSystemGamesHidden({system:systemId,hidden});for(const state of states){const game=S.games.find(g=>g.id===state.gameId);if(game)Object.assign(game,state);}refresh();}catch(e){button.disabled=false;toast(e.message);}};
+    controls.append(button);
+  }
+  box.append(controls);
+  for (const game of games) {
+    const label=el('label','system-game-entry'),check=el('input');check.type='checkbox';check.checked=!game.hidden;
+    check.setAttribute('aria-label','Show '+game.title);
+    const text=el('span');text.textContent=game.title;text.title=game.romPath||'';
+    label.append(check,text);
+    check.onchange=async()=>{check.disabled=true;try{Object.assign(game,await api.setHidden({gameId:game.id,hidden:!check.checked}));refresh();}catch(e){check.disabled=false;check.checked=!game.hidden;toast(e.message);}};
+    box.append(label);
+  }
 }
 // ---- Your own systems and games ----
 async function renderAddedGames() {
@@ -950,10 +1429,32 @@ async function renderAddedGames() {
 }
 const toggleForm = (form, show) => { $$('.add-form').forEach(f => f.classList.add('hidden')); if (show) { form.classList.remove('hidden'); form.querySelector('input,select')?.focus(); } };
 $('#btnAddSystem').onclick = () => toggleForm($('#addSystemForm'), $('#addSystemForm').classList.contains('hidden'));
+async function chooseRecompExecutable(game) {
+  try { const result = await api.chooseGameExecutable(game.id); if (result) toast('Game executable saved. Press Play to launch it.'); }
+  catch (e) { toast(e.message,5000); }
+}
+async function addRecompGame() {
+  try {
+    const entry = await api.gameAdd({system:'recomp',title:''}); if (!entry) return;
+    await loadLibrary(); setSystem('recomp'); const addedIndex=S.list.findIndex(g=>g.added===entry.id);if(addedIndex>=0)select(addedIndex);renderAddedGames();
+    toast('Recomp game added. Right-click its cover to choose the .exe.', 5500);
+  } catch (e) { toast(e.message,5000); }
+}
+$('#btnAddRecomp').onclick = addRecompGame;
+$('#stage').addEventListener('contextmenu', async event => {
+  if (S.system !== 'recomp' || event.target.closest('.item')) return;
+  event.preventDefault();
+  try { if (await api.recompContextMenu()) await addRecompGame(); }
+  catch (e) { toast(e.message,5000); }
+});
+$('#addGameForm').elements.system.onchange = () => {
+  $('#addGameForm button[type="submit"]').textContent = $('#addGameForm').elements.system.value === 'recomp' ? 'Choose game folder…' : 'Choose file…';
+};
 $('#btnAddGame').onclick = () => {
   const form = $('#addGameForm'), pick = form.elements.system;
   pick.replaceChildren(...S.config.systems.map(s => { const o = el('option', '', esc(s.name)); o.value = s.id; return o; }));
   pick.value = S.config.systems.some(s => s.id === S.system) ? S.system : 'pc';
+  $('#addGameForm').elements.system.onchange();
   toggleForm(form, form.classList.contains('hidden'));
 };
 $$('.add-form [data-cancel]').forEach(b => { b.onclick = () => toggleForm(null, false); });
@@ -992,10 +1493,22 @@ document.addEventListener('click', async e => {
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-browse]');
   if (b) {
-    const p = await api.pickFolder('Choose folder');
-    if (p) {
-      const input = $('#' + b.dataset.browse), cur = input.value.trim();
-      input.value = b.dataset.add && cur ? `${cur} | ${p}` : p;
+    const input = document.getElementById(b.dataset.browse);
+    if (!input) return;
+    const system = S.config.systems[b.closest('tr')?.dataset.i];
+    b.disabled = true;
+    try {
+      const folder = await api.pickFolder(system ? 'Choose ' + system.name + ' ROM folder' : 'Choose artwork folder');
+      if (folder && input.isConnected) {
+        const current = input.value.trim();
+        input.value = b.dataset.add && current ? current + ' | ' + folder : folder;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        $('#settingsScanStatus').textContent = 'Folder selected. Click Save & rescan to apply it.';
+      }
+    } catch (error) {
+      $('#settingsScanStatus').textContent = 'Could not choose folder: ' + error.message;
+    } finally {
+      b.disabled = false;
     }
   }
   const g = e.target.closest('[data-goto]');
@@ -1012,7 +1525,7 @@ $('#btnSave').onclick = async () => {
   c.motion = motionPreference;
   c.eShopStyle = eShopStyle;
   c.ambient = { idleMinutes: Number($('#sAmbient').value) || 0, background: $('#sBackground').value };
-  $$('#sysTable tbody tr').forEach(tr => {
+  $$('#sysTable tbody tr[data-i]').forEach(tr => {
     const s = c.systems[tr.dataset.i];
     tr.querySelectorAll('[data-k]').forEach(inp => {
       const v = inp.value.trim();
@@ -1023,11 +1536,42 @@ $('#btnSave').onclick = async () => {
       else s[inp.dataset.k] = v;
     });
   });
-  S.config = await api.setConfig(c);
-  applyCaseLook();
-  await loadLibrary();
-  toast(S.demo ? 'Saved — no games found yet in those folders.' : `Saved — ${S.games.length} games loaded.`);
-  showView('library');
+  const button = $('#btnSave');
+  const status = $('#settingsScanStatus');
+  if (button.disabled) return;
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  status.textContent = 'Saving folder and visibility changes…';
+  let saved = false;
+  try {
+    S.config = await api.setConfig(c);
+    systemSettingsDrafts.clear();
+    saved = true;
+    applyCaseLook();
+    button.textContent = 'Scanning…';
+    status.textContent = 'Scanning configured game folders…';
+    const { games, folders } = await loadLibrary(true);
+    renderSettings();
+    const visibleGames = games.filter(game => !game.hidden && !systemHidden(game.system)).length;
+    const summary = el('p', '', 'Settings saved. ' + visibleGames + ' visible games after scanning.');
+    status.replaceChildren(summary);
+    if (folders.length) {
+      const results = el('ul');
+      for (const entry of folders) {
+        const outcome = entry.problem || (entry.count ? entry.count + ' matching files'
+          : 'No matching games. Expected ' + (entry.extensions.join(', ') || 'an enabled file extension'));
+        results.append(el('li', '', entry.system + ' — ' + entry.folder + ' — ' + outcome));
+      }
+      status.append(results);
+    }
+    toast(summary.textContent);
+  } catch (error) {
+    status.textContent = (saved ? 'Settings saved, but the scan failed: ' : 'Could not save settings: ') + error.message;
+    toast(status.textContent, 6000);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Save & rescan';
+  }
 };
 
 // ---------- views & input ----------
@@ -1037,6 +1581,7 @@ function showView(v) {
   $$('#tabs button').forEach(b=>{if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
   $$('.view').forEach(x => x.classList.toggle('active', x.id === 'view-' + v));
   document.documentElement.dataset.view = v;
+  LibraryChrome.activity();
   if (v === 'emus') renderEmus();
   if (v === 'settings') renderSettings();
   if (v === 'artwork') ArtworkUI.open('system');
@@ -1047,7 +1592,7 @@ $('#btnPlay').onclick = () => play();
 $('#btnCase').onclick = openCase;
 $('#btnManual').onclick = () => manual();
 $('#btnArtwork').onclick = () => {showView('artwork');ArtworkUI.open('game');};
-$('#btnEmulator').onclick = () => openEmuChoice();
+$('#btnEmulator').onclick = () => S.list[S.sel]?.system === 'recomp' ? chooseRecompExecutable(S.list[S.sel]) : openEmuChoice();
 $('#btnFavorite').onclick = () => toggleFavorite();
 $('#closeEmuChoice').onclick = () => $('#emuChoice').close();
 // One game can use its own emulator, for example a fork made for that game.
@@ -1092,15 +1637,15 @@ function updateEmuButton() {
   const g = S.list[S.sel], b = $('#btnEmulator');
   if (!g) return;
   const { own } = emuLabel(g);
-  b.textContent = own ? `Emulator: ${own}` : 'Emulator';
+  b.textContent = g.system === 'recomp' ? 'Choose .exe' : own ? `Emulator: ${own}` : 'Emulator';
   b.classList.toggle('has-own', !!own);
 }
 $('#cvPlay').onclick = () => play(CV.game);
 $('#cvBack').onclick = closeCase;
 $('#cvToggle').onclick = () => setOpen(!CV.open);
 $('#cvFlip').onclick = () => tween({ ry: CV.ry + 180 }, 900);
-$('#shelfPrev').onclick = () => select(S.sel-1);
-$('#shelfNext').onclick = () => select(S.sel+1);
+$('#shelfPrev').onclick = () => navigateGame(-1);
+$('#shelfNext').onclick = () => navigateGame(1);
 let surfaceLightFrame=null;
 $('#stage').addEventListener('pointermove',e=>{
   if(surfaceLightFrame!==null||document.documentElement.dataset.motion==='reduced')return;
@@ -1125,9 +1670,11 @@ $('#stage').addEventListener('wheel', e => {
 
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
+  LibraryChrome.activity();
   if(document.querySelector('.launch-fx'))return; // a game is starting
   if(manualOpen()){if(action==='back'||action==='manual')closeManual();return;}
   if(shotOpen()){if(action==='back')$('#shotViewer').close();else if(action==='left'||action==='right')stepShot(action==='left'?-1:1);return;}
+  if ($('#gameDetailsEditor').open) return;
   if(emuChoiceOpen()){
     const opts=[...$$('#emuChoiceList button')],i=opts.indexOf(document.activeElement);
     if(action==='back')$('#emuChoice').close();
@@ -1154,7 +1701,7 @@ function input(action) {
   if (!libraryActive()) return;
   if(action==='sysprev'||action==='sysnext'){cycleSystem(action==='sysprev'?-1:1);return;}
   if(['up','down'].includes(action)&&['vertical','swatches'].includes(Appearance.mode())){const delta=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+(action==='up'?-delta:delta));return;}
-  ({ left: () => select(S.sel - 1), right: () => select(S.sel + 1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
+  ({ left: () => navigateGame(-1), right: () => navigateGame(1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
      play: () => play(), case: openCase, manual: () => manual(), favorite: () => toggleFavorite(), random: randomGame, pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
 }
 // Search: start typing anywhere in the library to filter.
@@ -1181,9 +1728,9 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => {
   usePromptInput('keyboard');
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&libraryActive()&&!caseShown()){e.preventDefault();LibraryUI.openPicker();return;}
+  if ($('#gameDetailsEditor').open) return;
   if(LibraryUI.pickerOpen()||Appearance.panelOpen()||emuChoiceOpen())return;
   if(shotOpen()&&e.key==='Tab')return;
-  if(e.key==='/'&&libraryActive()&&!caseShown()&&!e.target.matches?.('input,select,textarea')){e.preventDefault();$('#search').focus();return;}
   if (caseShown() && e.key === 'Tab') {
     const focusable = $$('#caseView button:not(:disabled)');
     const first=focusable[0],last=focusable[focusable.length-1];
@@ -1192,13 +1739,12 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.target.matches?.('input, select, textarea')) return;
+  if (libraryActive() && !caseShown() && e.key.toLowerCase() === 'o' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); if (!e.repeat) LibraryChrome.cycle(); return; }
+  if (libraryActive() && !caseShown() && e.key.toLowerCase() === 'i' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); if (!e.repeat) toggleGameDetails(); return; }
   if (e.target.matches?.('button,a') && (e.key === 'Enter' || e.key === ' ')) {
     // A button that only has focus because it was clicked keeps Enter/Space for the library, not for itself.
     if (!(pointerFocus && libraryActive() && !caseShown() && !e.target.closest('dialog'))) return;
     e.target.blur();
-  }
-  if (libraryActive() && !caseShown() && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !(['m','f'].includes(e.key.toLowerCase()) && !$('#search').value)) {
-    $('#search').focus(); return; // the key lands in the search box
   }
   const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'play', ' ': 'case', Escape: 'back', m: 'manual', M: 'manual', f: 'favorite', F: 'favorite', PageUp: 'pgup', PageDown: 'pgdn' };
   if (map[e.key]) { e.preventDefault(); input(caseShown() && e.key === ' ' ? 'back' : map[e.key]); }
@@ -1272,6 +1818,7 @@ function pollPad(now) {
   }
   const playing = inGame();
   const woke = gp && active(gp) && !playing ? Ambient.activity() : false;
+  if (gp && active(gp)) LibraryChrome.activity();
   if (gp && active(gp)) usePromptInput(Prompts.detect(gp.id));
   if (gp) {
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, b = i => gp.buttons[i]?.pressed;
