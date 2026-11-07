@@ -8,13 +8,19 @@ const output=path.resolve(__dirname,'../output');
 app.whenReady().then(async()=>{
   const errors=[];
   const win=new BrowserWindow({show:false,width:1600,height:900,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),contextIsolation:true,sandbox:false,backgroundThrottling:false,offscreen:true}});
-  const watchdog=setTimeout(()=>{console.error('Carousel check timed out');app.exit(1)},45000);
+  // A watchdog that only says "timed out" cannot be debugged from a CI log, so every stage names
+  // itself and the watchdog reports the one it was stuck in, and for how long.
+  let stage='loading the renderer',stageAt=Date.now();
+  const step=name=>{stage=name;stageAt=Date.now()};
+  const watchdog=setTimeout(()=>{console.error(`Carousel check timed out while ${stage} (${((Date.now()-stageAt)/1000).toFixed(1)}s in that stage)`);app.exit(1)},45000);
   win.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message)});
   const run=code=>win.webContents.executeJavaScript(`(async()=>{const assert=(v,m)=>{if(!v)throw new Error(m)}; const pause=ms=>new Promise(r=>setTimeout(r,ms)); const finish=()=>document.getAnimations().forEach(a=>{if(Number.isFinite(a.effect.getComputedTiming().endTime))a.finish()}); const until=async(fn,m)=>{for(let i=0;i<300;i++){const v=fn();if(v)return v;await pause(10)}throw new Error(m)}; ${code}})()`);
   async function snap(name){
+    step('decoding images for '+name);
     await run('await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));');
     win.webContents.invalidate();
     await new Promise(r=>setTimeout(r,120));
+    step('capturing '+name);
     const shot=await win.webContents.capturePage();
     if(shot.isEmpty())throw new Error('Empty screenshot: '+name);
     fs.writeFileSync(path.join(output,name),shot.toPNG());
@@ -22,6 +28,7 @@ app.whenReady().then(async()=>{
   try {
     fs.mkdirSync(output,{recursive:true});
     await win.loadFile(path.resolve(__dirname,'../renderer/index.html'));
+    step('checking the disc and cartridge reveal');
     await run(`
       await until(()=>S.games.length===12,'Fixture library failed');
       applyMotion('full'); select(0); await pause(1700);finish();
@@ -47,11 +54,15 @@ app.whenReady().then(async()=>{
       assert(new DOMMatrix(getComputedStyle(cart).transform).m42<0,'Cartridge did not lift out');
     `);
     await snap('carousel-cartridge-demo.png');
+    step('returning to the disc');
     await run(`select(0);await pause(1700);finish();`);
     await snap('carousel-disc-demo.png');
+    step('opening the case viewer');
     await run(`await openCase();await pause(1900);finish();`);
     await snap('carousel-case-viewer.png');
+    step('closing the case viewer');
     await run(`closeCase();`);
+    step('checking navigation, focus, motion and empty search');
     await run(`
       // Browse quickly: pending media from earlier selections must never pop out later.
       select(1); select(2); select(3); await pause(550);
@@ -79,6 +90,7 @@ app.whenReady().then(async()=>{
       S.query='';setSystem('all');select(0);resizeShelf();await pause(100);
     `);
     win.setContentSize(1100,650);
+    step('checking the minimum window layout');
     await run(`
       await pause(100);resizeShelf();layout();await pause(100);
       const info=document.querySelector('#info').getBoundingClientRect();
@@ -90,6 +102,7 @@ app.whenReady().then(async()=>{
       showView('settings');document.querySelector('#sMotion').value='reduced';document.querySelector('#sMotion').dispatchEvent(new Event('change'));
       await document.querySelector('#btnSave').onclick();assert(S.config.motion==='reduced','Motion preference did not persist');
     `);
+    step('waiting before the minimum-window capture');
     await run('await pause(3300);');
     await snap('carousel-minimum-window.png');
     if(errors.length)throw new Error(errors.join('\n'));
