@@ -51,6 +51,7 @@ app.whenReady().then(async()=>{
       S.config.systems.find(s=>s.id==='switch').artworkProvider='gametdb-switch';
       select(3);ArtworkUI.open('game');
       assert(document.querySelector('#artSourceLabel').textContent.includes('GameTDB')&&document.querySelector('#artSourceLabel').textContent.includes('LaunchBox'),'Switch sources were not shown');
+      assert(document.querySelector('#artSourceLabel').textContent.includes('Super Mario Wiki')&&document.querySelector('#artSourceLabel').textContent.includes('Internet Archive')&&document.querySelector('.art-source-list').textContent.includes('Internet Archive'),'Fallback sources were not listed');
       assert(!document.querySelector('#artStart').disabled,'Switch download must be enabled');
       assert(!document.querySelector('#artTypes input[value=screenshot]').disabled,'LaunchBox Switch screenshots should be available');
       assert(!document.querySelector('#artTypes input[value=disc]').disabled,'Switch cartridge labels should be enabled');

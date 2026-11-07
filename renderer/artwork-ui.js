@@ -39,7 +39,7 @@ const ArtworkUI = (()=>{
     q('#artShell').disabled=!isCart||importPending;q('#artShellAuto').disabled=!isCart||importPending||!selected?.shellCustom;
     if(isCart&&document.activeElement!==q('#artShell'))q('#artShell').value=Cartridges.shellColor(selected,sys.id)||Cartridges.profiles[sys.id]?.color||'#9a9c93';
     q('#artShellNote').textContent=!isCart?'Choose a cartridge game in Library to change its colour.':selected.shellCustom?'Your colour is used for this game.':selected.shell?'Colour taken from a photo of the real cartridge.':Cartridges.shellColor(selected,sys.id)?'This game shipped on a coloured cartridge.':'Real cartridge photos and famous coloured cartridges are used automatically.';
-    q('#artSourceLabel').textContent='Sources · LaunchBox, ScreenScraper, GameTDB, Libretro';
+    q('#artSourceLabel').textContent='Sources · LaunchBox, ScreenScraper, GameTDB, Libretro, Super Mario Wiki, Internet Archive';
     q('#artSourceDetails').textContent='Each image comes from the first source that has it, in this order. Availability varies by game.';
     q('#artScopeSummary').textContent=(scope==='game'?(selected&&!selected.demo?selected.title:'Select a game in your library first.'):`${games.length.toLocaleString()} games`)+(unavailable?` · ${unavailable.toLocaleString()} skipped: no artwork source for ${[...new Set(games.filter(g=>!supports(systems.find(s=>s.id===g.system))).map(g=>systems.find(s=>s.id===g.system)?.name||g.system))].join(', ')}. Use “Use your own image” instead.`:'');
     const busy=pending||['running','cancelling'].includes(job?.status);

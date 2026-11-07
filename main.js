@@ -44,6 +44,8 @@ const { pathToFileURL } = require('url');
 const {createArtworkService} = require('./artwork');
 const {createLaunchBox} = require('./launchbox');
 const {createScreenScraper} = require('./screenscraper');
+const {createMarioWiki} = require('./mariowiki');
+const {createInternetArchive} = require('./internet-archive');
 
 const ROOT = __dirname;
 // Where settings, installed emulators and artwork live:
@@ -575,9 +577,15 @@ const launchbox = createLaunchBox({
   download: (url, file, onBytes) => artwork.download(url, file, onBytes),
   onStatus: message => artwork.note(message),
 });
+// Volunteer-run sites: a generic name that says what is asking, one request a second, answers kept a month.
+const WEB_AGENT = `PyroCade/${require('./package.json').version} (+https://github.com/Pyrodrifter/PyroCade)`;
+const mariowiki = createMarioWiki({ dataDir: DATA, userAgent: WEB_AGENT });
+const internetArchive = createInternetArchive({ dataDir: DATA, normalize: looseKey, userAgent: WEB_AGENT });
 const artwork = createArtworkService({
   launchbox,
   screenscraper,
+  mariowiki,
+  internetArchive,
   cartridgeLabel,
   encodeImage: encodeArtwork,
   dataDir: DATA,

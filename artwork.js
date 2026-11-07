@@ -37,7 +37,7 @@ function imageWidth(b) {
 function fileWidth(file) {
   try {const fd=fs.openSync(file,'r');try{const b=Buffer.alloc(65536);const n=fs.readSync(fd,b,0,b.length,0);return imageWidth(b.subarray(0,n))}finally{fs.closeSync(fd)}}catch{return 0}
 }
-function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=fetch,onProgress=()=>{},source='https://thumbnails.libretro.com',decodeImage,launchbox=null,screenscraper=null,cartridgeLabel=null,encodeImage=null,
+function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=fetch,onProgress=()=>{},source='https://thumbnails.libretro.com',decodeImage,launchbox=null,screenscraper=null,mariowiki=null,internetArchive=null,cartridgeLabel=null,encodeImage=null,
   switchDatabase='https://www.gametdb.com/switchtdb.txt?LANG=EN',switchImages='https://art.gametdb.com/switch'}) {
   const indexes=new Map(), unavailable=new Set(), inflight=new Map();
   let switchIndex;
@@ -153,11 +153,17 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     if(screenscraper?.configured())steps.push(['screenscraper',async()=>photo(await firstImage(await screenscraper.find(game,type,{signal,refresh:refreshOnce('screenscraper')}),signal))]);
     if(isSwitch&&type!=='disc')steps.push(['gametdb-switch',gametdb]);
     if(!hqOnly&&sys.libretro&&TYPES[type].remote)steps.push([`${sys.id}/${type}`,()=>libretroImage(sys,type,game,{signal,retryMissing,refreshed,failures})]);
+    // Last resorts for front covers the sources above do not have. Never used to replace a cover
+    // already on disk (hqOnly): their scans can be another region's box.
+    if(type==='front'&&!hqOnly) {
+      if(mariowiki?.covers(sys.id))steps.push(['mariowiki',async()=>firstImage(await mariowiki.find(game,sys.id,{signal,refresh:refreshOnce('mariowiki')}),signal)]);
+      if(internetArchive?.covers(sys.id))steps.push(['internet-archive',async()=>firstImage(await internetArchive.find(game,sys.id,titleKeys(game),{signal,refresh:refreshOnce('internet-archive')}),signal)]);
+    }
     const errors=[];let asked=0;
     for(const [key,step] of steps) {
       if(failures.has(key)){errors.push(failures.get(key));continue}
       try {asked++;const bytes=await step();if(bytes)return bytes}
-      catch(e){if(signal?.aborted)throw e;asked--;errors.push(e.message);if(key==='launchbox'||key==='screenscraper')failures.set(key,e.message)}
+      catch(e){if(signal?.aborted)throw e;asked--;errors.push(e.message);if(['launchbox','screenscraper','mariowiki','internet-archive'].includes(key))failures.set(key,e.message)}
     }
     if(!asked&&errors.length)throw new Error(errors[0]);
     return null;
@@ -383,6 +389,8 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     const urls=[];
     if(launchbox)try{urls.push(...await launchbox.find(sys.id,titleKeys(game),type))}catch{}
     if(screenscraper?.configured())try{urls.push(...await screenscraper.find(game,type,{signal}))}catch{}
+    if(type==='front'&&mariowiki?.covers(sys.id))try{urls.push(...await mariowiki.find(game,sys.id,{signal}))}catch{}
+    if(type==='front'&&internetArchive?.covers(sys.id))try{urls.push(...await internetArchive.find(game,sys.id,titleKeys(game),{signal}))}catch{}
     const found=[];
     for(const url of [...new Set(urls)].slice(0,8)) {
       try {let bytes=await request(url,'image',signal);if(bytes&&type==='disc'&&sys.media==='cart')bytes=cartridgeLabel?.(bytes,sys.id)||null;if(bytes)found.push(bytes)}
