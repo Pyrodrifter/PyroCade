@@ -1,0 +1,78 @@
+/* Calmer library chrome, XMB-style ambient layer, idle screensaver, and more physical cases. */
+
+/* ---------- ambient ribbon ---------- */
+#xmb { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .8; pointer-events: none; transition: opacity 2s ease; mix-blend-mode: screen; }
+#xmb[hidden] { display: none; }
+#xmb[data-scene='pixel'] { mix-blend-mode: normal; image-rendering: pixelated; opacity: .85; }
+html.ambient #xmb[data-scene='pixel'] { opacity: 1; }
+html:has(#xmb[data-scene='pixel']) .bg-layer { opacity: 0 !important; }
+html:has(#xmb[data-scene='pixel']) .bg-vignette { background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.55) 100%), linear-gradient(to bottom, rgba(0,0,0,.25), transparent 18%, transparent 40%, rgba(0,0,0,.74)); }
+html.ambient #xmb { opacity: 1; }
+html[data-motion="reduced"] #xmb { opacity: .55; }
+
+/* ---------- decluttering ---------- */
+.shelf-heading, #inputBadge, .format-badge { display: none !important; }
+.shelf-arrow { opacity: 0; transition: opacity .35s, background .2s, transform .15s, border-color .2s; }
+#stage:hover .shelf-arrow, .shelf-arrow:focus-visible { opacity: 1; }
+.shelf-position { opacity: .55; }
+#gDesc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; max-height: none; }
+#libraryHints { transition: opacity 1.2s ease; }
+html.quiet #libraryHints { opacity: 0; pointer-events: none; }
+.banner { font-size: 12px; padding: 4px 14px; background: rgba(255,255,255,.05); border-color: var(--line); color: var(--muted); }
+header, .toolbar, #info .actions, #gDesc, .shot, .shelf-position, .banner, .brand, #tabs, #btnAppearance { transition: opacity .9s ease; }
+
+/* ---------- idle screensaver ---------- */
+html.ambient, html.ambient * { cursor: none !important; }
+html.ambient header { background: none; backdrop-filter: none; pointer-events: none; }
+html.ambient header::after { opacity: 0; }
+html.ambient header > :not(.header-status), html.ambient .header-status > :not(#clock),
+html.ambient .toolbar, html.ambient #libraryHints, html.ambient .shelf-arrow, html.ambient .shelf-position,
+html.ambient .banner, html.ambient #info .actions, html.ambient #gDesc, html.ambient .shot, html.ambient #info::before { opacity: 0 !important; pointer-events: none; }
+html.ambient #clock { position: fixed; top: 34px; right: 56px; font-size: 52px; font-weight: 200; letter-spacing: .02em; color: #fff; opacity: .85;
+  text-shadow: 0 2px 30px #0008; animation: clock-drift 900s ease-in-out infinite alternate; }
+@keyframes clock-drift { to { transform: translate(-36px, 28px); } }
+html.ambient #info { bottom: 56px; }
+html.ambient #info h1 { text-shadow: 0 4px 34px #000a; }
+html.ambient .item.sel .sway { animation-duration: 12s; }
+
+/* ---------- more physical cases ---------- */
+/* Moulded hinge groove running down the cover of plastic cases. */
+.box[data-material='plastic'] .case-surface-finish::before,
+.box[data-material='clear'] .case-surface-finish::before,
+.box[data-material='clamshell'] .case-surface-finish::before { content: ''; position: absolute; top: 1.5%; bottom: 1.5%; left: .6%; width: .6px; background: #00000050; box-shadow: .6px 0 0 #ffffff28; }
+.box[data-material] .f-back .case-surface-finish::before { left: auto; right: .6%; box-shadow: -.6px 0 0 #ffffff28; }
+.box[data-material='jewel'] .case-surface-finish::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg,#0000 0 93%,#00000030 96%,#0000 98%),linear-gradient(#0000 0 4%,#ffffff35 5%,#0000 7%); }
+
+
+
+/* Demo hint fades away on its own. */
+#demoBanner:not(.hidden) { animation: banner-fade 1.2s ease 9s forwards; }
+@keyframes banner-fade { to { opacity: 0; visibility: hidden; } }
+
+/* Keep the scene palettes distinct from the selected game's artwork glow. */
+html:has(#xmb[data-scene='xbox']) .bg-layer,
+html:has(#xmb[data-scene='towers']) .bg-layer,
+html:has(#xmb[data-scene='loom']) .bg-layer,
+html:has(#xmb[data-scene='codex']) .bg-layer { opacity: .15 !important; }
+
+/* Towers & orbs is an opaque scene, so it replaces the blend and keeps game art out of the way. */
+#xmb:is([data-scene='towers'],[data-scene='loom']) { mix-blend-mode: normal; opacity: .92; }
+html.ambient #xmb:is([data-scene='towers'],[data-scene='loom']) { opacity: 1; }
+
+/* Detail sizes return unused space to the game shelf. */
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info { padding-top: 10px; gap: 22px; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info h1 { font-size: clamp(22px, 2.2vw, 30px); margin: 4px 0; -webkit-line-clamp: 1; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info .eyebrow { font-size: 10px; letter-spacing: .18em; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info .meta { font-size: 12px; gap: 10px; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info .meta span + span::before { margin-right: 10px; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info #gDesc { font-size: 12px; line-height: 1.4; margin: 5px 0 8px; -webkit-line-clamp: 1; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info .actions { gap: 8px; margin-top: 8px; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info .actions button { font-size: 12px; padding: .45em .8em; }
+html:is([data-info-bar='small'],[data-info-bar='compact']) #info .actions .button-prompt { width: 24px; height: 24px; }
+html[data-info-bar='small'] #info .shot { width: clamp(145px, 16vw, 210px); }
+html[data-info-bar='compact'] #info :is(#gDesc,.shot,.meta,.eyebrow) { display: none !important; }
+html[data-info-bar='compact'] #info { align-items: center; }
+html[data-info-bar='compact'] #info .info-text { display: flex; align-items: center; gap: 18px; max-width: none; min-width: 0; }
+html[data-info-bar='compact'] #info h1 { flex: 1; min-width: 0; font-size: clamp(18px, 1.8vw, 24px); }
+html[data-info-bar='compact'] #info .actions { flex-shrink: 0; margin: 0; }
+html[data-info-bar='hidden'] #info { display: none; }

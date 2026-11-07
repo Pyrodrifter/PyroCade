@@ -29,6 +29,18 @@ app.whenReady().then(async()=>{
     await run(`
       await pause(100);
       assert(S.games.length===12,'Fixture library failed');
+      assert(document.querySelector('#xmb'),'Ambient canvas is missing');
+      assert(Ambient.backgrounds().includes('loom'),'Ambient scenes are unavailable');
+      Appearance.apply({infoBar:'compact'},false);
+      assert(document.documentElement.dataset.infoBar==='compact','Info bar setting did not apply');
+      Appearance.apply({infoBar:'small'},false);
+      assert(Appearance.layouts.bookshelf&&Appearance.layouts.spinner,'Bookshelf and spinner layouts are unavailable');
+      Appearance.apply({layout:'bookshelf'},false);layout();
+      assert(document.querySelector('#layoutOptions [data-layout="bookshelf"]'),'Bookshelf option is missing');
+      assert([...document.querySelectorAll('.item')].some(item=>item.style.transform.includes('rotateY(90deg)')),'Bookshelf cases are not displayed spine-out');
+      Appearance.apply({layout:'spinner'},false);layout();
+      assert([...document.querySelectorAll('.item')].some(item=>item.style.transform.includes('rotateY(')),'Spinner cases are not arranged around a rotating post');
+      Appearance.apply({layout:'carousel'},false);layout();
       applyMotion('full'); select(0); await pause(1700);finish();
       const selected=document.querySelector('.item.sel');
       assert(selected.classList.contains('media-revealed'),'Disc did not reveal after selection');

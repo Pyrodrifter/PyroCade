@@ -7,9 +7,10 @@
   <link rel="icon" type="image/png" href="assets/brand/pyrocade-icon-32.png" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="library-ui.css" />
+  <link rel="stylesheet" href="xmb.css" />
 </head>
 <body>
-  <div id="bg"><div class="bg-layer" id="bgA"></div><div class="bg-layer" id="bgB"></div><div class="bg-vignette"></div></div>
+  <div id="bg"><div class="bg-layer" id="bgA"></div><div class="bg-layer" id="bgB"></div><canvas id="xmb" aria-hidden="true"></canvas><div class="bg-vignette"></div></div>
 
   <header>
     <div class="brand"><span class="flame">▲</span> PYRO<b>CADE</b></div>
@@ -45,6 +46,7 @@
     <div id="stage">
       <div class="shelf-heading"><span id="shelfLabel"></span><span id="mediaType"></span></div>
             <div id="floor"></div>
+      <div id="rackPost" aria-hidden="true"></div>
       <div id="carousel" role="listbox" aria-label="Game collection" tabindex="0"></div>
       <div id="empty" class="hidden">No games for this system yet.</div>
       <button id="shelfPrev" class="shelf-arrow previous" aria-label="Previous game" title="Previous game"></button>
@@ -82,7 +84,8 @@
     <div class="appearance-label">Browse your games</div><div id="layoutOptions" class="layout-options"></div>
     <div class="appearance-label">Colour theme</div><div id="themeOptions" class="theme-options"></div>
     <div class="appearance-label">Interface sound</div><div class="sound-controls"><button id="soundToggle" aria-pressed="true">Sound on</button><input id="soundVolume" aria-label="Interface sound volume" type="range" min="0" max="100" step="1" value="25" /><output id="soundVolumeValue">25%</output><button id="soundPreview" title="Preview sound">Test</button></div>
-    
+    <div class="appearance-label">Game details bar</div><div id="infoBarOptions" class="theme-options"><button type="button" class="theme-option" data-info-bar="large" aria-pressed="false">Large</button><button type="button" class="theme-option" data-info-bar="small" aria-pressed="true">Small</button><button type="button" class="theme-option" data-info-bar="compact" aria-pressed="false">Compact</button><button type="button" class="theme-option" data-info-bar="hidden" aria-pressed="false">Hidden</button></div>
+    <div class="appearance-label">Background scene</div><div id="backgroundOptions" class="theme-options"></div>
   </dialog>
 
   <!-- CASE VIEWER -->
@@ -175,6 +178,13 @@
       <p class="prompt-note" id="promptStatus" role="status"></p>
       <p class="prompt-note">Prompt labels follow your physical controller, regardless of the emulated system. Override the family if your adapter reports a generic name.</p>
       <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow Windows preference</option><option value="full">Full · animated media &amp; ambient light</option><option value="reduced">Reduced · instant previews</option></select></label>
+      <label class="row check"><input type="checkbox" id="sDisableModels" /> Disable 3D models · use flat covers</label>
+      <label class="row check"><input type="checkbox" id="sDisableAnimations" /> Disable animations · static backgrounds and instant navigation</label>
+      <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes (a Game Boy box next to a PS2 case looks small)</label>
+      <label class="row check"><input type="checkbox" id="sWear" /> Used copies: scuffed cases and faded labels</label>
+      <p class="prompt-note">These options apply immediately and save automatically. Turn both on for slower computers.</p>
+      <label class="row"><span>Ambient mode</span><select id="sAmbient"><option value="0">Off</option><option value="1">After 1 minute idle</option><option value="2">After 2 minutes idle</option><option value="5">After 5 minutes idle</option><option value="10">After 10 minutes idle</option></select></label>
+      <label class="row"><span>Background scene</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
       <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
       <label class="row"><span>Artwork folder (optional)</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
       <label class="row check"><input type="checkbox" id="sHide" /> Minimise PyroCade while a game is running</label>
@@ -217,6 +227,10 @@ ps2\Neon Drift (USA)\front.png      ps2\covers\Neon Drift (USA).png
   <script src="library-ui.js"></script>
   <script src="ui-audio.js"></script>
   <script src="appearance.js"></script>
+  <script src="pixel-scenes.js"></script>
+  <script src="ps2-scene.js"></script>
+  <script src="loom-scene.js"></script>
+  <script src="ambient.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

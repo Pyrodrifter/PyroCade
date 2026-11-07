@@ -30,6 +30,69 @@ code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; 
 .bg-layer.on { opacity: 1; }
 .bg-vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,.75) 100%),
   linear-gradient(to bottom, rgba(0,0,0,.4), transparent 20%, transparent 60%, rgba(0,0,0,.85)); }
+/* The ambient canvas sits inside #bg; xmb.css owns its scene and screensaver styling. */
+
+/* ---------- physical media models ---------- */
+.disc-mini .disc-metal { mask-image: radial-gradient(circle,transparent 0 10.5%,#000 11%); }
+.disc-mini .disc-surface { inset: 2px; mask-image: radial-gradient(circle,transparent 0 22%,#000 22.5%); }
+.disc-mini .disc-hub { background: radial-gradient(circle,transparent 0 10.5%,#e0e7f077 11% 13%,#aab5c788 13.5% 19%,#e2eaf070 19.5% 22%,transparent 22.5%); }
+.cartridge-whole-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+
+/* Flat covers omit the model DOM as well as the perspective effects. */
+html[data-models='off'] :is(#stage,.model-stage) { perspective: none; }
+html[data-models='off'] :is(.item,.item .sway,.flat-cover,.flat-case,#caseRig) { transform-style: flat; }
+html[data-models='off'] .item .sway { transform: none !important; animation: none !important; display: block !important; }
+html[data-models='off'] .swatch-card { display: none !important; }
+html[data-models='off'] .item { filter: none !important; }
+html[data-models='off'] .flat-cover { display: block !important; }
+html[data-models='off'] .flat-cover .f-front { transform: none; }
+.flat-case .face { width: var(--w); height: var(--h); transform: none; }
+.flat-case .f-back,.flat-case.flat-back .f-front { display: none; }
+.flat-case.flat-back .f-back { display: block; }
+html[data-models='off'] :is(#caseView,#tabs,.search) { backdrop-filter: none; }
+html[data-animations='off'] *,html[data-animations='off'] *::before,html[data-animations='off'] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+
+/* ---------- layout refinements ---------- */
+html[data-layout=bookshelf] .item { transition: transform .55s cubic-bezier(.2,.8,.2,1); }
+html[data-layout=bookshelf] .item:not(.sel):hover { filter: brightness(1.15); }
+#rackPost { position: absolute; display: none; }
+html[data-layout=spinner] #rackPost { display: block; left: calc(50% - 7px); width: 14px; top: 4%; bottom: 6%;
+  background: linear-gradient(90deg, #2a2e36, #9aa3b0 45%, #3a3f48); border-radius: 7px; box-shadow: 0 30px 50px -10px #000c;
+  transform: translateZ(-330px); }
+html[data-layout=spinner] .item { transition: transform .7s cubic-bezier(.25,.8,.25,1), filter .5s; filter: brightness(calc(1 - var(--rack-shade, 0))); }
+html[data-layout=spinner] .item.sel { filter: drop-shadow(0 18px 24px #000b); }
+
+/* ---- Used copies: scuffs, worn corners, faded labels ---- */
+html[data-wear='on'] .box .f-front, html[data-wear='on'] .box .f-back, html[data-wear='on'] .box .f-left, html[data-wear='on'] .box .l-front { filter: saturate(.8) sepia(.12) brightness(.97); }
+html[data-wear='on'] .box .f-front::after, html[data-wear='on'] .box .l-front::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(17deg, transparent 0 37px, #ffffff24 37px 38px, transparent 38px 91px),
+    repeating-linear-gradient(-62deg, transparent 0 53px, #ffffff1c 53px 54px, transparent 54px 140px),
+    radial-gradient(ellipse at 88% 9%, #ffffff1c, transparent 22%),
+    radial-gradient(ellipse at 12% 94%, #0000002a, transparent 26%),
+    linear-gradient(115deg, rgba(255,255,255,.2) 0%, rgba(255,255,255,.04) 28%, transparent 45%, rgba(255,255,255,.05) 80%);
+  box-shadow: inset 0 0 0 1px #ffffff22, inset 0 0 10px #ffffff1a;
+}
+html[data-wear='on'] .disc-surface, html[data-wear='on'] .cartridge-label { filter: saturate(.78) sepia(.16); }
+html[data-wear='on'] .disc-surface::before { content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; z-index: 1;
+  background: repeating-conic-gradient(from 10deg, transparent 0 7deg, #ffffff12 7deg 7.3deg, transparent 7.3deg 23deg); }
+html[data-wear='on'] .cartridge-label::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(-35deg, transparent 0 13px, #ffffff16 13px 14px, transparent 14px 40px), radial-gradient(ellipse at 90% 92%, #fff3 0, transparent 18%); }
+html[data-wear='on'] .item:not(.sel) .box .f-front::after { background: #080b1555; box-shadow: none; }
+
+/* ---- Instruction booklet with real thickness (back cover, spine and page edges) ---- */
+.manual { --bt: max(4px, calc(var(--w) * .024)); }
+.manual .page { transform: translateZ(calc(var(--bt) / 2)); }
+.manual-back, .manual-edge { position: absolute; pointer-events: none; }
+.manual-back { inset: 0; border-radius: 2px; background: #dcd8cf; transform: translateZ(calc(var(--bt) / -2)) rotateY(180deg); }
+.manual-edge { background: repeating-linear-gradient(90deg, #f6f4ee 0 1px, #cdc8bc 1px 2px); }
+.manual-edge-fore, .manual-edge-spine { top: 0; bottom: 0; width: var(--bt); }
+.manual-edge-fore { right: 0; transform: translateX(calc(var(--bt) / 2)) rotateY(90deg); }
+.manual-edge-spine { left: 0; transform: translateX(calc(var(--bt) / -2)) rotateY(-90deg); background: linear-gradient(90deg, #b9b4a8, #e8e5dd 50%, #b9b4a8); }
+.manual-edge-top, .manual-edge-bottom { left: 0; right: 0; height: var(--bt); background: repeating-linear-gradient(0deg, #f6f4ee 0 1px, #cdc8bc 1px 2px); }
+.manual-edge-top { top: 0; transform: translateY(calc(var(--bt) / -2)) rotateX(90deg); }
+.manual-edge-bottom { bottom: 0; transform: translateY(calc(var(--bt) / 2)) rotateX(-90deg); }
 
 /* ---------- header ---------- */
 header { position: relative; z-index: 5; display: flex; align-items: center; gap: 32px; padding: 18px 36px; }
@@ -315,7 +378,8 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 .manual .tag { position: absolute; bottom: -34px; left: 0; right: 0; text-align: center; font-size: 13px; color: var(--muted); opacity: 0; transition: opacity .3s 1.4s; }
 .case.open .manual { transition-delay: .55s; transform: translate3d(calc(var(--w) * -1.08), 14px, 150px) rotateY(20deg) rotateZ(-3deg) scale(.92); }
 .case.open .manual .tag { opacity: 1; }
-.case.open .manual:hover .page { transform: translateZ(20px) scale(1.02); }
+.case.open .manual:hover .page { transform: translateZ(calc(var(--bt) / 2 + 20px)) scale(1.02); }
+.case.side-view .manual .tag { opacity: 0 !important; transition: opacity .15s; }
 
 /* ---------- emulators ---------- */
 .view-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 20px; }

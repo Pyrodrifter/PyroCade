@@ -40,13 +40,15 @@ function art(game) {
   const m = game.media;
   const digital=eShopStyle==='enhanced'&&game._eShop?game._eShop:null;
   const cart=Cartridges.profiles[sys.id];
+  const shelled=sys.media==='cart'||!!cart?.shell;
   return {
     sys, W, H, D, digital,packshot:game._packshot,
     front: m.front || Art.front(game, sys, W, H),
     back: m.back || Art.back(game, sys, W, H),
     spine: m.spine || null,
+    mediaPhoto: cart?.wholePhoto ? m.disc || null : null,
     // No disc/cart scan? Use the real cover as the label, else generate one.
-    disc: m.disc || m.front || (sys.media === 'cart' ? Art.cart(game, sys, cart?W*cart.w*cart.label[2]/100:W*.7, cart?W*cart.h*cart.label[3]/100:W*.55) : Art.disc(game, sys, 300)),
+    disc: (cart?.wholePhoto ? null : m.disc) || m.front || (shelled ? Art.cart(game, sys, cart?W*cart.w*cart.label[2]/100:W*.7, cart?W*cart.h*cart.label[3]/100:W*.55) : Art.disc(game, sys, 300)),
   };
 }
 
@@ -55,10 +57,13 @@ async function boot() {
   S.config = await api.getConfig();
   LibraryUI.init({getState:()=>S,select:setSystem});
   AudioUI.init(S.config.uiSound);
+  Ambient.init({initial:S.config.ambient,canRun:()=>libraryActive()&&!caseShown()&&!LibraryUI.pickerOpen()&&!Appearance.panelOpen()&&!document.activeElement?.matches?.('input,select,textarea'),advance:()=>select(S.sel+1>=S.list.length?0:S.sel+1)});
   Appearance.init({getState:()=>S,toast,refresh:()=>{for(const it of items.values()){const game=S.games.find(g=>g.id===it.dataset.id);if(game)fillItem(it,game)}if(S.list.length)layout();promptFamilyRendered='';renderPrompts()}});
   eShopStyle=S.config.eShopStyle==='original'?'original':'enhanced';
   promptPreference = validPromptPreference(S.config.promptFamily);
   applyMotion(S.config.motion || 'auto');
+  applyPerformance();
+  applyCaseLook();
   renderPrompts();
   api.onToast(toast);
   api.onProgress(onProgress);
@@ -118,16 +123,25 @@ function cycleSystem(dir) {
 // ---------- 3D carousel ----------
 const items = new Map(); // list index -> element
 let revealTimer, revealId = null, announceTimer;
+// miniDiscScale is eight-twelfths, because a GameCube mini disc is 8 cm across a 12 cm disc.
+// A full-size media diameter would hide the size difference this model represents.
+const miniDiscScale=8/12;
 function createMedia(game, a) {
-  const cart = a.sys.media === 'cart';
-  const media = el('div', `physical-media ${cart ? 'cartridge-model cartridge-' + a.sys.id : 'disc-model'}`);
+  const cart = a.sys.media === 'cart' || !!Cartridges.profiles[a.sys.id]?.shell;
+  const mini = !cart && a.sys.id === 'gc';
+  const media = el('div', `physical-media ${cart ? 'cartridge-model cartridge-' + a.sys.id : 'disc-model disc-' + a.sys.id + (mini ? ' disc-mini' : '')}`);
   media.setAttribute('aria-hidden','true');
-  if (cart) {
+  if (a.mediaPhoto) {
+    const label=Cartridges.build(media,a.sys.id,a.W);label.remove();
+    media.querySelector('.cartridge-label-well')?.remove();
+    const img=el('img','cartridge-whole-photo');img.src=a.mediaPhoto;img.alt='';img.draggable=false;
+    media.querySelector('.cartridge-front').append(img);
+  } else if (cart) {
     const label=Cartridges.build(media,a.sys.id,a.W);label.style.backgroundImage = `url("${a.disc}")`;
     if(a.digital&&!game.media.disc)label.append(EshopCovers.sleeve(game,a.digital,true));
     else if(a.packshot&&!game.media.disc)EshopCovers.background(label,a.front,a.packshot);
   } else {
-    const size = Math.min(a.W,a.H) * .94;
+    const size = Math.min(a.W,a.H) * .94 * (mini ? miniDiscScale : 1);
     media.style.cssText = `--mw:${size}px;--mh:${size}px`;
     const rotor = el('div','disc-rotor');
     const surface = el('div','disc-surface'); surface.style.backgroundImage = `url("${a.disc}")`;
@@ -156,6 +170,7 @@ function buildBox(game, cls = '') {
   const a = art(game);
   const box = el('div', `box ${a.sys.caseType} ${cls}`);
   box.style.cssText = `--w:${a.W}px;--h:${a.H}px;--d:${a.D}px`;
+  if(!modelsEnabled()){box.classList.add('flat-cover');box.append(EshopCovers.face(game,a,'f-front'));return {box,a};}
   Packaging.decorate(box,a);
   const face = (c, img) => { const f = el('div', 'face ' + c); if (img) f.style.backgroundImage = `url("${img}")`; return f; };
   box.append(EshopCovers.face(game,a,'f-front'), face('f-back', a.back), Packaging.spine(game,a), face('f-right'), face('f-top'), face('f-bottom'));
@@ -166,9 +181,11 @@ function buildBox(game, cls = '') {
 function fillItem(it, game) {
   const { box, a } = buildBox(game);
   it.style.left = -a.W / 2 + 'px'; it.style.top = -a.H / 2 + 'px';
-  it.dataset.displayScale = Math.min(1.5,323/a.H,300/a.W);
+  it.dataset.displayScale = S.config?.realCaseSizes ? .95 : Math.min(1.5,323/a.H,300/a.W);
   it.style.setProperty('--w',a.W+'px'); it.style.setProperty('--h',a.H+'px'); it.style.setProperty('--d',a.D+'px');
-  const sway = el('div', 'sway'); sway.append(createMedia(game,a),box);
+  const sway = el('div', 'sway');
+  if(!modelsEnabled()){sway.append(box);it.replaceChildren(sway);return;}
+  sway.append(createMedia(game,a),box);
   const reflection=el('div','ground-reflection');reflection.setAttribute('aria-hidden','true');reflection.append(EshopCovers.face(game,a,'reflection-cover'));sway.append(reflection);
   const sh = el('div', 'shadow'); sh.style.top = a.H + 'px';
   it.replaceChildren(sway, sh);
@@ -243,18 +260,25 @@ function updateArtwork(result) {
   measure(game);refreshGame(game);
 }
 
+function caseSize(i) {
+  const game=S.list[i];if(!game)return [230,323,24];
+  const system=sysOf(game.system);
+  return Packaging.profiles[system.id]?.size||CASES[system.caseType]||CASES.dvd;
+}
+
 function layout() {
   const stage = $('#stage');
   const scale = Math.max(.35,Math.min(1.16,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
-  const view=Appearance.geometry(stage,S.sel,S.list.length),lo=view.lo,hi=view.hi;
-  for (const [i, e] of items) if (i < lo - 2 || i > hi + 2) { e.remove(); items.delete(i); }
+  const view=modelsEnabled()?Appearance.geometry(stage,S.sel,S.list.length):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
+  for (const [i, e] of items) if (i < lo - (modelsEnabled()?2:0) || i > hi + (modelsEnabled()?2:0)) { e.remove(); items.delete(i); }
   for (let i = Math.max(0, lo); i <= Math.min(S.list.length - 1, hi); i++) {
     let e = items.get(i);
     const fresh = !e;
     if (fresh) { e = makeItem(i); items.set(i, e); }
     const d = i - S.sel, a = Math.abs(d);
     const itemScale = scale * Number(e.dataset.displayScale || 1);
-    const placement=Appearance.position(i,S.sel,scale,itemScale,stage,view),t=placement.transform;
+    const placement=modelsEnabled()?Appearance.position(i,S.sel,scale,itemScale,stage,view,caseSize):{transform:`translate(${d*270*scale}px,0px) scale(${itemScale*(d===0?1:.7)})`,hidden:a>2},t=placement.transform;
+    e.style.setProperty('--rack-shade',placement.shade||0);
     if(placement.width){e.style.width=placement.width+'px';e.style.height=placement.height+'px'}else{e.style.removeProperty('width');e.style.removeProperty('height')}
     if (fresh) { e.style.transition = 'none'; e.style.transform = t + ' translateY(40px)'; e.offsetWidth; e.style.transition = ''; }
     e.style.transform = t;
@@ -353,9 +377,12 @@ function manual(g = S.list[S.sel]) {
 // ---------- case viewer ----------
 const CV = { open: false, rx: 8, ry: 32, tx: 0, z: 0, game: null, anim: null, token:0, timer:null };
 function rig() {
+  if(!modelsEnabled()){$('#caseRig').style.transform=`scale(${Math.max(.5,Math.min(2,1+CV.z/1000))})`;return;}
   $('#caseRig').style.transform = `translateX(${CV.tx}px) translateZ(${CV.z}px) rotateX(${CV.rx}deg) rotateY(${CV.ry}deg)`;
   const c=$('#caseRig .case');
   if(c)c.style.setProperty('--light-x',(30+Math.sin(CV.ry*Math.PI/180)*35)+'%');
+  // Flat captions turn into stray lines when seen edge-on; hide them while the case faces sideways.
+  if(c){const a=Math.abs(((CV.ry%360)+540)%360-180);c.classList.toggle('side-view',a<130&&a>50);}
 }
 function tween(to, ms = 900) {
   cancelAnimationFrame(CV.anim);
@@ -384,6 +411,9 @@ async function openCase() {
   c.style.cssText = `--w:${a.W}px;--h:${a.H}px;--d:${a.D}px;left:${-a.W / 2}px;top:${-a.H / 2}px`;
   Packaging.decorate(c,a);
   const face = (cl, img) => { const f = el('div', 'face ' + cl); if (img) f.style.backgroundImage = `url("${img}")`; return f; };
+  if(!modelsEnabled()){
+    c.classList.add('flat-case');c.append(EshopCovers.face(g,a,'f-front'),face('f-back',a.back));
+  }else{
   c.append(face('f-back', a.back), Packaging.spine(g,a), face('f-right'), face('f-top'), face('f-bottom'), el('div', 'face tray'));
   if(cardboard){c.querySelector('.f-top').remove();c.append(EshopCovers.face(g,a,'f-front'));}
 
@@ -398,6 +428,9 @@ async function openCase() {
     cover.style.inset='5% 6% 14%';cover.style.setProperty('--w',a.W*.92*.88+'px');page.append(cover);
     page.append(el('div','manual-cover-caption','Instruction booklet'));
   }
+  // A real booklet has thickness: back cover, stapled spine and a stack of page edges, so it never
+  // turns into a floating hairline when the case is viewed from the side.
+  man.append(el('div', 'manual-back'), el('div', 'manual-edge manual-edge-fore'), el('div', 'manual-edge manual-edge-spine'), el('div', 'manual-edge manual-edge-top'), el('div', 'manual-edge manual-edge-bottom'));
   man.append(page, el('div', 'tag', g.media.manual ? 'Click to read the manual' : 'No manual file found'));
   man.onclick = e => { e.stopPropagation(); if (c.classList.contains('open')) manual(g); };
   c.append(man);
@@ -407,13 +440,16 @@ async function openCase() {
   else lid.append(EshopCovers.face(g,a,'l-front'), face('l-inner'));
   c.append(lid);
   Packaging.finish(c,a);
+  }
   r.append(c);
+  $('#cvToggle').disabled=!modelsEnabled();
 
   $('#cvSystem').textContent = a.sys.name; $('#cvTitle').textContent = g.title;
   $('#caseView').classList.remove('hidden');
   $('#view-library').inert = true; $('header').inert = true;
   $('#caseView').setAttribute('role','dialog'); $('#caseView').setAttribute('aria-modal','true'); $('#caseView').setAttribute('aria-labelledby','cvTitle');
   $('#cvBack').focus({preventScroll:true});
+  if(!modelsEnabled()){Object.assign(CV,{rx:0,ry:0,tx:0,z:0,open:false});rig();renderPrompts();return;}
   Object.assign(CV, { rx: 14, ry: 48, tx: 0, z: -400, open: false }); rig();
   tween({ rx: 6, ry: 18, z: 0 }, 800);
   renderPrompts();
@@ -421,6 +457,7 @@ async function openCase() {
 }
 function setOpen(v) {
   const c = $('#caseRig .case'); if (!c) return;
+  if(!modelsEnabled())return;
   if(CV.open!==v)AudioUI.play(v?'open':'back');
   CV.open = v; c.classList.toggle('open', v);
   renderPrompts();
@@ -563,6 +600,13 @@ function renderSettings() {
   const c = S.config;
   $('#sPrompts').value = promptPreference;
   $('#sMotion').value = motionPreference;
+  $('#sDisableModels').checked = !modelsEnabled();
+  $('#sDisableAnimations').checked = c.animationsEnabled === false;
+  $('#sRealSizes').checked = !!c.realCaseSizes;
+  $('#sWear').checked = !!c.wornCases;
+  $('#sMotion').disabled = c.animationsEnabled === false;
+  $('#sAmbient').value = String(c.ambient?.idleMinutes ?? 2);
+  $('#sBackground').value = Ambient.settings().background;
   $('#sEshop').value = eShopStyle;
   $('#sMedia').value = c.mediaRoot || '';
   $('#sHide').checked = !!c.hideWhilePlaying;
@@ -605,7 +649,12 @@ $('#btnSave').onclick = async () => {
   c.checkUpdates = $('#sCheckUpdates').checked;
   c.promptFamily = promptPreference;
   c.motion = motionPreference;
+  c.modelsEnabled = !$('#sDisableModels').checked;
+  c.animationsEnabled = !$('#sDisableAnimations').checked;
+  c.realCaseSizes = $('#sRealSizes').checked;
+  c.wornCases = $('#sWear').checked;
   c.eShopStyle = eShopStyle;
+  c.ambient = { idleMinutes: Number($('#sAmbient').value) || 0, background: $('#sBackground').value };
   $$('#sysTable tbody tr').forEach(tr => {
     const s = c.systems[tr.dataset.i];
     tr.querySelectorAll('[data-k]').forEach(inp => {
@@ -616,6 +665,7 @@ $('#btnSave').onclick = async () => {
     });
   });
   S.config = await api.setConfig(c);
+  applyCaseLook();
   await loadLibrary();
   toast(S.demo ? 'Saved — no games found yet in those folders.' : `Saved — ${S.games.length} games loaded.`);
   showView('library');
@@ -640,7 +690,7 @@ $('#btnArtwork').onclick = () => {showView('artwork');ArtworkUI.open('game');};
 $('#cvPlay').onclick = () => play(CV.game);
 $('#cvBack').onclick = closeCase;
 $('#cvToggle').onclick = () => setOpen(!CV.open);
-$('#cvFlip').onclick = () => tween({ ry: CV.ry + 180 }, 900);
+$('#cvFlip').onclick = () => {if(!modelsEnabled())$('#caseRig .case')?.classList.toggle('flat-back');else tween({ ry: CV.ry + 180 }, 900);};
 $('#shelfPrev').onclick = () => select(S.sel-1);
 $('#shelfNext').onclick = () => select(S.sel+1);
 let surfaceLightFrame=null;
@@ -753,13 +803,41 @@ document.addEventListener('wheel', () => usePromptInput('keyboard'), {passive:tr
 
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 let motionPreference = 'auto';
+function modelsEnabled(){return S.config?.modelsEnabled !== false;}
 function applyMotion(value) {
   motionPreference = ['auto','full','reduced'].includes(value) ? value : 'auto';
-  document.documentElement.dataset.motion = motionPreference === 'reduced' || (motionPreference === 'auto' && motionQuery.matches) ? 'reduced' : 'full';
+  document.documentElement.dataset.animations = S.config?.animationsEnabled === false ? 'off' : 'on';
+  document.documentElement.dataset.motion = S.config?.animationsEnabled === false || motionPreference === 'reduced' || (motionPreference === 'auto' && motionQuery.matches) ? 'reduced' : 'full';
   if (S.config) revealSelection();
 }
-motionQuery.addEventListener('change',() => applyMotion(motionPreference));
+function applyCaseLook() { document.documentElement.dataset.wear = S.config?.wornCases ? 'on' : 'off'; }
+function applyPerformance(){
+  document.documentElement.dataset.models=modelsEnabled()?'on':'off';
+  applyMotion(motionPreference);
+  $('#sMotion').disabled=S.config?.animationsEnabled===false;
+  if(S.config?.animationsEnabled===false){Ambient.exit();document.querySelectorAll('video').forEach(video=>video.pause());cancelAnimationFrame(CV.anim);}
+  if(!S.config)return;
+  for(const item of items.values())item.remove();items.clear();
+  if(S.list.length)layout();
+}
+let performanceSave=Promise.resolve();
+for(const id of ['sDisableModels','sDisableAnimations'])$('#'+id).addEventListener('change',()=>{
+  S.config.modelsEnabled=!$('#sDisableModels').checked;S.config.animationsEnabled=!$('#sDisableAnimations').checked;
+  if(caseShown())closeCase();
+  applyPerformance();
+  const snapshot=structuredClone(S.config);
+  performanceSave=performanceSave.catch(()=>{}).then(()=>api.setConfig(snapshot)).catch(()=>toast('Performance settings could not be saved. Please try again.'));
+});
+for(const id of ['sRealSizes','sWear'])$('#'+id).addEventListener('change',()=>{
+  S.config={...S.config,realCaseSizes:$('#sRealSizes').checked,wornCases:$('#sWear').checked};
+  applyCaseLook();
+  for(const it of items.values()){const g=S.games.find(x=>x.id===it.dataset.id);if(g)fillItem(it,g)}
+  if(S.list.length)layout();
+});
+motionQuery.addEventListener('change',()=>applyMotion(motionPreference));
 $('#sMotion').addEventListener('change',e => applyMotion(e.target.value));
+const applyAmbient=()=>{const ambient={idleMinutes:Number($('#sAmbient').value)||0,background:$('#sBackground').value};S.config.ambient=ambient;Ambient.configure(ambient);Appearance.syncBackground()};
+$('#sAmbient').addEventListener('change',applyAmbient);$('#sBackground').addEventListener('change',applyAmbient);
 $('#sEshop').addEventListener('change',e=>{
   eShopStyle=e.target.value==='original'?'original':'enhanced';
   for(const item of items.values()){const game=S.games.find(g=>g.id===item.dataset.id);if(game)fillItem(item,game);}
@@ -777,6 +855,7 @@ function pollPad(now) {
     if (!gp || !active(gp)) promptInput = 'keyboard';
     renderPrompts();
   }
+  const woke = gp && active(gp) ? Ambient.activity() : false;
   if (gp && active(gp)) usePromptInput(Prompts.detect(gp.id));
   if (gp) {
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, b = i => gp.buttons[i]?.pressed;
@@ -784,7 +863,7 @@ function pollPad(now) {
       play: b(0), back: b(1), manual: b(2), case: b(3), pgup: b(6), pgdn: b(7),systems:b(9) };
     for (const [k, v] of Object.entries(st)) {
       const repeat = ['left', 'right'].includes(k)||(['up','down'].includes(k)&&(LibraryUI.pickerOpen()||Appearance.panelOpen()||['vertical','swatches'].includes(Appearance.mode())));
-      if (v && (!pad.held[k] || (repeat && now > pad.next[k]))) { input(k); pad.next[k] = now + (pad.held[k] ? 90 : 380); }
+      if (v && !woke && (!pad.held[k] || (repeat && now > pad.next[k]))) { input(k); pad.next[k] = now + (pad.held[k] ? 90 : 380); }
       pad.held[k] = v;
     }
   }

@@ -14,7 +14,8 @@ const Cartridges=(()=>{
     snes:{w:.86,h:.55,color:'#acaab0',depth:10,outline:'4,0 96,0 100,7 100,88 95,88 95,100 5,100 5,88 0,88 0,7',label:[17,6,66,49],brand:'SUPER NINTENDO',brandY:70,details:'M4 20H12 M4 28H12 M4 36H12 M4 44H12 M88 20H96 M88 28H96 M88 36H96 M88 44H96 M12 60H88 M12 78H88 M6 89H94 M43 87L50 93L57 87'},
     n64:{w:.86,h:.65,color:'#858681',depth:10,outline:'0,24 4,16 11,10 23,5 37,1 50,0 63,1 77,5 89,10 96,16 100,24 100,94 96,100 4,100 0,94',label:[20,19,60,48],brand:'Nintendo',brandY:81,details:'M8 30V86 M92 30V86 M14 72H86 M44 89L50 94L56 89'},
     genesis:{w:.78,h:.56,color:'#252526',depth:9,outline:'0,15 9,7 27,1 73,1 91,7 100,15 100,95 95,100 5,100 0,95',label:[17,14,66,60],details:'M7 24V83 M11 19V83 M89 19V83 M93 24V83 M15 82H85 M44 88L50 94L56 88'},
-    a2600:{w:.70,h:.80,color:'#302f2c',depth:10,outline:rect,label:[7,13,86,63],details:'M5 7H95 M4 82H96 M8 87H92 M8 92H92 M8 97H92'}
+    a2600:{w:.70,h:.80,color:'#302f2c',depth:10,outline:rect,label:[7,13,86,63],details:'M5 7H95 M4 82H96 M8 87H92 M8 92H92 M8 97H92'},
+    psp:{shell:true,wholePhoto:true,w:.6,h:.62,color:'#d6d8d3',depth:5,outline:'0,24 4,17 16,9 32,3 50,0 68,3 84,9 96,17 100,24 100,97 97,100 3,100 0,97',label:[8,6,84,65],details:'M3 30V90 M97 30V90'}
   };
   const fallback={w:.65,h:.62,color:'#5c6170',depth:7,outline:rect,label:[12,13,76,69],details:'M10 89H90'};
   function shell(p,back=false){
