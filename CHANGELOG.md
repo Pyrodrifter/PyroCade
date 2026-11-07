@@ -2,6 +2,11 @@
 
 All notable changes to PyroCade. Downloads are on the [releases page](https://github.com/Pyrodrifter/PyroCade/releases).
 
+## [Unreleased]
+
+### Fixed
+- **The cartridge no longer cuts through the front of a cardboard box.** Opening a Super Nintendo, Nintendo 64 or Atari 2600 case drew the bottom of the cartridge across the cover art and left it there once the box was open. Those cartridges are nearly as deep as the box itself, so one lifted 8px towards you came out through the front of it. The cartridge now rises behind the box, which hides the part still inside, and always stops clear of the top edge.
+
 ## [0.6.0] - 2026-11-06
 
 Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](https://www.reddit.com/user/RiceDesperate5724/) on Reddit, who also built their own version of four of them.

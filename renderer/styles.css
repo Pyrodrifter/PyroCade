@@ -316,7 +316,15 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 .case[data-material='cardboard'] .lid .face { height: var(--d); background: var(--case-print); border: 1px solid var(--case-shell); }
 .case[data-material='cardboard'] .lid .l-inner { background: var(--case-shell); box-shadow: none; }
 .case[data-material='cardboard'].open .lid { transform: translateZ(calc(var(--d) / -2)) rotateX(155deg); }
-.case[data-material='cardboard'].open .physical-media { transform: translate3d(0,calc(var(--h) * -.8),8px) rotateY(-8deg) rotateZ(-4deg); }
+/* The cartridge model is drawn about twice its true size against the box, so on the big cardboard
+   boxes (SNES, N64, 2600) it is nearly as deep as the box itself. At z 8 its front face came out
+   through the cover, and CSS 3D sorts flat planes, not solids, so the shell and its ribs were
+   painted over the front of the box instead of being hidden inside it. The media now waits and
+   rises one cartridge depth behind the box back face, where the box simply occludes whatever is
+   still inside it, and the lift always carries it clear of the top rather than stopping part way
+   up the cover. */
+.case[data-material='cardboard'] .physical-media { --media-behind: calc((var(--d) + var(--cd, 2px)) / -2 - 1px); transform: translate3d(0,0,var(--media-behind)); }
+.case[data-material='cardboard'].open .physical-media { --media-clear: min(calc(var(--h) * -.8), calc((var(--h) + var(--mh)) / -2 - 2px)); transform: translate3d(0,var(--media-clear),var(--media-behind)) rotateY(-8deg) rotateZ(-4deg); }
 .box-flap-title { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--d) * .21); font-weight: 650; padding: 2px 8%; color: var(--case-ink); text-align: center; overflow: hidden; }
 
 .manual { position: absolute; transform-style: preserve-3d; transition: transform 1s cubic-bezier(.22,1,.36,1); }
