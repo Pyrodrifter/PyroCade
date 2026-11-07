@@ -10,7 +10,7 @@ app.whenReady().then(async()=>{
   const win=new BrowserWindow({show:false,width:1600,height:900,webPreferences:{preload:path.join(__dirname,'check-prompts-preload.cjs'),contextIsolation:true,sandbox:false,backgroundThrottling:false,offscreen:true}});
   const watchdog=setTimeout(()=>{console.error('Carousel check timed out');app.exit(1)},45000);
   win.webContents.on('console-message',event=>{if(event.level==='error')errors.push(event.message)});
-  const run=code=>win.webContents.executeJavaScript(`(async()=>{const assert=(v,m)=>{if(!v)throw new Error(m)}; const pause=ms=>new Promise(r=>setTimeout(r,ms)); const finish=()=>document.getAnimations().forEach(a=>{if(Number.isFinite(a.effect.getComputedTiming().endTime))a.finish()}); ${code}})()`);
+  const run=code=>win.webContents.executeJavaScript(`(async()=>{const assert=(v,m)=>{if(!v)throw new Error(m)}; const pause=ms=>new Promise(r=>setTimeout(r,ms)); const finish=()=>document.getAnimations().forEach(a=>{if(Number.isFinite(a.effect.getComputedTiming().endTime))a.finish()}); const until=async(fn,m)=>{for(let i=0;i<300;i++){const v=fn();if(v)return v;await pause(10)}throw new Error(m)}; ${code}})()`);
   async function snap(name){
     await run('await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));');
     win.webContents.invalidate();
@@ -23,8 +23,7 @@ app.whenReady().then(async()=>{
     fs.mkdirSync(output,{recursive:true});
     await win.loadFile(path.resolve(__dirname,'../renderer/index.html'));
     await run(`
-      await pause(100);
-      assert(S.games.length===12,'Fixture library failed');
+      await until(()=>S.games.length===12,'Fixture library failed');
       applyMotion('full'); select(0); await pause(1700);finish();
       const selected=document.querySelector('.item.sel');
       assert(selected.classList.contains('media-revealed'),'Disc did not reveal after selection');
@@ -36,8 +35,10 @@ app.whenReady().then(async()=>{
       assert(getComputedStyle(shell).transformStyle==='preserve-3d'&&getComputedStyle(shell).filter==='none','Finish flattened the case');
       assert(shell.querySelectorAll('.case-bevel').length===4,'Missing physical bevels');
       assert(selected.querySelector('.ground-reflection[aria-hidden="true"]'),'Reflection must remain decorative');
-      const r=shell.getBoundingClientRect();document.querySelector('#stage').dispatchEvent(new PointerEvent('pointermove',{clientX:r.left+r.width*.75,clientY:r.top+r.height*.25}));await pause(40);
-      assert(shell.style.getPropertyValue('--light-x'),'Surface light did not respond');
+      const r=shell.getBoundingClientRect();document.querySelector('#stage').dispatchEvent(new PointerEvent('pointermove',{clientX:r.left+r.width*.75,clientY:r.top+r.height*.25}));
+      // The light is set inside a requestAnimationFrame, so wait for the value rather than for a
+      // fixed 40ms: on a runner whose GPU process died at start-up that frame lands much later.
+      await until(()=>shell.style.getPropertyValue('--light-x'),'Surface light did not respond');
       assert(new DOMMatrix(getComputedStyle(selected.querySelector('.physical-media')).transform).m41>0,'Disc did not slide out');
       document.querySelector('#shelfNext').click(); select(2); await pause(1700);finish();
       assert(document.querySelector('.item.sel .cartridge-gba'),'GBA system must have a GBA cartridge');
