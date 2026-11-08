@@ -1273,6 +1273,7 @@ $('#stage').addEventListener('wheel', e => {
 
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
+  if (FeedbackUI.isOpen()) { FeedbackUI.controller(action); return; }
   if(document.querySelector('.launch-fx'))return; // a game is starting
   if(renameOpen())return; // the box has the keyboard
   if(gameMenuOpen()){
@@ -1336,6 +1337,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   usePromptInput('keyboard');
+  if (FeedbackUI.isOpen()) return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&libraryActive()&&!caseShown()){e.preventDefault();LibraryUI.openPicker();return;}
   if(renameOpen())return;
   if(gameMenuOpen()){

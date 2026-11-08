@@ -259,6 +259,10 @@
       <div><h1>Settings</h1><p class="sub">Set a ROM folder for each system. To use several folders (e.g. two SD cards), click “+ Add” or separate paths with <code>|</code>.</p></div>
       <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
     </div>
+    <section class="panel feedback-entry" aria-labelledby="feedbackHeading">
+      <div><h2 id="feedbackHeading">Help improve PyroCade</h2><p class="sub">Found an error or have an idea? Tell us what happened or what you would like to see.</p></div>
+      <button id="btnFeedback" type="button" aria-haspopup="dialog" aria-controls="feedbackDialog">Report a problem or send feedback…</button>
+    </section>
     <div class="panel">
       <label class="row"><span>Button prompts</span><select id="sPrompts"><option value="auto">Automatic · last input used</option><option value="keyboard">Keyboard &amp; mouse</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="nintendo">Nintendo</option><option value="generic">Generic gamepad</option></select><a class="prompt-preview-link" href="assets/prompts/preview.html" target="_blank" rel="noopener">View full set ↗</a></label>
       <p class="prompt-note" id="promptStatus" role="status"></p>
@@ -322,7 +326,28 @@ ps2\Neon Drift (USA)\front.png      ps2\covers\Neon Drift (USA).png
     </details>
   </main>
 
+  <dialog id="feedbackDialog" aria-labelledby="feedbackTitle" aria-describedby="feedbackPrivacy">
+    <form id="feedbackForm">
+      <div class="feedback-heading"><h2 id="feedbackTitle">Help improve PyroCade</h2><button id="feedbackClose" type="button" aria-label="Close feedback">×</button></div>
+      <p id="feedbackPrivacy" class="sub">Reports are public on GitHub and require a GitHub account. You can review and attach screenshots there before submitting. Leave out passwords and personal information.</p>
+      <label for="feedbackKind">I want to</label>
+      <select id="feedbackKind"><option value="bug">Report a problem</option><option value="feedback">Send feedback or suggest an idea</option></select>
+      <label for="feedbackSummary">Summary <span class="sub">(required)</span></label>
+      <input id="feedbackSummary" required maxlength="120" placeholder="A short title for your report" />
+      <label for="feedbackDescription" id="feedbackDescriptionLabel">What happened, and what did you expect? (required)</label>
+      <textarea id="feedbackDescription" required maxlength="4000" rows="4"></textarea>
+      <div id="feedbackStepsGroup"><label for="feedbackSteps">Steps to reproduce <span class="sub">(optional)</span></label><textarea id="feedbackSteps" maxlength="2000" rows="3" placeholder="1. Open…&#10;2. Choose…&#10;3. The error appears…"></textarea></div>
+      <label class="feedback-diagnostics-toggle"><input id="feedbackDiagnostics" type="checkbox" checked /> Include app version and basic device details</label>
+      <pre id="feedbackDevice" aria-label="Device details included in the report">Loading device details…</pre>
+      <p class="sub feedback-note">Only the details shown above are added automatically. Logs, file paths and your game library are not attached.</p>
+      <p id="feedbackStatus" role="status" aria-live="polite"></p>
+      <div class="feedback-actions"><button id="feedbackCopy" type="button">Copy report</button><button id="feedbackOpen" class="primary" type="submit">Continue on GitHub ↗</button></div>
+      <p class="sub feedback-note">Copy report also works offline. Opening GitHub does not submit your report.</p>
+      <button id="feedbackBrowse" type="button" class="feedback-browse">Browse reports on GitHub ↗</button>
+    </form>
+  </dialog>
   <div id="toast"></div>
+  <script src="feedback-ui.js"></script>
   <script src="art.js"></script>
   <script src="assets/prompts/manifest.js"></script>
   <script src="assets/brand/brand.js"></script>

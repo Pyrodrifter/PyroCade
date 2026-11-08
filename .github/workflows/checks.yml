@@ -27,6 +27,8 @@ jobs:
         run: xvfb-run -a npm run artwork:check
       - name: Case carousel
         run: xvfb-run -a npm run carousel:check
+      - name: Feedback reports
+        run: xvfb-run -a npm run feedback:check
       - name: Button prompts
         run: xvfb-run -a npm run prompts:check
       - name: Brand assets

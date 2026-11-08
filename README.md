@@ -141,6 +141,11 @@ Everything personal lives in `data/` and is never part of this repository:
 - `emulators/`: emulators installed by PyroCade.
 - `media/`: downloaded artwork.
 
+## Report a problem or send feedback
+Open **Settings → Report a problem or send feedback…**. Choose a problem report or a suggestion, add a summary and description, and use **Continue on GitHub** to review and submit it in your browser. A GitHub account is required, and reports are public. You can attach screenshots on GitHub before submitting.
+
+The form shows the app version and basic device details that will be included; uncheck the option to leave them out. Logs, local paths, credentials and your game library are not attached automatically. **Copy report** works offline and lets you paste the report into a message or a [new issue](https://github.com/Pyrodrifter/PyroCade/issues/new/choose). You can also report directly using the repository's problem and feedback templates.
+
 ## Thanks
 PyroCade is shaped by the people who use it and say what is missing.
 

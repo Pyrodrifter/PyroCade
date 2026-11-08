@@ -1,5 +1,5 @@
 // PyroCade — main process: config, library scanning, launching, emulator downloads.
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeImage, safeStorage } = require('electron');
 app.setName('PyroCade');
 if(process.platform==='win32')app.setAppUserModelId('com.pyrodrifter.pyrocade');
 // PyroCade stays open behind a running game. Without this, Windows reports the covered window as
@@ -46,6 +46,7 @@ const {createLaunchBox} = require('./launchbox');
 const {createScreenScraper} = require('./screenscraper');
 const {createMarioWiki} = require('./mariowiki');
 const {createInternetArchive} = require('./internet-archive');
+const {createFeedbackService} = require('./feedback');
 
 const ROOT = __dirname;
 // Where settings, installed emulators and artwork live:
@@ -1280,6 +1281,14 @@ handle('library:scan', async () => {
   return games;
 });
 handle('app:version', () => APP_VERSION);
+const feedback = createFeedbackService({
+  diagnostics: () => `PyroCade: ${APP_VERSION}\nOS: ${os.type()} ${os.release()} (${process.arch})\nElectron: ${process.versions.electron}\nInstallation: ${app.isPackaged ? 'Packaged app' : 'From source'}`,
+  openExternal: url => shell.openExternal(url),
+  writeText: text => clipboard.writeText(text),
+});
+handle('feedback:info', feedback.info);
+handle('feedback:open', feedback.open);
+handle('feedback:copy', feedback.copy);
 handle('app:checkUpdate', checkAppUpdate);
 handle('app:installUpdate', async () => {
   const result = await installAppUpdate(p => { if (win && !win.isDestroyed()) win.webContents.send('app:updateProgress', p); });

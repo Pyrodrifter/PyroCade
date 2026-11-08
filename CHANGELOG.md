@@ -5,6 +5,7 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 ## [Unreleased]
 
 ### Added
+- **Report a problem or send feedback from Settings.** Describe an error or suggestion, optionally include the app version and basic device details, then review and submit a prefilled public GitHub issue. **Copy report** works offline. The repository also has problem and feedback templates.
 - **Two more places to find a missing front cover: the Super Mario Wiki and the Internet Archive.** When LaunchBox, ScreenScraper, GameTDB and Libretro have no cover, PyroCade now asks the [Super Mario Wiki](https://www.mariowiki.com/) for Mario, Yoshi, Wario, Donkey Kong and Smash Bros. games, then the Internet Archive's [box scan collection](https://archive.org/details/softwareboxart). They are only ever a last resort, so a game that already gets a cover keeps the same one. A wrong cover is worse than none, so a picture is used only when it is filed under the game's own system, named as the front of the box and shaped like one (collectors often scan a box flat, flaps and all, and call it the front): full wraps, cartridge scans, store displays, promos and fan-made covers are skipped, and so are demos, prototypes and ROM hacks, which share a name with the original game. Both sites are run by volunteers: PyroCade asks each at most once a second, reads the wiki's raw page text (its robots.txt allows that, not its API), and keeps the answers for a month. GamesDatabase.org was considered too, but its terms forbid automated queries.
 
 ### Changed
