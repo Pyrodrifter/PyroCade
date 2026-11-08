@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first parity slice, **P1 / M01 — Renderer presentation and library-view parity**, is committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P2 / M02 — Library state and play-history workflows** from `docs/slices/NEXT.md`.
+**Next action:** Start **P3 / M03 — Collection administration and per-game controls** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -91,10 +91,17 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no changes to `main.js`, `preload.js`, or `artwork.js`.
   - Post-commit guard: EXHAUSTED at 247,705/225,000 tokens (110%, 1 compaction); session cost $0.15860209/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
 
+- **P2 / M02 — Library state and play-history workflows.** Source committed as `3e1432c` (`feat(tauri): add favorites, recently played, sorting, and filtering to library state`). Added backend commands for `toggle_favorite`, `record_play`, `update_library_prefs`, `get_favorites`, and `get_recently_played`. Library state (favorites array, recentlyPlayed array, sortKey, sortAsc, showFavoritesOnly, showRecentlyPlayed) is persisted in config.json and applied during `scan_library`. Renderer: library-ui.js shows favorite toggle (heart icon) on game tiles, supports Favorites and Recently Played filter buttons, and cycles sort modes (title, system, favorites, recent). app.js records play time on launch. 5 new Rust tests: `favorites_filter`, `sort_by_favorites`, `recently_played_injection`, `sort_by_title_ascending_and_descending`, `multidisc_handling`.
+  - Close condition: favorites, recently played/play time, sorting/filtering, multidisc handling, and screenshots implemented with migration-safe persistence and focused checks.
+  - Rust gates passed: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (31 passed, 5 new), and `cargo check --manifest-path src-tauri/Cargo.toml`; the existing dead-code warnings remain.
+  - `node scripts/check-carousel.cjs` could not run on this host (no Electron); `node scripts/check-library-ui.cjs` could not run (`spawn tauri-driver ENOENT`).
+  - Boundary linkage and path checks on this slice's diff found no changes to `main.js`, `preload.js`, or `artwork.js`.
+  - Post-commit guard: WITHIN at 124,461/225,000 tokens (55%); session cost $0.00/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / M01 — Renderer presentation and library-view parity.** [COMPLETE] Committed as `b1b29ac`.
-- **P2 / M02 — Library state and play-history workflows.** [PENDING] Depends on M01.
+- **P2 / M02 — Library state and play-history workflows.** [COMPLETE] Committed as `3e1432c`.
 - **P3 / M03 — Collection administration and per-game controls.** [PENDING] Depends on M02.
 - **P4 / M04 — Artwork enrichment and manual workflows.** [PENDING] Depends on M02.
 - **P5 / M05 — Platform-aware launch/emulator behavior.** [PENDING] Depends on M03.

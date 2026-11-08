@@ -380,10 +380,7 @@ pub fn get_favorites(state: State<'_, AppState>) -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn get_recently_played(
-    state: State<'_, AppState>,
-    _limit: usize,
-) -> Vec<Value> {
+pub fn get_recently_played(state: State<'_, AppState>, _limit: usize) -> Vec<Value> {
     state
         .config()
         .get("recentlyPlayed")
@@ -733,16 +730,30 @@ fn walk_roms(
     }
     for entry in entries {
         let path = entry.path();
-        if entry.file_type().is_ok_and(|t| t.is_dir()) {
-            if depth < 4 && !skip_dir(&entry.file_name().to_string_lossy()) {
-                walk_roms(root, &path, root_index, depth + 1, extensions, out);
-            }
-        } else if path
+        let rom_ext = path
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| format!(".{}", e.to_lowercase()))
-            .is_some_and(|e| extensions.contains(&e))
-        {
+            .is_some_and(|e| extensions.contains(&e));
+        if entry.file_type().is_ok_and(|t| t.is_dir()) {
+            // A directory whose name carries a ROM extension is itself the
+            // game (macOS .app bundles are directories), not a container.
+            if rom_ext {
+                out.push(RomFile {
+                    name: entry.file_name().to_string_lossy().to_string(),
+                    // Bundles are huge (tens of GB across hundreds of
+                    // thousands of members). Walking them for a size would
+                    // pay that cost on every scan; size is only a tie-break
+                    // for duplicate copies, so a directory-ROM reports 0.
+                    size: 0,
+                    path,
+                    root: root.to_path_buf(),
+                    root_index,
+                });
+            } else if depth < 4 && !skip_dir(&entry.file_name().to_string_lossy()) {
+                walk_roms(root, &path, root_index, depth + 1, extensions, out);
+            }
+        } else if rom_ext {
             out.push(RomFile {
                 name: entry.file_name().to_string_lossy().to_string(),
                 size: entry.metadata().map(|m| m.len()).unwrap_or_default(),
@@ -1117,7 +1128,9 @@ fn display_title(name: &str) -> String {
 
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
-pub fn pick_folder(app: AppHandle, title: String) -> Option<String> {
+/// Runs off the main thread so the Tauri dialog plugin's `blocking_*` APIs
+/// can dispatch the native sheet to the main runloop and wait for it.
+pub async fn pick_folder(app: AppHandle, title: String) -> Option<String> {
     app.dialog()
         .file()
         .set_title(title)
@@ -1461,6 +1474,38 @@ mod library_tests {
         );
         assert!(android_launch_target("", uri).is_err());
         assert!(android_launch_target("com.retroarch.aarch64", "").is_err());
+    }
+
+    // A directory-ROM is itself the game: bundles carry no inner file with
+    // the ROM extension, so walking them would list nothing at all.
+    #[test]
+    fn directory_roms_are_collected_like_files() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../localTmp")
+            .join(format!("pyrocade-walk-roms-test-{}", uuid::Uuid::new_v4()));
+        let bundle = root.join("Game One.app");
+        fs::create_dir_all(bundle.join("Contents/MacOS")).unwrap();
+        fs::write(bundle.join("Contents/MacOS/Game"), [0u8; 42]).unwrap();
+        fs::create_dir_all(root.join("Game Two.app")).unwrap();
+        fs::create_dir_all(root.join("nested")).unwrap();
+        fs::write(root.join("nested/Game Three.nsp"), [0u8; 7]).unwrap();
+        fs::create_dir_all(root.join("media")).unwrap();
+        fs::write(root.join("media/Game Four.nsp"), [0u8; 7]).unwrap();
+        let extensions: HashSet<String> = [".app", ".nsp"].iter().map(|s| s.to_string()).collect();
+        let mut out = Vec::new();
+        walk_roms(&root, &root, 0, 0, &extensions, &mut out);
+        let names: Vec<_> = out.iter().map(|f| f.name.as_str()).collect();
+        assert!(names.contains(&"Game One.app"));
+        assert!(names.contains(&"Game Two.app"));
+        assert!(names.contains(&"Game Three.nsp"));
+        assert!(!names.contains(&"Game Four.nsp"));
+        // Directory-ROMs report size 0: they are never walked (copy_score
+        // only uses size as a tie-break, and bundles hold tens of GB).
+        assert_eq!(
+            out.iter().find(|f| f.name == "Game One.app").unwrap().size,
+            0
+        );
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data: blob:; style-src 'self' 'unsafe-inline'; img-src 'self' file: data: blob:; media-src file: data: blob:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' asset: file: data: blob:; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost file: data: blob: https:; media-src 'self' asset: http://asset.localhost file: data: blob:; connect-src ipc: http://ipc.localhost https:;" />
   <title>PyroCade</title>
   <link rel="icon" type="image/png" href="assets/brand/pyrocade-icon-32.png" />
   <link rel="stylesheet" href="styles.css" />

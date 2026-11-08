@@ -25,6 +25,9 @@ const LibraryUI=(()=>{
     favorite:'<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>'
   };
   const glyph={all:'grid',ps1:'psp',ps2:'ps2',ps3:'ps3',ps4:'ps4',switch:'switch',switch2:'switch2',nds:'nds','3ds':'3ds',gb:'gb',gbc:'gbc',gba:'gba',n64:'n64',snes:'snes',nes:'nes',gc:'gc',genesis:'genesis',xbox:'xbox',x360:'x360',a2600:'a2600',arcade:'arcade'};
+  // Compact chip labels (dropped in a rewrite; render() dereferences this).
+  // Anything missing falls back to the full system name.
+  const shortNames={ps1:'PS1',ps2:'PS2',ps3:'PS3',ps4:'PS4',psp:'PSP',switch:'Switch',switch2:'Switch 2',nds:'DS','3ds':'3DS',gb:'Game Boy',gbc:'GBC',gba:'GBA',n64:'N64',snes:'SNES',nes:'NES',gc:'GameCube',wii:'Wii',wiiu:'Wii U',genesis:'Genesis',xbox:'Xbox',x360:'Xbox 360',a2600:'Atari',dreamcast:'Dreamcast'};
   function icon(id){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[glyph[id]||id]||shapes.pad}</svg>`}
   function isAndroid(){return /android/i.test(navigator.userAgent||'')||(navigator.platform||'').toLowerCase().includes('android')}
   function emulatorStateFor(system){

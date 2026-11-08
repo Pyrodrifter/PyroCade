@@ -210,6 +210,7 @@ function measure(game) {
   if (!game.media.front || game._aspect || game._measuring) return;
   game._measuring = true;
   const img = new Image();
+  img.crossOrigin = 'anonymous';
   const source=game.media.front;
   img.onload = async () => {
     if(game.media.front!==source)return;
@@ -220,7 +221,7 @@ function measure(game) {
       game._eShop.source=source;
       if(game.media.frontHQ) {
         try {
-          const hq=new Image();hq.src=game.media.frontHQ;await hq.decode();
+          const hq=new Image();hq.crossOrigin='anonymous';hq.src=game.media.frontHQ;await hq.decode();
           const analysis=EshopCovers.analyze(hq);
           if(game.media.front!==source)return;
           if(analysis)game._eShop={...analysis,source:game.media.frontHQ};

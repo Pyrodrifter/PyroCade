@@ -221,7 +221,10 @@ pub fn open_emulator_folder(
 }
 
 #[tauri::command]
-pub fn pick_emulator_executable(
+/// `async` so the dialog's `blocking_*` call runs off the main thread:
+/// sync Tauri commands execute on the main thread and would park it in the
+/// plugin's rendezvous `recv()` forever.
+pub async fn pick_emulator_executable(
     app: AppHandle,
     state: State<'_, AppState>,
     id: String,
@@ -254,7 +257,7 @@ pub fn pick_emulator_executable(
 }
 
 #[tauri::command]
-pub fn add_custom_emulator(
+pub async fn add_custom_emulator(
     app: AppHandle,
     state: State<'_, AppState>,
     opts: Value,

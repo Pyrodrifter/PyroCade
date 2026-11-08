@@ -1,5 +1,5 @@
 ---
-slice: P2
+slice: P3
 stateFile: docs/STATE.md
 donotCount: 4
 seededFrom: feature-parity-plan
@@ -10,23 +10,23 @@ reads:
   - .operator/specs/desktop-runtime.md
   - docs/donot.md
   - renderer/app.js
-  - renderer/library-ui.js
   - renderer/tauri-bridge.js
   - src-tauri/src/backend.rs
   - src-tauri/src/config.rs
+  - src-tauri/src/emulators.rs
   - scripts/check-library-ui.cjs
-allowanceTokens: 135000
+allowanceTokens: 130000
 ---
 
-**P2 / M02 — Library state and play-history workflows.** Depends on M01. M01 is committed as `b1b29ac`.
+**P3 / M03 — Collection administration and per-game controls.** Depends on M02. M02 is committed as `3e1432c`.
 
-Baseline: `tauri-port` at `b1b29ac`; compare against `main` at `96fd68ce93c67299b2354db26d6eebe8aed4f6be`.
+Baseline: `tauri-port` at `3e1432c`; compare against `main` as needed.
 
-The 177,773-token estimate fits the 225,000-token work budget but exceeds the local host's 153,354-token usable window; use the configured model context for this slice.
+The 184,286-token estimate fits the 225,000-token work budget but exceeds the local host's 153,354-token usable window; use the configured model context for this slice.
 
 ## Action
 
-Add and persist favorites, recently played and play time, sorting and filtering, multidisc handling, and screenshots where missing. Preserve the renderer game payload and backend-owned state contracts with migration-safe config handling and focused renderer/Rust tests.
+Add hide/group/rename actions, user-added systems/games, and per-game emulator selection where missing. Keep UI calls behind the Tauri bridge and preserve backend-owned emulator state and safe config migrations.
 
 ## Scope and exclusions
 
@@ -37,7 +37,7 @@ Add and persist favorites, recently played and play time, sorting and filtering,
 
 ## Code to touch
 
-M02 renderer, bridge, and Rust state/config work, plus the library check. Keep new persistence behind the Tauri bridge and migration-safe config handling.
+M03 renderer, bridge, and Rust state/config/emulators work, plus the library check. Keep new persistence behind the Tauri bridge and migration-safe config handling.
 
 ## Read these first
 
@@ -45,15 +45,15 @@ M02 renderer, bridge, and Rust state/config work, plus the library check. Keep n
 - `.operator/specs/desktop-runtime.md`
 - `docs/donot.md`
 - `renderer/app.js`
-- `renderer/library-ui.js`
 - `renderer/tauri-bridge.js`
 - `src-tauri/src/backend.rs`
 - `src-tauri/src/config.rs`
+- `src-tauri/src/emulators.rs`
 - `scripts/check-library-ui.cjs`
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. Consult `docs/donot.md` before changing paths or state payloads; entry #1 applies if manual paths are touched.
+Total Do-Not count: 4. Consult `docs/donot.md` before changing paths or state payloads; entry #1 applies if manual paths are touched; entry #4 applies to Android SAF handling.
 
 ## Gate
 
@@ -65,4 +65,4 @@ Total Do-Not count: 4. Consult `docs/donot.md` before changing paths or state pa
 
 ## When this seed closes
 
-Close M02 when favorites, recently played/play time, sorting/filtering, multidisc handling, and screenshots are implemented or verified present with migration-safe persistence and focused checks; record the result in `docs/STATE.md` and seed P3/M03 or P4/M04 according to `.babysteps/tauri-migration.plan.md` and `.babysteps/main-to-tauri.tasks.json`.
+Close M03 when hide/group/rename, user-added systems/games, and per-game emulator selection are implemented or verified present with migration-safe persistence and focused checks; record the result in `docs/STATE.md` and seed P4/M04 according to `.babysteps/tauri-migration.plan.md` and `.babysteps/main-to-tauri.tasks.json`.

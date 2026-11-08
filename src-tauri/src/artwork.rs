@@ -70,6 +70,7 @@ pub async fn fetch_art(
         .unwrap_or(false);
     let refreshed_indexes = Arc::new(Mutex::new(HashSet::new()));
     let result = download_game(
+        &state.app,
         &game,
         &types,
         &config,
@@ -209,6 +210,7 @@ pub fn start_artwork_download(
                         emit_job(&app, &mut control, None, false);
                     }
                     let result = download_game(
+                        &app,
                         &game,
                         &types,
                         &config,
@@ -282,7 +284,7 @@ pub fn open_artwork_folder(app: AppHandle, state: State<'_, AppState>) -> Result
 }
 
 #[tauri::command]
-pub fn import_artwork(
+pub async fn import_artwork(
     app: AppHandle,
     state: State<'_, AppState>,
     options: Value,
@@ -403,6 +405,7 @@ fn update_game_media(store: &Arc<RwLock<Vec<Game>>>, game_id: &str, result: &Val
 }
 
 async fn download_game(
+    app: &AppHandle,
     game: &Game,
     types: &[String],
     config: &Value,
@@ -453,6 +456,8 @@ async fn download_game(
             .join(format!("{base}.png"));
         if path.is_file() {
             existing += 1;
+            // Cached media enters the asset scope before its file:// reaches the renderer.
+            let _ = app.asset_protocol_scope().allow_file(&path);
             if let Ok(url) = Url::from_file_path(&path) {
                 media.insert(kind.clone(), Value::String(url.to_string()));
             }
@@ -497,6 +502,8 @@ async fn download_game(
                         continue;
                     }
                 }
+                // Fresh files enter the asset scope before their file:// is handed out.
+                let _ = app.asset_protocol_scope().allow_file(&path);
                 if let Ok(url) = Url::from_file_path(&path) {
                     media.insert(kind.clone(), Value::String(url.to_string()));
                 }

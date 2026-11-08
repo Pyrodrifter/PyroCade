@@ -17,7 +17,10 @@
   const call = (command, args) => invoke(command, args).then(convertPaths);
   const subscribe = (event, fn) => {
     let stop;
-    listen(event, message => fn(message.payload)).then(unlisten => { stop = unlisten; });
+    // Events bypass `call()`'s convertPaths, so Rust file:// URLs (with %20
+    // segments from paths with spaces - e.g. "Application Support") would
+    // never load as images in the webview. Convert them here too.
+    listen(event, message => fn(convertPaths(message.payload))).then(unlisten => { stop = unlisten; });
     return () => stop?.();
   };
 

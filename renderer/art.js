@@ -140,13 +140,15 @@ const Art = (() => {
     return memo('m' + game.id, () => new Promise(res => {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height;
       const img = new Image();
+      // Asset images are cross-origin, so canvas reads need CORS.
+      img.crossOrigin = 'anonymous';
       img.onload = () => {
         ctx.fillStyle = '#f1efe9'; ctx.fillRect(0, 0, w, h);
         ctx.drawImage(img, w * 0.06, h * 0.05, w * 0.88, h * 0.7);
         ctx.fillStyle = sys.color; ctx.fillRect(0, h * 0.8, w, h * 0.12);
         ctx.font = `800 ${w * 0.055}px "Segoe UI"`; ctx.fillStyle = lum(sys.color) > 0.6 ? '#111' : '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('INSTRUCTION BOOKLET', w / 2, h * 0.86);
-        res(c.toDataURL('image/jpeg', 0.88));
+        try { res(c.toDataURL('image/jpeg', 0.88)); } catch { res(frontUrl); }
       };
       img.onerror = () => res(frontUrl);
       img.src = frontUrl;
@@ -157,10 +159,12 @@ const Art = (() => {
   function tint(url,crop) {
     return memo('t' + url + JSON.stringify(crop||null), () => new Promise(res => {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = () => { const [c, ctx] = canvas(8, 8);
         if(crop)ctx.drawImage(img,img.naturalWidth*crop.x,img.naturalHeight*crop.y,img.naturalWidth*crop.w,img.naturalHeight*crop.h,0,0,8,8);
         else ctx.drawImage(img, 0, 0, 8, 8);
-        const d = ctx.getImageData(0, 0, 8, 8).data; let r = 0, g = 0, b = 0;
+        let d; try { d = ctx.getImageData(0, 0, 8, 8).data; } catch { res('#223'); return; }
+        let r = 0, g = 0, b = 0;
         for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
         res(`rgb(${r / 64 | 0},${g / 64 | 0},${b / 64 | 0})`); };
       img.onerror = () => res('#223');
