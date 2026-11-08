@@ -1,4 +1,4 @@
-# Builds the Windows installer, the Linux packages and the Mac disk images, smoke-tests Linux and Mac, and attaches
+# Builds the Windows installer, the Linux packages, the Mac disk images and the experimental Android APK, smoke-tests Linux and Mac, and attaches
 # everything to a *draft* GitHub release. Publish the draft when it looks right; installed
 # copies of PyroCade only see published releases.
 name: Release
@@ -15,6 +15,10 @@ on:
         description: 'Use alternate Electron and packaging tool downloads'
         type: boolean
         default: false
+      android_only:
+        description: 'Only build the Android APK, as a workflow artifact (no release changes)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -25,6 +29,7 @@ env:
 
 jobs:
   windows:
+    if: ${{ !inputs.android_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -96,6 +101,7 @@ jobs:
           if-no-files-found: error
 
   linux:
+    if: ${{ !inputs.android_only }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -137,6 +143,7 @@ jobs:
           if-no-files-found: error
 
   mac:
+    if: ${{ !inputs.android_only }}
     runs-on: macos-latest
     env:
       # Ad-hoc signed (no Apple developer certificate yet): skip looking for one.
@@ -168,8 +175,49 @@ jobs:
             ${{ runner.temp }}/mac.png
           if-no-files-found: error
 
+  # Experimental Android build of the same renderer (see docs/android.md). Its version comes from the
+  # tag, so the Android files never need bumping by hand: versionCode is major*10000+minor*100+patch.
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { ref: '${{ env.TAG }}' }
+      - uses: actions/setup-java@v6
+        with: { distribution: temurin, java-version: '21' }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: npm, cache-dependency-path: android/package-lock.json }
+      - name: Build the APK
+        working-directory: android
+        run: |
+          version="${TAG#v}"
+          IFS=. read -r major minor patch <<< "${version%%-*}"
+          code=$(( major * 10000 + minor * 100 + patch ))
+          sed -i -E "s/versionCode [0-9]+/versionCode $code/; s/versionName \"[^\"]*\"/versionName \"$version\"/" android/app/build.gradle
+          npm ci
+          node scripts/build-web.cjs
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          grep -q "\"versionName\": \"$version\"" app/build/outputs/apk/debug/output-metadata.json
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/PyroCade-$version-android-experimental.apk"
+      - name: Check the APK
+        run: |
+          apk=$(ls PyroCade-*-android-experimental.apk)
+          unzip -l "$apk" | grep -q 'assets/public/index.html'
+          unzip -l "$apk" | grep -q 'assets/public/android-bridge.js'
+          unzip -l "$apk" | grep -q 'classes.dex'
+          ls -l "$apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: PyroCade-*-android-experimental.apk
+          if-no-files-found: error
+
   release:
-    needs: [windows, linux, mac]
+    # The Android build is experimental: if it fails, the desktop release still goes out without it.
+    needs: [windows, linux, mac, android]
+    if: ${{ always() && !inputs.android_only && needs.windows.result == 'success' && needs.linux.result == 'success' && needs.mac.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
@@ -179,7 +227,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          files=$(find out -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*.dmg' -o -name '*-mac-*.zip' \))
+          files=$(find out -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg.tar.zst' -o -name '*.dmg' -o -name '*-mac-*.zip' -o -name '*-android-experimental.apk' \))
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" $files --clobber
           else
