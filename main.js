@@ -336,8 +336,7 @@ async function walkRoms(dir, exts, depth = 0, out = [], rootEntries) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) { if (depth < 4 && !SKIP_DIRS.test(e.name)) await walkRoms(p, exts, depth + 1, out); }
     else if (exts.includes(path.extname(e.name).toLowerCase())) {
-      let size = 0; try { size = (await fsp.stat(p)).size; } catch {}
-      out.push({ name: e.name, path: p, size });
+      out.push({ name: e.name, path: p });
     }
   }
   return out;
@@ -379,7 +378,15 @@ function copyScore(f, titleIds) {
   if (!/\.zip$/i.test(n)) s += 1;
   // Switch: the game itself is what you launch, so it beats its own update and DLC files.
   if (titleIds) { const id = switchTitleId(n); if (id) s += id.part === 0 ? 8 : -8; }
-  return s + Math.min(f.size / 1e10, 0.9); // tie-break: bigger file (base game rather than patch)
+  return s;
+}
+
+// Only tied copies need a size check. Keep the existing 9 GB cap on the tie-break.
+async function copySize(file) {
+  if (file.size === undefined) {
+    try { file.size = (await fsp.stat(file.path)).size; } catch { file.size = 0; }
+  }
+  return Math.min(file.size, 9e9);
 }
 
 const romDirsOf = sys => [...new Set(String(sys.romDir || '').split('|')
@@ -414,8 +421,7 @@ async function scanLibrary(folderReport) {
       folderReport?.push({ system: sys.name, folder: dir, count: matches.length, extensions: exts });
     }
     for (const x of extras) {
-      let size = 0; try { size = (await fsp.stat(x.path)).size; } catch {}
-      files.push({ name: path.basename(x.path), path: x.path, size, root: path.dirname(x.path), rootIndex: 'added-' + x.id, title: x.title, added: x.id, score: Infinity });
+      files.push({ name: path.basename(x.path), path: x.path, root: path.dirname(x.path), rootIndex: 'added-' + x.id, title: x.title, added: x.id, score: Infinity });
     }
     if (!files.length) continue;
     // Prefer .m3u playlists over their individual discs.
@@ -428,7 +434,11 @@ async function scanLibrary(folderReport) {
       if (!/\.m3u$/i.test(f.name) && /\(disc \d+\)/i.test(base) && m3u.has(looseKey(base))) continue;
       const key = sys.id === 'recomp' ? f.added : (titleIds && switchGroup(base)) || looseKey(base) || base.toLowerCase();
       if (f.score !== Infinity) f.score = copyScore(f, titleIds);
-      if (!best.has(key) || best.get(key).score < f.score) best.set(key, f);
+      const current = best.get(key);
+      if (!current || current.score < f.score ||
+          (current.score === f.score && f.score !== Infinity && await copySize(current) < await copySize(f))) {
+        best.set(key, f);
+      }
     }
     const roots = [...(sys.id === 'recomp' ? extras.flatMap(x => [path.join(x.path, 'media'), x.path]) : []), config.mediaRoot && path.join(config.mediaRoot, sys.id), ...scannedDirs.flatMap(d => [path.join(d, 'media'), d]), path.join(DATA, 'media', sys.id)].filter(Boolean);
     const indexes = await Promise.all(roots.map(indexMediaRoot));
@@ -478,7 +488,8 @@ async function scanLibrary(folderReport) {
     g.scannedTitle = g.title;
     g.title = gameState(g.id).customTitle || g.scannedTitle;
   }
-  games.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+  const compareTitles = new Intl.Collator(undefined, { sensitivity: 'base' }).compare;
+  games.sort((a, b) => compareTitles(a.title, b.title));
   libraryGames = games;
   // The window gets the disc numbers and the game's own state, never the other disc paths.
   return games.map(({ discPaths, ...g }) => ({ ...g, ...gameState(g.id) }));

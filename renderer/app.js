@@ -206,7 +206,14 @@ async function boot() {
   api.onGameEnded?.(gameEnded);
   ArtworkUI.init({getGames:()=>S.games,getSystems:()=>S.config.systems,getSelected:()=>S.list[S.sel],updateGame:updateArtwork});
   api.onArtMedia?.(updateArtwork); // background re-encoding of oversized images
-  api.onLibraryInfo?.(list => { for (const {gameId, info} of list) { const g = S.games.find(x => x.id === gameId); if (g) g.info = info; } showInfo(); });
+  api.onLibraryInfo?.(list => {
+    const updates = new Map(list.map(({gameId, info}) => [gameId, info]));
+    for (const game of S.games) {
+      if (updates.has(game.id)) game.info = updates.get(game.id);
+    }
+    consoleNavigation = null;
+    showInfo();
+  });
   await loadLibrary();
   LibraryChrome.init();
   DetailsResize.init();
@@ -295,6 +302,7 @@ $('#gameDetailsEditor').addEventListener('close', () => { editingGameId = null; 
 
 // ---------- system chips ----------
 function renderChips() {
+  consoleNavigation = null;
   LibraryUI.render();
 }
 const lastGame = new Map(); // system id -> id of the game last selected there
@@ -311,8 +319,8 @@ const inView = (g, id) => !systemHidden(g.system) && !!g.hidden === showingHidde
 const yearOf = g => parseInt(g.info?.year, 10) || 0;
 const genresOf = g => String(g.info?.genre || '').split(/[;,/]|\s+&\s+/).map(x => x.trim()).filter(Boolean);
 const maxPlayers = g => Math.max(0, ...(String(g.info?.players || '').match(/\d+/g) || []).map(Number));
-const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
-const matchesSearch = g => g.title.toLowerCase().includes(S.query.trim().toLowerCase());
+const compareNames = new Intl.Collator(undefined, { sensitivity: 'base' }).compare;
+const byTitle = (a, b) => compareNames(a.title, b.title);
 const SORTS = {
   title: null,
   custom: null,
@@ -320,7 +328,7 @@ const SORTS = {
   'year-old': (a, b) => (yearOf(a) || 9999) - (yearOf(b) || 9999),
   played: (a, b) => (b.playMs || 0) - (a.playMs || 0),
   recent: (a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0),
-  developer: (a, b) => !a.info?.developer - !b.info?.developer || String(a.info?.developer || '').localeCompare(String(b.info?.developer || ''), undefined, { sensitivity: 'base' }),
+  developer: (a, b) => !a.info?.developer - !b.info?.developer || compareNames(String(a.info?.developer || ''), String(b.info?.developer || '')),
 };
 function passesFilter(g) {
   if (!S.filter) return true;
@@ -343,6 +351,7 @@ async function dropGame(sourceId,targetId,system,after){
   const index=order.indexOf(sourceId);if(index<0||!order.includes(targetId))return;
   order.splice(index,1);order.splice(order.indexOf(targetId)+(after?1:0),0,sourceId);
   S.orders[system]=order;S.sort='custom';
+  consoleNavigation = null;
   const keep=new Map([...items.values()].map(node=>[node.dataset.id,node]));
   S.list.sort(manualGameSort(system));items.clear();for(let i=0;i<S.list.length;i++){const node=keep.get(S.list[i].id);if(node){node.id='shelf-game-'+i;items.set(i,node);}}
   S.sel=Math.max(0,S.list.findIndex(g=>g.id===sourceId));layout();showInfo();syncShelfTools();saveUi();
@@ -350,6 +359,7 @@ async function dropGame(sourceId,targetId,system,after){
   catch(error){S.orders[system]=oldOrder;S.sort=oldSort;setSystem(system);toast(error.message,5000);}
 }
 function setSystem(id, edge = null) {
+  consoleNavigation = null;
   const previousSystem=S.system;
   S.system = (VIEWS[id] ? S.games.some(g => inView(g, id)) : !systemHidden(id) && (S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && (s.romDir || s.id === 'recomp')))) ? id : 'all';
   if(previousSystem!==S.system)AudioUI.play('system');
@@ -464,8 +474,25 @@ function cycleSystem(dir) {
 // Browsing never stops at the end of the shelf. On a system's shelf, going past the last game
 // carries on into the next system that has games; All games, Favourites and Recently played are
 // one list already, so they wrap round to the other end.
-const shelvedSystems = () => $$('#systems button').map(b => b.dataset.id)
-  .filter(id => id !== 'all' && !VIEWS[id] && S.games.some(g => inView(g, id) && matchesSearch(g) && passesFilter(g)));
+let consoleNavigation = null;
+function getConsoleNavigation() {
+  if (consoleNavigation) return consoleNavigation;
+  const ids = $$('#systems button').map(button => button.dataset.id)
+    .filter(id => id !== 'all' && !VIEWS[id] && !systemHidden(id));
+  const shelves = new Map();
+  if (ids.includes(S.system)) {
+    for (const id of ids) shelves.set(id, { games: [], sorted: false });
+    const query = S.query.trim().toLowerCase(), hidden = showingHidden();
+    for (const game of S.games) {
+      const shelf = shelves.get(game.system);
+      if (shelf && !!game.hidden === hidden && (!query || game.title.toLowerCase().includes(query)) && passesFilter(game)) {
+        shelf.games.push(game);
+      }
+    }
+  }
+  consoleNavigation = { ids: ids.filter(id => shelves.get(id)?.games.length), shelves };
+  return consoleNavigation;
+}
 
 // ---------- 3D carousel ----------
 const shelfModels=new Map();
@@ -544,7 +571,8 @@ function fillItem(it, game) {
   it.style.setProperty('--w',a.W+'px'); it.style.setProperty('--h',a.H+'px'); it.style.setProperty('--d',a.D+'px');
   const sway = el('div', 'sway');
   if(!modelsEnabled()){sway.append(box);it.replaceChildren(sway);return;}
-  sway.append(createMedia(game,a),box);
+  if (!['bookshelf', 'spinner'].includes(Appearance.mode())) sway.append(createMedia(game, a));
+  sway.append(box);
   const reflection=el('div','ground-reflection');reflection.setAttribute('aria-hidden','true');reflection.append(EshopCovers.face(game,a,'reflection-cover'));sway.append(reflection);
   const sh = el('div', 'shadow'); sh.style.top = a.H + 'px';
   it.replaceChildren(sway, sh);
@@ -655,9 +683,13 @@ function caseSize(i) {
 }
 function layout() {
   const stage = $('#stage');
+  // Read stage dimensions before writing any case styles.
+  const stageSize = { clientWidth: stage.clientWidth, clientHeight: stage.clientHeight };
   const scaleLimit = document.documentElement.dataset.infoBar === 'hidden' ? 1.32 : 1.16;
-  const scale = Math.max(.35,Math.min(scaleLimit,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
-  const view=modelsEnabled()?Appearance.geometry(stage,S.sel,S.list.length):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
+  const scale = Math.max(.35,Math.min(scaleLimit,(stageSize.clientHeight - 66) / 350, (innerWidth - 240) / 900));
+  const view=modelsEnabled()?Appearance.geometry(stageSize,S.sel,S.list.length):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
+  const entering = [];
+  const transferring = $('#carousel').classList.contains('shelf-transfer');
   for (const [i, e] of items) if (i < lo - (modelsEnabled()?2:0) || i > hi + (modelsEnabled()?2:0)) { e.remove(); items.delete(i); }
   for (let i = Math.max(0, lo); i <= Math.min(S.list.length - 1, hi); i++) {
     let e = items.get(i);
@@ -665,22 +697,33 @@ function layout() {
     if (fresh) { e = makeItem(i); items.set(i, e); }
     const d = i - S.sel, a = Math.abs(d);
     const itemScale = scale * Number(e.dataset.displayScale || 1);
-    const placement=modelsEnabled()?Appearance.position(i,S.sel,scale,itemScale,stage,view,caseSize):{transform:`translate(${d*270*scale}px,0px) scale(${itemScale*(d===0?1:.7)})`,hidden:a>2},t=placement.transform;
+    const placement=modelsEnabled()?Appearance.position(i,S.sel,scale,itemScale,stageSize,view,caseSize):{transform:`translate(${d*270*scale}px,0px) scale(${itemScale*(d===0?1:.7)})`,hidden:a>2},t=placement.transform;
     e.style.setProperty('--rack-shade',placement.shade||0);
     e.style.width=(placement.width||caseSize(i)[0])+'px';e.style.height=(placement.height||caseSize(i)[1])+'px';
-    if (fresh && !$('#carousel').classList.contains('shelf-transfer')) { e.style.transition = 'none'; e.style.transform = t + ' translateY(40px)'; e.offsetWidth; e.style.transition = ''; }
-    e.style.transform = t;
+    if (fresh && !transferring) {
+      e.style.transition = 'none';
+      e.style.transform = t + ' translateY(40px)';
+      entering.push([e, t]);
+    } else e.style.transform = t;
     e.style.zIndex = 100 - a;
     e.classList.toggle('sel', d === 0);
     e.classList.toggle('far', placement.hidden);
     e.setAttribute('aria-selected',String(d === 0));
     e.setAttribute('aria-hidden',String(placement.hidden));
   }
+  if (entering.length) {
+    // Commit every initial pose with one layout before starting the entry transitions.
+    stage.offsetWidth;
+    for (const [node, transform] of entering) {
+      node.style.transition = '';
+      node.style.transform = transform;
+    }
+  }
   $('#counter').textContent = S.list.length ? `${(S.sel + 1).toLocaleString()} / ${S.list.length.toLocaleString()}` : '';
   $('#shelfPosition').textContent = S.list.length ? `${String(S.sel+1).padStart(2,'0')} / ${S.list.length.toLocaleString()}` : '0 games';
   $('#shelfProgress').style.width = `${S.list.length ? (S.sel+1)/S.list.length*100 : 0}%`;
   // Browsing wraps on, so the arrows only go dead when there is nowhere at all to go.
-  const stuck = !S.list.length || (S.list.length < 2 && (S.system === 'all' || VIEWS[S.system] || shelvedSystems().length < 2));
+  const stuck = !S.list.length || (S.list.length < 2 && (S.system === 'all' || VIEWS[S.system] || getConsoleNavigation().ids.length < 2));
   $('#shelfPrev').disabled = stuck; $('#shelfNext').disabled = stuck;
   $('#shelfLabel').textContent = viewName(S.system)+' / '+Appearance.layouts[Appearance.mode()].name;
   if (S.list.length) $('#carousel').setAttribute('aria-activedescendant',`shelf-game-${S.sel}`);
@@ -692,7 +735,7 @@ function layout() {
 
 let shelfTransition = null;
 function nextConsole(dir) {
-  const ids = shelvedSystems();
+  const { ids } = getConsoleNavigation();
   const index = ids.indexOf(S.system);
   return index < 0 || !ids.length ? S.system : ids[(index + dir + ids.length) % ids.length];
 }
@@ -706,10 +749,13 @@ function renderConsolePreviews(force = false) {
     const remaining = dir > 0 ? S.list.length - 1 - S.sel : S.sel;
     const target = S.list.length && remaining < Math.min(5, S.list.length) ? nextConsole(dir) : S.system;
     if (target === S.system || !S.list.length || remaining >= Math.min(5, S.list.length)) { preview?.remove(); continue; }
-    const q = S.query.trim().toLowerCase();
-    let games = S.games.filter(g => inView(g, target) && (!q || g.title.toLowerCase().includes(q)) && passesFilter(g));
-    games.sort(S.sort==='custom'?manualGameSort(target):SORTS[S.sort] ? (a,b) => SORTS[S.sort](a,b) || byTitle(a,b) : byTitle);
-    games = dir > 0 ? games.slice(0, 3) : games.slice(-3).reverse();
+    const shelf = getConsoleNavigation().shelves.get(target);
+    if (!shelf.sorted) {
+      const sort = SORTS[S.sort];
+      shelf.games.sort(S.sort === 'custom' ? manualGameSort(target) : sort ? (a, b) => sort(a, b) || byTitle(a, b) : byTitle);
+      shelf.sorted = true;
+    }
+    const games = dir > 0 ? shelf.games.slice(0, 3) : shelf.games.slice(-3).reverse();
     if (!games.length) { preview?.remove(); continue; }
     if (!preview) {
       preview = el('div', 'console-preview ' + cls);
