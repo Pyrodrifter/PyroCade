@@ -4,6 +4,27 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-08
+
+### Added
+- **Page turn layout.** Cases swing across a spine like the pages of a book: the games you have passed lie open on the left showing their back covers, and the selected one stands open on the right.
+- **Media carousel layout.** The games themselves instead of their cases: every disc, mini disc, UMD and cartridge on a carousel, with the selected disc spinning.
+- **A new 20-second demo** and new README screenshots, including the two new layouts.
+- **Android:** an updated experimental build with everything in this release (see the `android-v0.8.0-experimental` pre-release).
+
+### Changed
+- **The library opens straight away.** PyroCade shows the library it found last time and rescans your folders in the background, redrawing the shelf only if something changed. On a 7,691-game library on a hard drive the shelf appeared after about 0.8 s instead of 2.6 s.
+- **Scans are about four times faster** (about 0.6 s instead of 2.3 s on the same library). Folders are read in parallel and listed only once per scan, and the file sizes used to choose between copies of a game (US and EU releases, for example) are remembered between scans. **Save & rescan** in Settings still reads them all again.
+- **Switching consoles is about twice as fast** (about 75 ms instead of 145 ms, and 245 ms instead of 610 ms for the first switch to All games). Generated back covers for games without a scan are drawn in the background, one per frame, and filled in as they are ready; the case view draws its back cover at once.
+- **A cartridge comes up out of its cardboard box.** In the case view it rises straight out of the open top and glides forward in one smooth, untilted motion to rest above the box, in front of the flap, so the whole label shows.
+- Super Famicom boxes keep their real proportions, the Bookshelf leaves room beside the pulled-out case for its disc, and hinged cases fold open around their spine.
+- **Spinner rack and Colour cards are replaced by Page turn and Media carousel.** If one of them was your layout, PyroCade opens in its replacement.
+
+### Fixed
+- **Cartridge labels no longer go blank** when a cartridge is seen at an angle. The label sat a tenth of a pixel above the shell, close enough that the plain shell was sometimes drawn over it.
+- **A turning case no longer shows its disc or cartridge on its back** in Page turn.
+- The cartridge no longer passes through the open flap of a small cardboard box (Game Boy Advance) as it comes out.
+
 ## [0.7.0] - 2026-11-08
 
 ### Added
@@ -193,6 +214,8 @@ Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](h
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.8.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.4...v0.5.0
 [0.4.4]: https://github.com/Pyrodrifter/PyroCade/compare/v0.4.3...v0.4.4

@@ -6,23 +6,25 @@ An emulator launcher for Windows, macOS and Linux. Browse your library as 3D gam
 
 ![Shrek 2 selected in the GameCube carousel, with four other Shrek games and a gameplay preview](docs/media/screen-carousel.jpg)
 
-[Download the 15-second demo (MP4)](https://raw.githubusercontent.com/Pyrodrifter/PyroCade/c98a7157e0955632aaee55aec19da6c698e091ad/docs/media/pyrocade-demo.mp4)
+[Download the 20-second demo (MP4)](https://raw.githubusercontent.com/Pyrodrifter/PyroCade/v0.8.0/docs/media/pyrocade-demo.mp4): the Shrek shelf in Carousel, Page turn and Media carousel, then a Game Boy Advance box opening.
 
 The screenshots show the current source build. The GameCube shelf has **Shrek 2**, **Shrek Extra Large**, **Shrek Super Party**, **Shrek SuperSlam** and **Shrek: Smash n’ Crash Racing**. Press **/** and type **shrek** on the GameCube shelf to find them, or switch to **All games** to search across systems. That also turns up **Shrek: Swamp Kart Speedway** on Game Boy Advance and **Shrek: Ogres & Dronkeys** on Nintendo DS.
 
 | Bookshelf | Page turn |
 | --- | --- |
-| ![Shrek Super Party pulled out of a row of GameCube spines with details hidden](docs/media/screen-bookshelf.jpg) | ![Shrek GameCube cases arranged like open book pages in Page turn](docs/media/screen-page-turn.jpg) |
-| **Open the case** | **Manuals** |
-| ![The open Smash n’ Crash Racing case with its GameCube mini disc](docs/media/screen-case.jpg) | ![The Shrek SuperSlam booklet with its manual ready to open](docs/media/screen-manual.jpg) |
-| **Artwork** | **Emulators** |
-| ![Artwork options for Smash n’ Crash Racing](docs/media/screen-artwork.jpg) | ![Emulator catalog with install, link and update controls](docs/media/screen-emulators.jpg) |
+| ![Shrek Super Party pulled out of a row of GameCube spines with details hidden](docs/media/screen-bookshelf.jpg) | ![Shrek 2 open beside the back cover of SuperSlam, turned like a book page](docs/media/screen-page-turn.jpg) |
+| **Media carousel** | **Open the case** |
+| ![The Shrek GameCube discs in a carousel, with the Shrek 2 disc in front](docs/media/screen-media.jpg) | ![The open Smash n’ Crash Racing case with its GameCube mini disc](docs/media/screen-case.jpg) |
+| **Manuals** | **Artwork** |
+| ![The Shrek SuperSlam booklet with its manual ready to open](docs/media/screen-manual.jpg) | ![Artwork download options for the whole GameCube shelf](docs/media/screen-artwork.jpg) |
+| **Emulators** | |
+| ![Emulator catalog with install, link and update controls](docs/media/screen-emulators.jpg) | |
 
 ## Features
 - **Six library layouts.** Choose Carousel, Bookshelf, Vertical stack, Flipbook, Page turn or Media carousel in **View & theme**. Page turn swings cases across a spine. Media carousel shows each game's disc or cartridge instead of its case. Pick an accent colour and background there too.
 - **Physical games.**
   - Each system gets its own case, from jewel cases, DVD cases and Switch cases to cardboard boxes.
-  - Discs slide out of the selected case, and cartridges rise above the cover so you can see the label.
+  - Discs slide out of the selected case, and cartridges rise above the cover so you can see the label. In the case view, a cartridge comes up out of its cardboard box and settles in front of it.
   - **Cartridges come in their real colours:** taken from a photo of the actual cartridge, or from a list of famous ones (gold Ocarina of Time, the coloured Pokémon cartridges…). You can also pick your own colour per game in **Artwork → Change an image**.
   - Generated spines follow each console's retail design, and real spine scans always win.
   - Open a case to turn it around, flip it and read the manual.
@@ -55,7 +57,8 @@ The screenshots show the current source build. The GameCube shelf has **Shrek 2*
   - **One game, its own emulator:** the **Emulator** button next to Play picks an emulator for just that game, for example a fork made for Ocarina of Time. Other games keep the system's emulator.
 - **Button prompts.** Flat keyboard, mouse, Xbox, PlayStation, Nintendo and generic gamepad icons follow the last input you used. [Full prompt set](renderer/assets/prompts/preview.html)
 - **Ambient mode.** Choose a background and an idle delay for the screensaver.
-- **Performance settings.** Use **Settings → Interface → Use flat covers** or **Disable animations** to reduce rendering work. Both apply immediately. Large libraries scan faster by checking ROM sizes only when choosing between tied copies, and browsing reuses the neighbouring shelf previews.
+- **Performance settings.** Use **Settings → Interface → Use flat covers** or **Disable animations** to reduce rendering work. Both apply immediately.
+- **Fast with large libraries.** PyroCade opens on the library it found last time and rescans your folders in the background, redrawing the shelf only if something changed. Scans read folders in parallel, list each folder once and remember the file sizes used to choose between copies of a game. Generated back covers are drawn in the background, so switching consoles stays quick.
 - **Leia SR on Windows.** Press **F9** to toggle stereo and **Shift+F9** for depth, popout, convergence and stereo FPS. Stereo requires a compatible display, the Leia SR runtime and the native presenter. [Native presenter build instructions](native/README.md)
 
 ## Install
