@@ -11,10 +11,11 @@
   --text: #f2eee8;
   --muted: #bbb7b1;
   --secondary: #a39e98;
-  --accent: #c9ac85;
-  --accent2: #e0c9a9;
+  --accent: #efaa68;
+  --accent2: #ffca97;
   --ink: #24211f;
-  --selected: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  --selected: color-mix(in srgb, var(--accent) 21%, var(--surface));
+  --stage-light: color-mix(in srgb, var(--accent) 14%, #363330);
   --glass: var(--surface);
   --bar-text: var(--muted);
   --bar-dim: var(--secondary);
@@ -70,20 +71,20 @@ input:is([type=checkbox], [type=range]) { accent-color: var(--accent); }
 kbd, code { background: var(--field); border-color: var(--line); color: var(--muted); }
 a { color: var(--accent2); }
 
-/* Let cover artwork supply the colour. Keep the default ribbon barely visible behind it. */
+/* Keep the backdrop charcoal, with the active accent concentrated around the shelf. */
 #bg, html:not([data-theme=ember]) #bg {
-  background: radial-gradient(ellipse at 50% 43%, #363330, var(--canvas) 71%);
+  background: radial-gradient(ellipse at 50% 43%, var(--stage-light), var(--canvas) 71%);
 }
 .bg-layer, html:not([data-theme=ember]) .bg-layer { filter: blur(68px) grayscale(.76); }
 .bg-layer.on { opacity: .12; }
 .bg-vignette { background: linear-gradient(180deg, transparent 25%, var(--canvas) 97%); }
-html:has(#xmb[data-scene=ribbon]) #xmb { opacity: .13; }
-html.ambient:has(#xmb[data-scene=ribbon]) #xmb { opacity: .3; }
+html:has(#xmb[data-scene=ribbon]) #xmb { opacity: .26; }
+html.ambient:has(#xmb[data-scene=ribbon]) #xmb { opacity: .45; }
 #floor, html:not([data-theme=ember]) #floor {
-  background: radial-gradient(ellipse at 50% 50%, #9a897733, transparent 70%);
+  background: radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%);
   opacity: .65;
 }
-#caseView { background: radial-gradient(ellipse at 50% 43%, #363330, #171615 76%); }
+#caseView { background: radial-gradient(ellipse at 50% 43%, var(--stage-light), #171615 76%); }
 
 /* Library */
 html:not(.ambient) header { background: var(--canvas); }
@@ -92,7 +93,7 @@ header .toolbar { border-color: var(--line); }
 .brand { letter-spacing: .17em; }
 #tabs button, .chips .system-tile, .system-browser, #btnAppearance { border-radius: var(--radius); }
 #tabs button.active, .chips .system-tile.active { color: var(--text); }
-#tabs button.active::after, .chips .system-tile.active::after { height: 1px; bottom: 3px; }
+#tabs button.active::after, .chips .system-tile.active::after { height: 2px; bottom: 3px; }
 .search, .system-picker-search {
   background: var(--field);
   border: 1px solid var(--control-line);
