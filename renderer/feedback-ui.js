@@ -1,6 +1,6 @@
 const FeedbackUI = (() => {
   const find = id => document.getElementById(id);
-  const dialog = find('feedbackDialog'), form = find('feedbackForm');
+  const dialog = find('feedbackDialog'), form = find('feedbackForm'), trigger = find('btnFeedback');
   const status = find('feedbackStatus'), device = find('feedbackDevice');
   let busy = false, loaded = false;
 
@@ -42,7 +42,11 @@ const FeedbackUI = (() => {
       find('feedbackCopy').disabled = find('feedbackOpen').disabled = false;
     }
   }
-  find('btnFeedback').addEventListener('click', async () => {
+  function close() {
+    dialog.close();
+    trigger.focus();
+  }
+  trigger.addEventListener('click', async () => {
     if (dialog.open) return;
     status.textContent = '';
     dialog.showModal();
@@ -58,8 +62,8 @@ const FeedbackUI = (() => {
       find('feedbackDiagnostics').disabled = true;
     }
   });
-  find('feedbackClose').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => find('btnFeedback').focus());
+  find('feedbackClose').addEventListener('click', close);
+  dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
   find('feedbackKind').addEventListener('change', updateType);
   find('feedbackDiagnostics').addEventListener('change', event => { device.hidden = !event.target.checked; });
   find('feedbackCopy').addEventListener('click', () => perform('copy'));
@@ -71,7 +75,7 @@ const FeedbackUI = (() => {
   return {
     isOpen: () => dialog.open,
     controller(action) {
-      if (action === 'back') dialog.close();
+      if (action === 'back') close();
       else if (action === 'play' && document.activeElement?.matches('button')) document.activeElement.click();
       else if (['up', 'down'].includes(action)) {
         const controls = [...form.querySelectorAll('input,select,textarea,button')].filter(e => !e.disabled && e.getClientRects().length);

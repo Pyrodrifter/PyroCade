@@ -367,7 +367,7 @@ function setSystem(id, edge = null) {
   let list = S.games.filter(g => inView(g, S.system) && (!q || g.title.toLowerCase().includes(q)) && passesFilter(g));
   if (S.system === 'recent') list = list.sort(SORTS.recent).slice(0, 30);
   else if (S.sort === 'custom') list.sort(manualGameSort(S.system));
-  else if (S.sort === 'title') list.sort(byTitle);
+  else if (S.sort === 'title' && !S.demo) list.sort(byTitle);
   else if (SORTS[S.sort]) list = list.sort((a, b) => SORTS[S.sort](a, b) || byTitle(a, b));
   S.list = list;
   LibraryUI.select();
@@ -550,7 +550,7 @@ function fillItem(it, game) {
 
 function makeItem(i) {
   const game = S.list[i];
-  const signature=JSON.stringify([game.title,game.media,game.mediaType,game._aspect,game._eShop,S.config?.realCaseSizes,Appearance.mode()]);
+  const signature=JSON.stringify([game.title,game.media,game.mediaType,game._aspect,game._eShop,S.config?.realCaseSizes,Appearance.mode(),modelsEnabled()]);
   const cached=shelfModels.get(game.id);
   if(cached&&cached.game===game&&cached.signature===signature){const node=cached.node;node.id='shelf-game-'+i;node.classList.remove('sel','media-revealed','console-arrival');node.draggable=!game.demo&&S.system!=='all'&&!VIEWS[S.system];$('#carousel').append(node);return node;}
   const it = el('div', 'item far');
