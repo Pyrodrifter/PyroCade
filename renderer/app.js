@@ -213,7 +213,10 @@ async function boot() {
   LeiaUI.init(S.config);
   initAppUpdates();
   let shelfResizeFrame=0;const scheduleShelfResize=()=>{if(shelfResizeFrame)return;shelfResizeFrame=requestAnimationFrame(()=>{shelfResizeFrame=0;resizeShelf();if(S.config&&libraryActive())layout();});};
-  const shelfObserver=new ResizeObserver(scheduleShelfResize);shelfObserver.observe($('#info'));shelfObserver.observe($('#stage'));
+  const shelfObserver = new ResizeObserver(scheduleShelfResize);
+  shelfObserver.observe($('#info'));
+  shelfObserver.observe($('#stage'));
+  shelfObserver.observe($('#libraryHints'));
   renderEmus();
   renderSettings();
   setInterval(() => ($('#clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })), 1000);
@@ -501,7 +504,12 @@ function createMedia(game, a) {
 
 function resizeShelf() {
   DetailsResize.align();
-  $('#view-library').style.setProperty('--info-clearance', `${$('#info').offsetHeight + 114}px`);
+  const library = $('#view-library');
+  const detailsHidden = document.documentElement.dataset.infoBar === 'hidden';
+  const clearance = detailsHidden
+    ? library.getBoundingClientRect().bottom - $('#libraryHints').getBoundingClientRect().top + 12
+    : $('#info').offsetHeight + 114;
+  library.style.setProperty('--info-clearance', clearance + 'px');
 }
 function revealSelection(delay = 720) {
   clearTimeout(revealTimer);
@@ -647,7 +655,8 @@ function caseSize(i) {
 }
 function layout() {
   const stage = $('#stage');
-  const scale = Math.max(.35,Math.min(1.16,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
+  const scaleLimit = document.documentElement.dataset.infoBar === 'hidden' ? 1.32 : 1.16;
+  const scale = Math.max(.35,Math.min(scaleLimit,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
   const view=modelsEnabled()?Appearance.geometry(stage,S.sel,S.list.length):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
   for (const [i, e] of items) if (i < lo - (modelsEnabled()?2:0) || i > hi + (modelsEnabled()?2:0)) { e.remove(); items.delete(i); }
   for (let i = Math.max(0, lo); i <= Math.min(S.list.length - 1, hi); i++) {
