@@ -154,8 +154,7 @@ The form shows the app version and basic device details that will be included; u
 
 ## Thanks
 
-- **afterkaze** contributed Leia SR stereo, carousel previews, drag ordering, game metadata controls and the Recomp shelf. [Pull request #4](https://github.com/Pyrodrifter/PyroCade/pull/4)
-- **[u/RiceDesperate5724](https://www.reddit.com/user/RiceDesperate5724/)** asked for a way to take games off the shelf without touching the ROM folder, spotted that Switch update and DLC `.nsp` files were each being counted as a game, and reported that fullscreen was out of reach. They then built their own version with an endless carousel, a right-click menu and renaming, which is where those three came from.
+- **[u/afterkaze](https://www.reddit.com/user/afterkaze/)** suggested hiding games without touching the ROM folder and reported the Switch update and DLC counting and fullscreen issues. Their fork introduced continuous carousel navigation, a right-click menu, and renaming. They also contributed Leia SR stereo, carousel previews, drag ordering, game metadata controls, and the Recomp shelf. [Pull request #4](https://github.com/Pyrodrifter/PyroCade/pull/4)
 
 Found something, or want something? [Open an issue](https://github.com/Pyrodrifter/PyroCade/issues) — and if you have already written the fix, a pull request is very welcome.
 
