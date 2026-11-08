@@ -1,5 +1,6 @@
 // PyroCade — main process: config, library scanning, launching, emulator downloads.
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeImage, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeImage, safeStorage, Menu } = require('electron');
+if(process.platform==='win32')app.commandLine.appendSwitch('force-high-performance-gpu');
 app.setName('PyroCade');
 if(process.platform==='win32')app.setAppUserModelId('com.pyrodrifter.pyrocade');
 // PyroCade stays open behind a running game. Without this, Windows reports the covered window as
@@ -113,6 +114,7 @@ const DEFAULT_SYSTEMS = [
   { id: 'xbox', name: 'Xbox', caseType: 'dvd', media: 'disc', color: '#1c8a2e', extensions: ['.iso', '.xiso'], emulator: 'xemu', libretro: 'Microsoft - Xbox' },
   { id: 'x360', name: 'Xbox 360', caseType: 'dvd', media: 'disc', color: '#7cbb00', extensions: ['.iso', '.xex', '.zar'], emulator: '', libretro: 'Microsoft - Xbox 360' },
   // PC: a folder of shortcuts (.lnk, Steam .url) or game programs. Games start directly, no emulator.
+  { id: 'recomp', name: 'Recomp', caseType: 'dvd', media: 'disc', color: '#a685ff', extensions: ['.exe'], emulator: '', direct: true },
   { id: 'pc', name: 'PC Games', caseType: 'dvd', media: 'disc', color: '#3b82f6', extensions: ['.lnk', '.url', '.exe'], emulator: '', direct: true },
   { id: 'a2600', name: 'Atari 2600', caseType: 'nesbox', media: 'cart', color: '#a0522d', extensions: ['.a26', '.zip'], emulator: '', libretro: 'Atari - 2600' },
   { id: 'arcade', name: 'Arcade', caseType: 'bigbox', media: 'cart', color: '#d4a017', extensions: ['.zip'], emulator: '', libretro: 'MAME' },
@@ -186,7 +188,7 @@ let config = loadConfig();
 // Kept apart from config.json: it changes after every game and every selection, and the window's
 // "Save & rescan" (which sends a whole config) must never overwrite it.
 const STATE_PATH = path.join(DATA, 'library-state.json');
-const emptyState = () => ({ favorites: {}, stats: {}, discs: {}, hidden: {}, titles: {}, ui: {} });
+const emptyState = () => ({ favorites: {}, hidden: {}, titles: {}, metadata: {}, order: {}, stats: {}, discs: {}, ui: {} });
 function loadState() {
   try { const s = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); return { ...emptyState(), ...(s && typeof s === 'object' ? s : {}) }; }
   catch { return emptyState(); }
@@ -205,7 +207,9 @@ const saveState = () => { clearTimeout(stateTimer); stateTimer = setTimeout(writ
 // What the window needs to know about one game: favourite, hidden, play time, last played, chosen disc.
 function gameState(id) {
   const st = libraryState.stats[id] || {};
-  return { favorite: !!libraryState.favorites[id], hidden: !!libraryState.hidden?.[id], customTitle: libraryState.titles?.[id] || '', playMs: st.ms || 0, lastPlayed: st.last || 0, plays: st.plays || 0, disc: libraryState.discs[id] || 0 };
+  const metadata = libraryState.metadata?.[id] || {};
+  const customTitle = metadata.title || libraryState.titles?.[id] || '';
+  return { ...metadata, customTitle, hidden: !!libraryState.hidden?.[id], favorite: !!libraryState.favorites[id], playMs: st.ms || 0, lastPlayed: st.last || 0, plays: st.plays || 0, disc: libraryState.discs[id] || 0 };
 }
 
 // ---------- Library scanning ----------
@@ -315,8 +319,8 @@ async function readGamelist(dir) {
 
 // Walk a ROM folder (and its sub-folders) collecting files with matching extensions.
 const exists = p => fsp.access(p).then(() => true, () => false);
-async function walkRoms(dir, exts, depth = 0, out = []) {
-  const entries = await listDir(dir);
+async function walkRoms(dir, exts, depth = 0, out = [], rootEntries) {
+  const entries = rootEntries ?? await listDir(dir);
   // Decrypted Switch / Switch 2 dumps are folders: <game>\base\exefs\main (+ romfs), or <game>\exefs\main.
   // The whole folder counts as one game, launched through its exefs\main. Only folders that
   // actually contain base\ or exefs\ are checked, so normal folders cost no extra disk access.
@@ -378,42 +382,58 @@ function copyScore(f, titleIds) {
   return s + Math.min(f.size / 1e10, 0.9); // tie-break: bigger file (base game rather than patch)
 }
 
-const romDirsOf = sys => String(sys.romDir || '').split('|').map(d => d.trim()).filter(Boolean);
+const romDirsOf = sys => [...new Set(String(sys.romDir || '').split('|')
+  .map(folder => folder.trim().replace(/^"(.*)"$/, '$1').trim()).filter(Boolean))];
 let libraryGames = [];
-async function scanLibrary() {
+async function scanLibrary(folderReport) {
   const games = [];
   for (const sys of config.systems) {
     // A system can have several ROM folders (e.g. games split across two SD cards), separated by "|".
     // Folders that are missing - an SD card that isn't inserted - are skipped.
-    const dirs = romDirsOf(sys).filter(d => fs.existsSync(d));
+    const dirs = sys.id === 'recomp' ? [] : romDirsOf(sys);
     const extras = (config.extraGames || []).filter(x => x.system === sys.id && fs.existsSync(x.path));
     if (!dirs.length && !extras.length) continue;
     const exts = sys.extensions.map(e => e.toLowerCase());
     const files = [];
     // Direct-launch systems (PC) only look at the folder itself: game folders are full of helper programs.
+    const scannedDirs = [];
     for (const [ri, dir] of dirs.entries()) {
-      for (const f of await walkRoms(dir, exts, sys.direct ? 4 : 0)) if (!/\(track \d+\)/i.test(f.name)) files.push({ ...f, root: dir, rootIndex: ri });
+      let entries;
+      try {
+        entries = await fsp.readdir(dir, { withFileTypes: true });
+      } catch (error) {
+        const reason = error.code === 'ENOENT' ? 'Folder unavailable'
+          : error.code === 'ENOTDIR' ? 'Path is not a folder' : 'Could not read folder';
+        folderReport?.push({ system: sys.name, folder: dir, problem: reason });
+        continue;
+      }
+      scannedDirs.push(dir);
+      const matches = (await walkRoms(dir, exts, sys.direct ? 4 : 0, [], entries))
+        .filter(file => !/\(track \d+\)/i.test(file.name));
+      for (const file of matches) files.push({ ...file, root: dir, rootIndex: ri });
+      folderReport?.push({ system: sys.name, folder: dir, count: matches.length, extensions: exts });
     }
     for (const x of extras) {
       let size = 0; try { size = (await fsp.stat(x.path)).size; } catch {}
       files.push({ name: path.basename(x.path), path: x.path, size, root: path.dirname(x.path), rootIndex: 'added-' + x.id, title: x.title, added: x.id, score: Infinity });
     }
+    if (!files.length) continue;
     // Prefer .m3u playlists over their individual discs.
     const m3u = new Set(files.filter(f => /\.m3u$/i.test(f.name)).map(f => looseKey(stem(f.name))));
     // Switch-style libraries group by title ID, so an update or a DLC pack never becomes its own game.
     const titleIds = ['.nsp', '.xci', '.nsz', '.xcz'].some(e => exts.includes(e));
     const best = new Map();
     for (const f of files) {
-      const base = path.basename(f.name, path.extname(f.name));
+      const base = sys.id === 'recomp' ? f.name : path.basename(f.name, path.extname(f.name));
       if (!/\.m3u$/i.test(f.name) && /\(disc \d+\)/i.test(base) && m3u.has(looseKey(base))) continue;
-      const key = (titleIds && switchGroup(base)) || looseKey(base) || base.toLowerCase();
+      const key = sys.id === 'recomp' ? f.added : (titleIds && switchGroup(base)) || looseKey(base) || base.toLowerCase();
       if (f.score !== Infinity) f.score = copyScore(f, titleIds);
       if (!best.has(key) || best.get(key).score < f.score) best.set(key, f);
     }
-    const roots = [config.mediaRoot && path.join(config.mediaRoot, sys.id), ...dirs.flatMap(d => [path.join(d, 'media'), d]), path.join(DATA, 'media', sys.id)].filter(Boolean);
+    const roots = [...(sys.id === 'recomp' ? extras.flatMap(x => [path.join(x.path, 'media'), x.path]) : []), config.mediaRoot && path.join(config.mediaRoot, sys.id), ...scannedDirs.flatMap(d => [path.join(d, 'media'), d]), path.join(DATA, 'media', sys.id)].filter(Boolean);
     const indexes = await Promise.all(roots.map(indexMediaRoot));
     const gamelist = new Map();
-    for (const d of dirs) for (const [k, v] of await readGamelist(d)) if (!gamelist.has(k)) gamelist.set(k, v);
+    for (const d of scannedDirs) for (const [k, v] of await readGamelist(d)) if (!gamelist.has(k)) gamelist.set(k, v);
     // Multi-disc games without an .m3u: "Game (USA) (Disc 1).cue", "(Disc 2).cue"… become one game
     // with a disc list. Only discs of the same copy (same name apart from the disc number) are grouped.
     const discTag = /\s*\(dis[ck]\s*(\d+)[^)]*\)/i;
@@ -431,7 +451,7 @@ async function scanLibrary() {
       best.set(key, { ...discs[0][1], score: chosen.score, discs: discs.map(([n, f]) => ({ n, path: f.path })) });
     }
     for (const f of best.values()) {
-      const base = path.basename(f.name, path.extname(f.name));
+      const base = sys.id === 'recomp' ? f.name : path.basename(f.name, path.extname(f.name));
       const { media, info } = await findMedia(indexes, base);
       const meta = { ...(gamelist.get(base.toLowerCase()) || {}), ...(info || {}), ...(f.title ? { title: f.title } : {}) };
       let shell = null;
@@ -456,7 +476,7 @@ async function scanLibrary() {
     // A title typed in Rename… wins over the scanned one, so the shelf sorts by it too.
     // The scanned title is kept so "Use the file name" can put it back exactly.
     g.scannedTitle = g.title;
-    if (libraryState.titles?.[g.id]) g.title = libraryState.titles[g.id];
+    g.title = gameState(g.id).customTitle || g.scannedTitle;
   }
   games.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
   libraryGames = games;
@@ -955,7 +975,8 @@ function quitGame() {
 // PC games and other "run the file itself" systems: programs are started in their own folder;
 // shortcuts (.lnk, .url) and anything else are opened the way Windows would open them.
 async function launchDirect(game) {
-  const file = game.romPath;
+  const file = game.system === 'recomp' ? config.extraGames.find(x => x.id === game.added)?.executable : game.romPath;
+  if (!file) throw new Error('Right-click this Recomp game and choose its .exe file first.');
   if (!fs.existsSync(file)) throw new Error(`${path.basename(file)} is missing. Rescan in Settings.`);
   // Programs are started directly; batch files, shortcuts and anything else open the way the system would.
   const program = process.platform === 'win32' ? /\.exe$/i.test(file) : (/\.app$/i.test(file) || (fs.statSync(file).mode & 0o111) !== 0);
@@ -998,6 +1019,7 @@ function launchGame(gameId, options = {}) {
     saveState();
   }
   // A game can have its own emulator (a fork for one game, say); otherwise the system's is used.
+  if (game.system === 'recomp') return launchDirect(game);
   const own = config.gameEmulators?.[game.id] || '';
   if (own === '__direct' || (!own && sys.direct)) return launchDirect(game);
   const emuId = own || sys.emulator;
@@ -1184,6 +1206,8 @@ async function installAppUpdate(send) {
   }
 }
 
+const {LeiaOutput}=require('./leia-output');
+let leiaOutput;
 // ---------- Window & IPC ----------
 // Fullscreen is remembered, so PyroCade opens the way it was left. --fullscreen and --windowed set
 // it from a shortcut or from Steam's launch options; like F11, the choice is then remembered.
@@ -1201,16 +1225,19 @@ function createWindow() {
   });
   // A --fullscreen / --windowed launch is the same choice as pressing F11, so record it either way.
   if (!previewMode && config.fullscreen !== startFullscreen) { config.fullscreen = startFullscreen; saveConfig(config); }
+  leiaOutput=new LeiaOutput(win,status=>{if(win&&!win.isDestroyed())win.webContents.send('leia:status',status);});
+  win.on('closed',()=>leiaOutput?.disable());
   win.loadFile(path.join(ROOT, 'renderer', 'index.html'));
   win.webContents.once('did-finish-load', () => log('window loaded', { visible: win.isVisible(), bounds: win.getBounds() }));
   win.webContents.on('did-fail-load', (_e, code, desc) => log('window failed to load', code, desc));
   if (configWarning) win.webContents.once('did-finish-load', () => win.webContents.send('toast', configWarning));
-  // F11 is taken by the window manager on macOS and on some Linux desktops, so Ctrl/Cmd+Shift+F
-  // does the same thing and Settings has a switch for people whose keyboard has neither.
-  win.webContents.on('before-input-event', (_, input) => {
-    if (input.type !== 'keyDown') return;
+  // Consume F11 before Electron's menu can also toggle fullscreen.
+  // Ctrl/Cmd+Shift+F also works when F11 is taken by the window manager.
+  win.webContents.on('before-input-event', (event, input) => {
     const key = String(input.key || '');
-    if (key === 'F11' || (key.toLowerCase() === 'f' && input.shift && (input.control || input.meta))) setFullScreen(!win.isFullScreen());
+    if (key !== 'F11' && !(key.toLowerCase() === 'f' && input.shift && (input.control || input.meta))) return;
+    event.preventDefault();
+    if (input.type === 'keyDown' && !input.isAutoRepeat) setFullScreen(!win.isFullScreen());
   });
   // Remember the choice however it was made: the shortcut, the setting, or the title bar.
   for (const [event, on] of [['enter-full-screen', true], ['leave-full-screen', false]])
@@ -1230,14 +1257,36 @@ const handle = (ch, fn) => ipcMain.handle(ch, async (_e, ...a) => {
   try { return { ok: true, value: await fn(...a) }; } catch (err) { return { ok: false, error: err.message }; }
 });
 
+handle('leia:status',()=>leiaOutput?.status()||{enabled:false,available:false});
+handle('leia:enable',async enabled=>{
+  const status=enabled?await leiaOutput.enable():leiaOutput.disable();
+  config.leiaSR=!!status.enabled;saveConfig(config);return status;
+});
+let leiaGPUInfo;
+handle('leia:diagnostics',async()=>{
+  if(!leiaGPUInfo)leiaGPUInfo=app.getGPUInfo('complete').then(info=>({gpu:info.gpuDevice?.find(g=>g.active)?.deviceString||info.auxAttributes?.glRenderer,hardware:!info.auxAttributes?.softwareRendering})).catch(()=>({gpu:'GPU unavailable'}));
+  return {...await leiaGPUInfo,...leiaOutput?.diagnostics()};
+});
+ipcMain.on('leia:snapshot',(event,snapshot)=>{
+  if(event.sender!==win?.webContents||!snapshot)return;
+  if(typeof snapshot.html!=='string'&&!Array.isArray(snapshot.patches))return;
+  if(typeof snapshot.html==='string'&&snapshot.html.length>5000000)return;
+  if(snapshot.textures&&(!Array.isArray(snapshot.textures)||snapshot.textures.length>512||snapshot.textures.reduce((n,t)=>n+(t.url?.length||0),0)>12000000))return;
+  if(snapshot.patches&&(snapshot.patches.length>512||snapshot.patches.reduce((sum,p)=>sum+(p.html?.length||0)+(p.children||[]).reduce((n,c)=>n+(c.html?.length||0),0),0)>5000000))return;
+  if(!Number.isInteger(snapshot.width)||!Number.isInteger(snapshot.height)||snapshot.width<100||snapshot.width>8000||snapshot.height<100||snapshot.height>8000)return;
+  snapshot.depth=Number.isFinite(Number(snapshot.depth))?Math.max(0,Math.min(64,Number(snapshot.depth))):32;
+  if(snapshot.stereo){const controls={};for(const key of ['depth','popout','convergence'])controls[key]=Number.isFinite(Number(snapshot.stereo[key]))?Math.max(0,Math.min(200,Number(snapshot.stereo[key]))):100;snapshot.stereo=controls;}
+  leiaOutput?.push(snapshot);
+});
 handle('config:get', () => ({ ...config, screenscraper: undefined }));
 // Emulator links and custom emulators are owned by the main process (emu:* handlers), so a
 // renderer holding an older copy of the config can never overwrite them.
 handle('config:set', cfg => {
   if (!cfg || !Array.isArray(cfg.systems)) throw new Error('Invalid settings');
   // fullscreen is owned by the window (app:setFullscreen), so a stale copy here can never undo it.
-  config = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames, shellColors: config.shellColors, gameEmulators: config.gameEmulators, fullscreen: config.fullscreen };
-  saveConfig(config);
+  const next = { ...cfg, emulators: config.emulators, customEmulators: config.customEmulators, screenscraper: config.screenscraper, extraGames: config.extraGames, shellColors: config.shellColors, gameEmulators: config.gameEmulators, fullscreen: config.fullscreen };
+  saveConfig(next);
+  config = next;
   return config;
 });
 // Game details (description, year, developer, publisher, genre, players) from the LaunchBox database.
@@ -1262,8 +1311,9 @@ async function fillGameDetails(games) {
 // After the first scan, shrink oversized images saved by 0.3.0 in the background and hand the
 // new files to the window as they are ready.
 let compacted = false;
-handle('library:scan', async () => {
-  const games = await scanLibrary();
+handle('library:scan', async (withReport = false) => {
+  const folders = withReport ? [] : undefined;
+  const games = await scanLibrary(folders);
   // Details are filled in after the library is shown, so a scan never waits on them.
   setImmediate(() => fillGameDetails(games).then(changed => {
     if (changed.length && win && !win.isDestroyed()) win.webContents.send('library:info', changed);
@@ -1278,7 +1328,7 @@ handle('library:scan', async () => {
       if (win && !win.isDestroyed()) win.webContents.send('art:media', { gameId: game.id, media: { [type]: url }, replace: true });
     }).then(() => { fs.mkdirSync(path.dirname(marker), { recursive: true }); fs.writeFileSync(marker, new Date().toISOString()); }).catch(() => {});
   }
-  return games;
+  return withReport ? { games, folders } : games;
 });
 handle('app:version', () => APP_VERSION);
 const feedback = createFeedbackService({
@@ -1306,18 +1356,70 @@ handle('game:launch', (id, options) => launchGame(id, options || {}));
 handle('game:quit', () => quitGame());
 handle('game:running', () => [...running.keys()]);
 handle('game:screenshots', id => findScreenshots(id));
+function setGameHidden(gameId, hidden) {
+  if (!libraryGames.some(g => g.id === gameId)) throw new Error('Select a game in your library first.');
+  if (hidden) libraryState.hidden[gameId] = true; else delete libraryState.hidden[gameId];
+  writeState();
+  return gameState(gameId);
+}
+handle('game:setHidden', ({ gameId, hidden }) => setGameHidden(gameId, !!hidden));
+handle('library:setSystemGamesHidden', ({system, hidden}) => {
+  if (!config.systems.some(s => s.id === system)) throw new Error('Unknown system.');
+  const games = libraryGames.filter(g => g.system === system);
+  for (const game of games) {
+    if (hidden) libraryState.hidden[game.id] = true; else delete libraryState.hidden[game.id];
+  }
+  writeState();
+  return games.map(g => ({gameId:g.id,...gameState(g.id)}));
+});
+handle('game:screenshotMenu', gameId => {
+  if (!libraryGames.some(g => g.id === gameId)) throw new Error('Select a game in your library first.');
+  return new Promise(resolve => {
+    let choose = false;
+    Menu.buildFromTemplate([{label:'Choose screenshot image…',click:()=>{choose=true;}}]).popup({window:win,callback:()=>resolve(choose)});
+  });
+});
+handle('game:setMetadata', ({ gameId, title, version, mediaType }) => {
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game) throw new Error('Select a game in your library first.');
+  if (typeof title !== 'string' || !title.trim() || title.length > 200) throw new Error('Enter a title of up to 200 characters.');
+  if (typeof version !== 'string' || version.length > 80) throw new Error('Enter a version of up to 80 characters.');
+  if(mediaType!==undefined&&!['','disc','switch','switch2','gba','n64','nds'].includes(mediaType))throw new Error('Choose a supported media type.');
+  const name = title.trim();
+  const metadata = {...libraryState.metadata[gameId],version:version.trim(),...(mediaType!==undefined?{mediaType}:{})};
+  if (name === game.scannedTitle) delete metadata.title; else metadata.title = name;
+  libraryState.metadata[gameId] = metadata;
+  delete libraryState.titles[gameId];
+  game.title = name;
+  writeState();
+  return { ...gameState(gameId), title: name };
+});
+handle('game:openFolder', async gameId => {
+  const game = libraryGames.find(g => g.id === gameId);
+  if (!game?.romPath || !fs.existsSync(game.romPath)) throw new Error('The game file is missing. Rescan your library and try again.');
+  const folder = fs.statSync(game.romPath).isDirectory() ? game.romPath : path.dirname(game.romPath);
+  const error = await shell.openPath(folder);
+  if (error) throw new Error(error);
+  return true;
+});
+handle('game:chooseExecutable', async gameId => {
+  const game = libraryGames.find(g => g.id === gameId && g.system === 'recomp');
+  const entry = game && config.extraGames.find(x => x.id === game.added);
+  if (!entry) throw new Error('Select a Recomp game first.');
+  const result = await dialog.showOpenDialog(win, {title:'Choose the .exe for ' + game.title,defaultPath:entry.path,properties:['openFile'],filters:[{name:'Game executable',extensions:['exe']}]});
+  if (result.canceled) return null;
+  const file = result.filePaths[0];
+  if (!/\.exe$/i.test(file) || !fs.statSync(file).isFile()) throw new Error('Choose a game .exe file.');
+  entry.executable = file; saveConfig(config);
+  return {gameId, executable:file};
+});
+handle('library:recompMenu', () => new Promise(resolve => {
+  let add = false;
+  Menu.buildFromTemplate([{label:'Add Recomp game…',click:()=>{add=true;}}]).popup({window:win,callback:()=>resolve(add)});
+}));
 handle('game:setFavorite', ({ gameId, favorite }) => {
   if (!libraryGames.some(g => g.id === gameId)) throw new Error('Select a game in your library first.');
   if (favorite) libraryState.favorites[gameId] = true; else delete libraryState.favorites[gameId];
-  saveState();
-  return gameState(gameId);
-});
-// Hiding a game only writes to library-state.json: the ROM folder is never touched, and the game
-// comes back through "Show → Hidden games" in the library.
-handle('game:setHidden', ({ gameId, hidden }) => {
-  if (!libraryGames.some(g => g.id === gameId)) throw new Error('Select a game in your library first.');
-  libraryState.hidden ||= {};
-  if (hidden) libraryState.hidden[gameId] = true; else delete libraryState.hidden[gameId];
   saveState();
   return gameState(gameId);
 });
@@ -1328,6 +1430,7 @@ handle('game:setTitle', ({ gameId, title }) => {
   if (!game) throw new Error('Select a game in your library first.');
   const wanted = String(title ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
   libraryState.titles ||= {};
+  if (libraryState.metadata?.[gameId]) delete libraryState.metadata[gameId].title;
   if (wanted) libraryState.titles[gameId] = wanted; else delete libraryState.titles[gameId];
   game.title = wanted || game.scannedTitle || displayTitle(game.base);
   saveState();
@@ -1336,6 +1439,13 @@ handle('game:setTitle', ({ gameId, title }) => {
 handle('app:fullscreen', () => !!(win && !win.isDestroyed() && win.isFullScreen()));
 handle('app:setFullscreen', on => setFullScreen(on));
 // What the library looked like when PyroCade was closed: system, selected game per system, sort and filter.
+handle('library:gameOrders',()=>libraryState.order || {});
+handle('library:saveGameOrder',({system,gameIds})=>{
+  if(!config.systems.some(s=>s.id===system)||!Array.isArray(gameIds))throw new Error('Choose a console to reorder.');
+  const actual=libraryGames.filter(g=>g.system===system).map(g=>g.id),valid=new Set(actual);
+  if(gameIds.some(id=>typeof id!=='string'||!valid.has(id))||new Set(gameIds).size!==gameIds.length)throw new Error('The game order does not match this console. Rescan and try again.');
+  libraryState.order ||= {};libraryState.order[system]=[...gameIds,...actual.filter(id=>!gameIds.includes(id))];writeState();return libraryState.order[system];
+});
 handle('library:ui', () => libraryState.ui || {});
 handle('library:saveUi', patch => {
   if (!patch || typeof patch !== 'object') return false;
@@ -1349,6 +1459,15 @@ handle('library:saveUi', patch => {
 handle('game:add', async ({ system, title }) => {
   const sys = config.systems.find(s => s.id === system);
   if (!sys) throw new Error('Choose a system first.');
+  if (sys.id === 'recomp') {
+    const picked = await dialog.showOpenDialog(win, {title:'Choose the standalone game folder',properties:['openDirectory']});
+    if (picked.canceled) return null;
+    const folder = picked.filePaths[0];
+    if (!fs.statSync(folder).isDirectory()) throw new Error('Choose a game folder.');
+    if (config.extraGames.some(x => x.system === 'recomp' && path.resolve(x.path) === path.resolve(folder))) throw new Error('That game folder is already in Recomp.');
+    const entry = {id:randomUUID().slice(0,8),system:'recomp',path:folder,title:String(title || '').trim().slice(0,120) || path.basename(folder)};
+    config.extraGames.push(entry); saveConfig(config); return entry;
+  }
   const exts = (sys.extensions || []).map(e => e.replace(/^\./, '')).filter(Boolean);
   const r = await dialog.showOpenDialog(win, { title: `Add a game to ${sys.name}`, properties: ['openFile'],
     filters: [...(exts.length ? [{ name: `${sys.name} games`, extensions: exts }] : []), { name: 'All files', extensions: ['*'] }],
@@ -1591,7 +1710,7 @@ handle('manual:open', async p => { if (!knownManual(p)) throw new Error('Manual 
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { if (stateTimer) writeState(); });
+app.on('before-quit', () => { leiaOutput?.disable(); if (stateTimer) writeState(); });
 app.on('browser-window-created', (_e, created) => { if (created !== webpWindow) created.on('closed', () => { if (BrowserWindow.getAllWindows().every(w => w === webpWindow)) closeWebpWindow(); }); });
 
 // Dev helper: PYROCADE_SNAP=<file.png> captures the window after load and quits.

@@ -43,7 +43,7 @@ const LibraryUI=(()=>{
     const s=context.getState(),hidden=new Set(s.config.systems.filter(x=>x.hidden).map(x=>x.id)),games=s.games.filter(g=>!hidden.has(g.system)&&!g.hidden),counts={};for(const g of games)counts[g.system]=(counts[g.system]||0)+1;
     // Favourites and Recently played appear once they have games in them.
     const fav=games.filter(g=>g.favorite).length,recent=Math.min(30,games.filter(g=>g.lastPlayed>0).length);
-    entries=[{id:'all',name:'All games',count:games.length,color:'#ffad65'},...(fav?[{id:'favorites',name:'Favourites',count:fav,color:'#ffd166',view:true}]:[]),...(recent?[{id:'recent',name:'Recently played',count:recent,color:'#7cc6e3',view:true}]:[]),...s.config.systems.filter(sys=>!sys.hidden&&(counts[sys.id]||sys.romDir)).map(sys=>({...sys,count:counts[sys.id]||0}))];
+    entries=[{id:'all',name:'All games',count:games.length,color:'#ffad65'},...(fav?[{id:'favorites',name:'Favourites',count:fav,color:'#ffd166',view:true}]:[]),...(recent?[{id:'recent',name:'Recently played',count:recent,color:'#7cc6e3',view:true}]:[]),...s.config.systems.filter(sys=>!sys.hidden&&(counts[sys.id]||sys.romDir||sys.id==='recomp')).map(sys=>({...sys,count:counts[sys.id]||0}))];
     const nav=$('#systems');nav.replaceChildren();for(const e of entries){const b=button(e,'system-tile');b.onclick=()=>context.select(e.id);nav.append(b)}
     const systems=entries.filter(e=>e.id!=='all'&&!e.view).length;
     $('#systemTotal').textContent=`${systems} systems`;

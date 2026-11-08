@@ -20,7 +20,7 @@ const Ambient=(()=>{
   function resize(){
     if(!canvas)return;
     if(isPixel()){h=PixelScenes.height;w=Math.min(520,Math.max(2,Math.round(h*innerWidth/innerHeight)))}
-    else{const k=background==='towers'||background==='loom'?.75:.5;w=Math.max(2,Math.round(innerWidth*k));h=Math.max(2,Math.round(innerHeight*k))}
+    else{const k=(background==='towers'||background==='loom'?.75:.5)*(context?.renderScale||1);w=Math.max(2,Math.round(innerWidth*k));h=Math.max(2,Math.round(innerHeight*k))}
     canvas.width=w;canvas.height=h;
   }
   const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
@@ -120,7 +120,7 @@ const Ambient=(()=>{
     const reduced=root.dataset.motion==='reduced';
     canvas.hidden=background==='off';if(background==='off')return;
     canvas.dataset.scene=isPixel()?'pixel':background;
-    const wanted=isPixel()?PixelScenes.height:Math.round(innerHeight*(background==='towers'||background==='loom'?.75:.5));if(canvas.height!==wanted)resize();
+    const wanted=isPixel()?PixelScenes.height:Math.round(innerHeight*(background==='towers'||background==='loom'?.75:.5)*(context?.renderScale||1));if(canvas.height!==wanted)resize();
     if(reduced){paint(performance.now());return}
     last=performance.now();raf=requestAnimationFrame(frame);
   }

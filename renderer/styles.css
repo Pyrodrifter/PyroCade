@@ -548,4 +548,172 @@ html[data-wear='on'] .item:not(.sel) .box .f-front::after { background: #080b155
 .empty-box { display: grid; gap: 14px; justify-items: center; text-align: center; }
 .empty-hide { font-size: 13px; padding: .45em 1.1em; border-radius: 999px; }
 #sysTable td.show { text-align: center; width: 1%; }
-#sysTable tr.sys-hidden td:not(.show) { opacity: .45; }
+#sysTable .system-hidden-label { margin-left:6px;color:var(--muted);font-size:11px; }
+#settingsScanStatus:empty { display:none; }
+#settingsScanStatus { overflow-wrap:anywhere; }
+
+.shelf-continuation { position:absolute;left:50%;top:51%;transform-style:preserve-3d;pointer-events:none; }
+#gameDetailsEditor { width:min(460px,90vw);max-height:90vh;overflow:auto;background:#121923;color:var(--text);border:1px solid var(--line);border-radius:16px;padding:24px; }
+#gameDetailsEditor::backdrop { background:#000b;backdrop-filter:blur(6px); }
+#gameDetailsEditor label { display:block;margin:16px 0;font-size:14px; }
+#gameDetailsEditor input { display:block;width:100%;box-sizing:border-box;margin-top:7px; }
+#gameDetailsError { color:#ff9989; }
+
+/* Console changes use one horizontal motion; cases arrive at their final size. */
+.shelf-transfer .item, .shelf-transfer .physical-media, .shelf-transfer .ground-reflection { transition:none !important; }
+
+/* Late artwork measurements must not tween the arriving cover size. */
+.item.console-arrival { transition:none !important; }
+
+/* Adjacent console previews stay beside the final games, never take over the screen. */
+.console-preview { position:absolute;left:84%;right:-120px;top:51%;transform:translateY(-50%);display:flex;align-items:center;gap:20px;pointer-events:none;transition:opacity .3s ease; }
+.console-preview.previous { left:-120px;right:84%;flex-direction:row-reverse;text-align:right; }
+.console-preview-name { flex:1;min-width:0;font-family:inherit;font-size:clamp(14px,1.45vw,27px);font-weight:600;letter-spacing:.02em;line-height:1.2;color:var(--text);text-shadow:0 2px 16px #0008; }
+.console-preview-covers { display:flex;align-items:center;flex:1;min-width:0;gap:6px; }
+.console-preview.previous .console-preview-covers { flex-direction:row-reverse; }
+.console-preview-cover { position:relative;flex:1;max-width:72px;min-width:0;aspect-ratio:.7;transform:perspective(500px) rotateY(-14deg);opacity:.85; }
+.console-preview-cover:nth-child(2) { opacity:.45; }
+.console-preview-cover:nth-child(3) { opacity:.2; }
+.console-preview.previous .console-preview-cover { transform:perspective(500px) rotateY(14deg); }
+.console-preview-face { position:absolute;inset:0;background-size:100% 100%;background-position:center;border-radius:2px;box-shadow:-2px 3px 9px #0008;border:1px solid #ffffff25;overflow:hidden; }
+
+/* O cycles the top and bottom chrome without changing the cover geometry. */
+html[data-chrome-mode]:not([data-chrome-hidden='true']) #libraryHints { opacity:1;pointer-events:auto; }
+html[data-chrome-hidden='true'] :is(header,#libraryHints,.shelf-position,.shelf-arrow,.banner) { opacity:0 !important;pointer-events:none !important; }
+#info { transition:opacity .35s ease; }
+html[data-chrome-hidden='true'] #info { transition:opacity .35s ease; }
+
+html[data-chrome-hidden='true']:not([data-details-pinned='true']) #info { opacity:0 !important;pointer-events:none !important; }
+html[data-details-pinned='true'] #info { opacity:1; }
+html[data-info-bar='xlarge'] #info { gap:28px; }
+html[data-info-bar='xlarge'] #info .info-text { max-width:min(70vw,1100px); }
+html[data-info-bar='xlarge'] #info h1 { font-size:clamp(34px,3.4vw,58px);-webkit-line-clamp:2;line-height:1.1; }
+html[data-info-bar='xlarge'] #info .meta { font-size:clamp(14px,1.2vw,19px); }
+html[data-info-bar='xlarge'] #info #gDesc { font-size:clamp(14px,1.3vw,20px);line-height:1.45;-webkit-line-clamp:3; }
+html[data-info-bar='xlarge'] #info .shot { width:clamp(200px,25vw,420px); }
+
+/* Offscreen console peeks must not scroll the whole application. */
+#view-library { overflow:clip; }
+
+/* A centered screenshot column stays fixed even as game text changes length. */
+html[data-info-bar='xlarge'] #info { display:grid;grid-template-columns:minmax(0,1fr) clamp(220px,23vw,420px) minmax(0,1fr);gap:24px;align-items:center; }
+html[data-info-bar='xlarge'] #info .info-text { grid-column:1;max-width:none;min-width:0; }
+html[data-info-bar='xlarge'] #info .shot { grid-column:2;grid-row:1;width:100%;box-sizing:border-box;align-self:center;background-size:contain;background-repeat:no-repeat; }
+html[data-info-bar='xlarge'] #info .shot video { object-fit:contain; }
+#gShot.shot-empty { display:flex;align-items:center;justify-content:center;background:#ffffff05;border:1px dashed #ffffff35; }
+.screenshot-placeholder { font-size:12px;color:var(--muted);padding:16px;text-align:center; }
+.system-games-toggle { border:0;background:none;padding:4px 0;font:inherit;font-weight:600;text-align:left;white-space:normal; }
+.system-games-panel { padding:12px 22px 18px;display:flex;flex-wrap:wrap;gap:8px 20px; }
+.system-games-controls { flex-basis:100%;display:flex;align-items:center;gap:12px;margin-bottom:8px; }
+.system-game-entry { display:flex;align-items:center;gap:9px;width:calc(33.333% - 20px);min-width:200px;padding:5px 0; }
+.system-game-entry input { flex:none; }
+.system-game-entry span { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.system-games-row > td { background:#ffffff03; }
+
+#detailsResizeHandle { position:absolute;left:0;right:0;top:-14px;width:100%;height:24px;display:flex;align-items:center;justify-content:center;cursor:ns-resize;touch-action:none;z-index:12;border-radius:10px;background:#121923c9;border:1px solid #ffffff25; }
+#detailsResizeHandle span { display:block;width:36px;height:4px;border-radius:4px;background:#ffffff80; }
+#detailsResizeHandle:is(:hover,:focus-visible) { border-color:var(--accent);outline:none; }
+.details-dragging, .details-dragging * { cursor:ns-resize !important;user-select:none !important; }
+html[data-details-resized='true'] #info { height:var(--details-height);box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) var(--details-shot-width) minmax(0,1fr);align-items:center;gap:24px;padding-top:22px; }
+html[data-details-resized='true'] #info .info-text { grid-column:1;grid-row:1;max-width:none;min-width:0; }
+html[data-details-resized='true'] #info .shot { grid-column:2;grid-row:1;width:100%;background-size:contain;background-repeat:no-repeat;box-sizing:border-box; }
+html[data-details-resized='true'] #info h1 { font-size:var(--details-title-size); }
+html[data-details-resized='true'] #info .meta { font-size:var(--details-meta-size); }
+html[data-details-resized='true'] #info #gDesc { font-size:var(--details-desc-size); }
+html[data-details-tiny='true'] #info :is(.eyebrow,.meta) { display:none !important; }
+html[data-details-resized='true'] #info .actions { margin-top:8px;gap:6px; }
+html[data-details-resized='true'] #info .actions button { font-size:12px;padding:.4em .7em; }
+html[data-details-resized='true'] #info .actions .button-prompt { width:24px;height:24px; }
+
+html[data-details-tiny='true'] #info .actions { display:none; }
+
+/* A quiet resize grip appears only when it is being used. */
+#detailsResizeHandle { background:transparent;border:0;box-shadow:none;opacity:0;transition:opacity .18s ease; }
+#detailsResizeHandle:hover, #detailsResizeHandle:focus-visible, .details-dragging #detailsResizeHandle { opacity:.65; }
+#detailsResizeHandle span { height:3px;width:32px;background:#ffffffa0; }
+#detailsResizeHandle:is(:hover,:focus-visible) { border:0; }
+/* Fill screenshot frames without adding letterbox bars. */
+#info #gShot:not(.shot-empty) { background-size:cover !important;background-color:transparent; }
+#info #gShot video { object-fit:cover !important; }
+#sysTable .system-game-entry input[type='checkbox'] { width:16px !important;height:16px;flex:0 0 16px;margin:0; }
+#sysTable .system-game-entry span { flex:1;color:var(--text);font-size:13px; }
+#sysTable .system-game-entry { justify-content:flex-start; }
+#sysTable button.system-games-toggle { display:inline-flex;align-items:center;gap:8px;background:transparent;border:0; }
+.system-games-chevron { display:inline-block;font-size:22px;line-height:1;transition:transform .15s; }
+.system-games-toggle[aria-expanded='true'] .system-games-chevron { transform:rotate(90deg); }
+
+.item[draggable='true'] { cursor:grab; }
+.item.game-dragging { cursor:grabbing; }
+.item.drop-before::before,.item.drop-after::after { content:'';position:absolute;top:0;height:var(--h);width:4px;background:var(--accent2);box-shadow:0 0 18px var(--accent);z-index:200;border-radius:3px; }
+.item.drop-before::before { left:-12px; }.item.drop-after::after { left:calc(var(--w) + 8px); }
+#btnLeia3D[aria-pressed='true'], html[data-leia-active='true'] #btnLeia3D {
+  background:#ff823e;
+  border-color:#ff9d64;
+  color:#241006;
+}
+
+.leia-controls { position:fixed;right:24px;top:90px;z-index:9000;width:350px;max-width:calc(100vw - 48px);box-sizing:border-box;padding:16px 18px;background:#111722d9;border:1px solid #ffffff20;border-radius:12px;backdrop-filter:blur(16px);box-shadow:0 8px 32px #0005;font-size:13px; }
+.leia-controls-heading,.leia-controls-footer { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+.leia-controls-heading { margin-bottom:14px; }.leia-controls-heading button { border:0;background:none;font-size:20px;padding:0 4px; }
+.leia-controls label { display:grid;grid-template-columns:88px minmax(0,1fr) 42px;align-items:center;gap:8px;margin:12px 0; }
+.leia-controls input { width:100%;min-width:0;accent-color:var(--accent);padding:0; }.leia-controls output { text-align:right;font-variant-numeric:tabular-nums; }
+.leia-controls-footer { margin-top:14px;color:var(--muted);font-size:10px; }.leia-controls-footer button { font-size:11px;padding:5px 10px; }
+#leiaPerformance { display:block;margin-top:12px;color:var(--muted);line-height:1.4; }
+
+/* The screenshot grows from the left toward the same center line as the selected cover. */
+html[data-details-flow='true'] #info { display:grid;grid-template-columns:var(--details-leading) var(--details-shot-width) minmax(0,1fr);gap:24px;align-items:center; }
+html[data-details-flow='true'] #info .info-text { grid-column:1;grid-row:1;max-width:none;min-width:0; }
+html[data-details-flow='true'] #info .shot { grid-column:2;grid-row:1;width:100%;box-sizing:border-box;align-self:end;position:relative; }
+html[data-details-resized='true'][data-details-flow='true'] #info { grid-template-rows:minmax(0,1fr); }
+#info #gShot video { position:absolute;inset:0; }
+html[data-details-resized='true'] #info { max-height:var(--details-max-height); }
+.cover-drag-preview { position:fixed;left:8px;top:8px;width:104px;height:146px;border-radius:4px;background-size:100% 100%;background-position:center;box-shadow:0 6px 20px #0007;z-index:10000;transform:none !important;pointer-events:none; }
+
+.search-shortcut { display:none !important; }
+
+html[data-leia-rendering='true'],html[data-leia-rendering='true'] *{cursor:none!important;}
+.leia-cursor{position:fixed;left:0;top:0;width:25px;height:34px;pointer-events:none!important;z-index:2147483647;will-change:transform;filter:drop-shadow(-1px 2px 0 #9b491e) drop-shadow(-2px 3px 0 #532710) drop-shadow(0 3px 5px #0009);}
+.leia-cursor::before{content:'';position:absolute;inset:0;background:var(--accent2,#ffb876);clip-path:polygon(0 0,0 90%,28% 68%,47% 100%,64% 91%,45% 59%,82% 57%);}
+.leia-cursor::after{content:'';position:absolute;inset:2px 3px 4px 2px;background:linear-gradient(145deg,#fff,#fff0e3 65%,#ffc28f);clip-path:polygon(0 0,0 90%,28% 68%,47% 100%,64% 91%,45% 59%,82% 57%);}
+
+/* The native SR window presents these visuals. Keep their hit areas and layout in the host, without drawing a third copy. */
+html[data-leia-rendering='true'] #stage .item,html[data-leia-rendering='true'] #caseRig,html[data-leia-rendering='true'] #bg{visibility:hidden;}
+html[data-leia-rendering='true'] #stage .item:not(.far)::after{content:'';position:absolute;inset:0;visibility:visible;pointer-events:auto;}
+
+html:not([data-leia-rendering='true']) #leiaCursor[data-leia-ignore]{display:none!important;}
+html[data-details-flow='true'] #info{column-gap:24px!important;}
+html[data-details-flow='true'] #gShot.shot{width:100%!important;}
+
+html[data-details-flow='true'] #info .info-text {
+  align-self:end;
+  height:var(--details-shot-height);
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+html[data-details-flow='true'] #info .info-text #gTitle {
+  flex:none;
+  font-size:min(var(--details-title-size, clamp(22px, 3.4vw, 58px)), var(--details-title-cap));
+  margin:3px 0;
+}
+html[data-details-flow='true'][data-details-shot-tight='true'] #info #gTitle { -webkit-line-clamp:1; }
+html[data-details-flow='true'] #info .meta {
+  flex:none;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+  overflow:hidden;
+}
+html[data-details-flow='true'] #info #gDesc {
+  flex:1 1 auto;
+  min-height:0;
+  margin:4px 0;
+}
+html[data-details-flow='true'] #info .actions {
+  flex:none;
+  flex-wrap:nowrap;
+  margin-top:auto;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+html[data-details-flow='true'] #info .actions button { flex:none; white-space:nowrap; }

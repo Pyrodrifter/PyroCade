@@ -1,3 +1,20 @@
+# 3D-custom
+
+A Windows preview fork of [Pyrodrifter's PyroCade](https://github.com/Pyrodrifter/PyroCade), based on 0.5.0. The original project and its MIT license are credited below.
+
+- Continuous console carousel, edge previews, and per-console drag ordering.
+- Persistent game hiding, expandable system game lists, and console visibility controls.
+- Editable titles, version labels, and physical media models.
+- Right-click artwork, screenshot, and game-folder actions.
+- Recomp library for standalone Windows games with per-game executable selection.
+- Resizable game details, independent overlay controls, and fullscreen fixes.
+- Leia SR stereo carousel and case inspection on Windows. F9 toggles 3D. Shift+F9 opens depth controls and stereo FPS.
+- Fixed folder and visibility saving, with per-folder rescan results.
+
+The [native build instructions](native/README.md) describe the Leia SR dependency. The installed Leia SR runtime is required for glasses-free 3D.
+
+---
+
 # PyroCade
 
 ![PyroCade: your collection, a little more alive.](renderer/assets/brand/pyrocade-banner.png)

@@ -31,6 +31,7 @@
       </div>
       <div class="library-search"><label class="search"><span class="search-icon" aria-hidden="true"></span><input id="search" aria-label="Search games" placeholder="Find a game…" spellcheck="false" /><button id="clearSearch" class="hidden" type="button" aria-label="Clear game search" title="Clear search">×</button><kbd class="search-shortcut" aria-hidden="true">/</kbd></label><span id="searchSummary" class="search-summary" role="status" aria-live="polite" aria-atomic="true"></span></div>
     </div>
+    <button id="btnLeia3D" type="button" aria-pressed="false" title="Toggle Leia SR 3D (F9)">3D</button>
     <button id="btnAppearance" aria-haspopup="dialog" aria-controls="appearancePicker" aria-expanded="false" title="Change layout, theme and sound"><span aria-hidden="true">◈</span>View &amp; theme</button>
     <div class="header-status"><span id="inputBadge" class="hidden">Keyboard &amp; mouse</span><div id="clock"></div></div>
   </header>
@@ -56,16 +57,18 @@
       <div class="shelf-position"><span id="shelfPosition"></span><div class="shelf-progress" aria-hidden="true"><i id="shelfProgress"></i></div>
         <div class="shelf-tools">
           <label class="shelf-select"><span>Sort</span><select id="sortBy" aria-label="Sort the shelf">
-            <option value="title">Title</option><option value="year-new">Newest first</option><option value="year-old">Oldest first</option>
+            <option value="title">Title</option><option value="custom">Custom order · drag games</option><option value="year-new">Newest first</option><option value="year-old">Oldest first</option>
             <option value="played">Most played</option><option value="recent">Last played</option><option value="developer">Developer</option>
           </select></label>
           <label class="shelf-select"><span>Show</span><select id="filterBy" aria-label="Show only some games"></select></label>
+          <button id="btnToggleDetails" type="button" aria-pressed="true" title="Show or hide game details (I)">Hide details (I)</button>
           <button id="btnRandom" type="button" title="Pick a random game">⚄ Random</button>
         </div>
       </div>
     </div>
     <div id="selectionStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <section id="info">
+      <div id="detailsResizeHandle" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize game details" title="Drag up or down to resize details; arrow keys adjust size, Home/End set smallest/largest"><span></span></div>
       <div class="info-text">
         <div class="eyebrow"><span id="gSystem"></span><span id="counter"></span><span id="gFormat" class="format-badge"></span></div>
         <h1 id="gTitle"></h1>
@@ -76,16 +79,36 @@
           <button id="btnCase">⟲ Open case</button>
           <button id="btnManual">▤ Manual</button>
           <button id="btnArtwork">Artwork</button>
+          <button id="btnEditDetails" title="Edit the title and version">Edit details</button>
           <button id="btnEmulator" title="Choose the emulator for this game">Emulator</button>
           <button id="btnFavorite" aria-pressed="false" title="Add to Favourites (F)">☆ Favourite</button>
           <button id="btnHide" aria-pressed="false" title="Hide this game from the library (Delete). Your ROM folder is not touched.">⊘ Hide</button>
         </div>
       </div>
-      <div id="gShot" class="shot"></div>
+      <div id="gShot" class="shot" tabindex="0" role="button" aria-label="Game screenshot; right-click to add or change image"></div>
     </section>
     <div id="libraryHints" class="hints prompt-bar" aria-label="Library controls"></div>
   </main>
 
+  <aside id="leiaControls" class="leia-controls hidden" aria-label="Leia SR 3D controls">
+    <div class="leia-controls-heading"><strong>Leia SR 3D</strong><button id="closeLeiaControls" type="button" aria-label="Hide 3D controls">×</button></div>
+    <label><span>Depth</span><input id="leiaDepth" type="range" min="0" max="200" step="1" value="100" /><output id="leiaDepthValue">100%</output></label>
+    <label><span>Popout</span><input id="leiaPopout" type="range" min="0" max="200" step="1" value="100" /><output id="leiaPopoutValue">100%</output></label>
+    <label><span>Convergence</span><input id="leiaConvergence" type="range" min="0" max="200" step="1" value="100" /><output id="leiaConvergenceValue">100%</output></label>
+    <div class="leia-controls-footer"><button id="leiaResetControls" type="button">Reset</button><span>F9: 3D · Shift+F9: controls</span></div>
+    <small id="leiaPerformance" aria-live="polite"></small>
+  </aside>
+  <dialog id="gameDetailsEditor" aria-labelledby="gameDetailsTitle">
+    <form id="gameDetailsForm">
+      <h2 id="gameDetailsTitle">Edit game details</h2>
+      <label>Title<input id="editGameTitle" required maxlength="200" autocomplete="off" /></label>
+      <label>Media type<select id="editGameMediaType"><option value="">Console default</option><option value="disc">Disc</option><option value="switch">Switch cartridge</option><option value="switch2">Switch 2 cartridge</option><option value="gba">Game Boy Advance cartridge</option><option value="n64">Nintendo 64 cartridge</option><option value="nds">Nintendo DS cartridge</option></select></label>
+      <label>Version<input id="editGameVersion" maxlength="80" placeholder="e.g. 1.2.0" autocomplete="off" /></label>
+      <p class="sub">Shown beneath the title. Leave the version blank to hide it.</p>
+      <p id="gameDetailsError" role="alert"></p>
+      <div class="actions"><button id="gameDetailsSave" class="primary" type="submit">Save</button><button id="gameDetailsCancel" type="button">Cancel</button></div>
+    </form>
+  </dialog>
   <dialog id="systemPicker" aria-labelledby="systemPickerTitle">
     <div class="system-picker-heading"><div><h2 id="systemPickerTitle">Choose a system</h2></div><button id="closeSystemPicker" aria-label="Close system browser">×</button></div>
     <label class="system-picker-search"><span class="search-icon" aria-hidden="true"></span><input id="systemSearch" aria-label="Find a system" placeholder="Find a system…" spellcheck="false" /><kbd aria-hidden="true">Esc</kbd></label>
@@ -98,7 +121,9 @@
     <div class="appearance-label">Browse your games</div><div id="layoutOptions" class="layout-options"></div>
     <div class="appearance-label">Colour theme</div><div id="themeOptions" class="theme-options"></div>
     <div class="appearance-label">Interface sound</div><div class="sound-controls"><button id="soundToggle" aria-pressed="true">Sound on</button><input id="soundVolume" aria-label="Interface sound volume" type="range" min="0" max="100" step="1" value="25" /><output id="soundVolumeValue">25%</output><button id="soundPreview" title="Preview sound">Test</button></div>
-    <div class="appearance-label">Game details bar</div><div id="infoBarOptions" class="theme-options"><button type="button" class="theme-option" data-info-bar="large" aria-pressed="false">Large</button><button type="button" class="theme-option" data-info-bar="small" aria-pressed="true">Small</button><button type="button" class="theme-option" data-info-bar="compact" aria-pressed="false">Compact</button><button type="button" class="theme-option" data-info-bar="hidden" aria-pressed="false">Hidden</button></div>
+    <div class="appearance-label">Game details bar</div><div id="infoBarOptions" class="theme-options"><button type="button" class="theme-option" data-info-bar="xlarge" aria-pressed="false">Extra large</button><button type="button" class="theme-option" data-info-bar="large" aria-pressed="false">Large</button><button type="button" class="theme-option" data-info-bar="small" aria-pressed="true">Small</button><button type="button" class="theme-option" data-info-bar="compact" aria-pressed="false">Compact</button><button type="button" class="theme-option" data-info-bar="hidden" aria-pressed="false">Hidden</button></div>
+    <label class="row check"><input id="appearanceDetailsPinned" type="checkbox" /> Keep game details visible when overlay is hidden</label>
+    <div class="appearance-label">Leia SR 3D · F9</div><button id="leiaOpenControls" type="button">3D controls · Shift+F9</button><p class="prompt-note" id="leiaStatus">3D is off. Press F9 to enable Leia SR for the launcher.</p>
     <div class="appearance-label">Background</div><div id="backgroundOptions" class="theme-options"></div>
   </dialog>
 
@@ -259,6 +284,7 @@
       <div><h1>Settings</h1><p class="sub">Set a ROM folder for each system. To use several folders (e.g. two SD cards), click “+ Add” or separate paths with <code>|</code>.</p></div>
       <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
     </div>
+    <div id="settingsScanStatus" class="panel sub" role="status" aria-live="polite"></div>
     <section class="panel feedback-entry" aria-labelledby="feedbackHeading">
       <div><h2 id="feedbackHeading">Help improve PyroCade</h2><p class="sub">Found an error or have an idea? Tell us what happened or what you would like to see.</p></div>
       <button id="btnFeedback" type="button" aria-haspopup="dialog" aria-controls="feedbackDialog">Report a problem or send feedback…</button>
@@ -271,6 +297,9 @@
       <label class="row check"><input type="checkbox" id="sDisableModels" /> Disable 3D models · use flat covers</label>
       <label class="row check"><input type="checkbox" id="sDisableAnimations" /> Disable animations · static backgrounds and instant navigation</label>
       <p class="prompt-note">These options apply immediately and save automatically. Turn both on for slower computers.</p>
+      <label class="row"><span>Top &amp; bottom UI (O)</span><select id="sChromeMode"><option value="shown">Overlay on</option><option value="hidden">Overlay off</option></select></label>
+      <label class="row check"><input id="sDetailsPinned" type="checkbox" /> Keep game details visible when overlay is hidden</label>
+      <p class="prompt-note">O toggles the overlay on or off. I independently shows or hides the game details.</p>
       <label class="row"><span>Ambient mode</span><select id="sAmbient"><option value="0">Off</option><option value="1">After 1 minute idle</option><option value="2">After 2 minutes idle</option><option value="5">After 5 minutes idle</option><option value="10">After 10 minutes idle</option></select></label>
       <label class="row"><span>Background</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
       <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
@@ -287,6 +316,7 @@
     <div class="sys-tools">
       <button id="btnAddSystem" type="button">+ Add system…</button>
       <button id="btnAddGame" type="button">+ Add game…</button>
+      <button id="btnAddRecomp" type="button">+ Recomp game…</button>
       <span class="sub">PC games: point <b>PC Games</b> at a folder of shortcuts or game programs, or add them one by one with <b>Add game</b>.</span>
     </div>
     <form id="addSystemForm" class="panel add-form hidden">
@@ -305,6 +335,11 @@
       <button class="primary" type="submit">Choose file…</button><button type="button" data-cancel>Cancel</button>
     </form>
     <details id="addedGames" class="panel help hidden"><summary></summary><ul class="added-list"></ul></details>
+    <details id="hiddenGames" class="panel help"><summary>Hidden games (0)</summary>
+      <p>Hidden entries stay off every shelf and out of game counts after rescanning or restarting. Your files are kept in place.</p>
+      <ul id="hiddenGamesList" class="added-list"></ul>
+    </details>
+    <p class="sub">To restore a hidden console, check its Show box, then click Save &amp; rescan. Browse replaces the folder. + Add keeps the current folders and adds another.</p>
     <table id="sysTable" class="panel">
       <thead><tr><th title="Show this system in the library">Show</th><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>
       <tbody></tbody>
@@ -364,6 +399,7 @@ ps2\Neon Drift (USA)\front.png      ps2\covers\Neon Drift (USA).png
   <script src="ps2-scene.js"></script>
   <script src="loom-scene.js"></script>
   <script src="ambient.js"></script>
+  <script src="leia-ui.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

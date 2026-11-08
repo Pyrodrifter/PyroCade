@@ -1,0 +1,11 @@
+#stage{perspective-origin:calc(50% + var(--stereo-eye,0px)) 42% !important}#caseScene{perspective-origin:calc(50% + var(--stereo-eye,0px)) 50% !important}html,body{overflow:clip !important}#btnLeia3D{pointer-events:none}
+#carousel,.shelf-continuation{translate:var(--stereo-convergence-carousel,0px) 0 var(--stereo-popout,0px);}
+#caseRig{translate:var(--stereo-convergence-case,0px) 0 var(--stereo-popout,0px);}
+/* Use inexpensive shadows instead of a blur surface per case in stereo. */
+.item .shadow::before,.item .shadow::after{filter:none;background:radial-gradient(ellipse,#0007,transparent 70%);}
+.ground-reflection{display:none!important;}
+#info,.leia-controls,.shelf-arrow,header,footer{backdrop-filter:none!important;}
+
+html[data-leia-rendering='true'] #stage .item,html[data-leia-rendering='true'] #caseRig,html[data-leia-rendering='true'] #bg{visibility:visible;}
+html[data-leia-rendering='true'] #stage .item.far{visibility:hidden;}
+html[data-leia-rendering='true'] #stage .item::after{display:none;}
