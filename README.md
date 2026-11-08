@@ -81,6 +81,8 @@ If macOS says the app is damaged, run `xattr -cr /Applications/PyroCade.app` in 
 
 On Linux, data lives in `~/.config/PyroCade/data` and the emulator downloader installs the official AppImages. The AppImage updates itself; the other packages show an update banner. On Ubuntu 24.04 and newer, prefer the .deb, because Electron AppImages need `--no-sandbox` there.
 
+**Android (experimental):** releases include **PyroCade-x.y.z-android-experimental.apk**, a debug-signed proof of concept of the same library. Allow installs from your browser or file manager, open the APK, then tap **Choose ROM folder…**. Artwork download, manuals and the updater aren't available on Android yet, and launching an emulator hasn't been confirmed on a real phone. [Status and build notes](docs/android.md)
+
 ## Getting started
 1. **Settings:** set a ROM folder for each system (use **+ Add** for more than one), pick its emulator and click **Save & rescan**. For PC games, choose **Run the file itself** as the emulator.
 2. **Emulators:** click **Install** for the emulators you need, or **Use existing .exe…** for ones you already have.

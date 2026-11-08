@@ -9,7 +9,7 @@ renderer/ (unchanged) ──copied by android/scripts/build-web.cjs──► and
 android/android/  native project: MainActivity + PyroNativePlugin.java (SAF, Intents, installed apps)
 ```
 
-> **Experimental.** A debug-signed APK is attached to the `android-v0.8.0-experimental` pre-release on GitHub (built from PyroCade 0.8.0). It is a proof of concept. Artwork download, manuals and the updater are not available, and launching an emulator has not been confirmed on a real phone yet. Expect rough edges.
+> **Experimental.** From 0.8.1, a debug-signed APK (`PyroCade-x.y.z-android-experimental.apk`) is attached to each main PyroCade release on GitHub, next to the desktop downloads. The desktop updater only looks for its own installer, so it never offers the APK. It is a proof of concept. Artwork download, manuals and the updater are not available, and launching an emulator has not been confirmed on a real phone yet. Expect rough edges.
 
 ## Build
 
