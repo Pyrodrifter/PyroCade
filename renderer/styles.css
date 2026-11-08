@@ -338,15 +338,36 @@ html[data-motion="reduced"] .spinner { animation: spin 1.5s linear infinite !imp
 .case[data-material='cardboard'] .lid .face { height: var(--d); background: var(--case-print); border: 1px solid var(--case-shell); }
 .case[data-material='cardboard'] .lid .l-inner { background: var(--case-shell); box-shadow: none; }
 .case[data-material='cardboard'].open .lid { transform: translateZ(calc(var(--d) / -2)) rotateX(155deg); }
-/* The cartridge model is drawn about twice its true size against the box, so on the big cardboard
-   boxes (SNES, N64, 2600) it is nearly as deep as the box itself. At z 8 its front face came out
-   through the cover, and CSS 3D sorts flat planes, not solids, so the shell and its ribs were
-   painted over the front of the box instead of being hidden inside it. The media now waits and
-   rises one cartridge depth behind the box back face, where the box simply occludes whatever is
-   still inside it, and the lift always carries it clear of the top rather than stopping part way
-   up the cover. */
-.case[data-material='cardboard'] .physical-media { --media-behind: calc((var(--d) + var(--cd, 2px)) / -2 - 1px); transform: translate3d(0,0,var(--media-behind)); }
-.case[data-material='cardboard'].open .physical-media { --media-clear: min(calc(var(--h) * -.8), calc((var(--h) + var(--mh)) / -2 - 2px)); transform: translate3d(0,var(--media-clear),var(--media-behind)) rotateY(-8deg) rotateZ(-4deg); }
+/* The cartridge waits inside its cardboard box, centred, and comes out through the open top. Every
+   cartridge model fits its box (the 2600's, the tightest, has 1.4px of depth to spare), so centred
+   it stays wholly inside and the box hides it. Off centre it would not: at z 8 the front of the
+   shell came out through the cover, and CSS 3D sorts flat planes, not solids, so it was painted
+   over the box. It stays straight (no tilt) and moves in one continuous arc: the rise (translate)
+   and the move forward (transform) are separate animations with their own easing, so neither
+   stops while the other starts. It rises a little past its resting height, and the forward move
+   begins as its bottom clears the top (about .4s into the rise, which is also when the eased-in
+   forward move is still inside the box's few spare pixels of depth), so the glide is at full speed
+   while the rise peaks and it never touches the walls or the open flap behind it; it then settles just above the box, in
+   front of the flap, where the whole label shows. The resting pose is the plain translate and
+   transform, so reduced motion (no animation) still shows it there. */
+.case[data-material='cardboard'] .physical-media { transform: translateZ(0); translate: 0 0; }
+.case[data-material='cardboard'].open .physical-media {
+  --media-clear: min(calc(var(--h) * -.8), calc((var(--h) + var(--mh)) / -2 - 2px));
+  --media-over: calc(var(--media-clear) - 30px);
+  --media-front: calc((var(--d) + var(--cd, 2px)) / 2 + 4px);
+  translate: 0 var(--media-clear);
+  transform: translateZ(var(--media-front));
+  animation: cardboard-media-rise 1.4s .7s both, cardboard-media-forward .9s ease-in-out 1.12s both;
+}
+@keyframes cardboard-media-rise {
+  0% { translate: 0 0; animation-timing-function: cubic-bezier(.25,.6,.35,1); }
+  57% { translate: 0 var(--media-over); animation-timing-function: ease-in-out; }
+  100% { translate: 0 var(--media-clear); }
+}
+@keyframes cardboard-media-forward {
+  from { transform: translateZ(0); }
+  to { transform: translateZ(var(--media-front)); }
+}
 .box-flap-title { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--d) * .21); font-weight: 650; padding: 2px 8%; color: var(--case-ink); text-align: center; overflow: hidden; }
 
 .manual { position: absolute; transform-style: preserve-3d; transition: transform 1s cubic-bezier(.22,1,.36,1); }

@@ -50,7 +50,9 @@ function art(game) {
   return {
     sys, W, H, D, digital,packshot:game._packshot,
     front: m.front || Art.front(game, sys, W, H),
+    // A generated back cover may still be drawing: backLater() resolves with it (see backFace).
     back: m.back || Art.back(game, sys, W, H),
+    backLater: m.back ? null : now => Art.backLater(game, sys, W, H, now),
     spine: m.spine || null,
     // No disc/cart scan? Use the real cover as the label, else generate one.
     // A photo of the whole media (a PSP UMD) is shown on its own; the drawn shell then uses the cover as its label.
@@ -571,6 +573,16 @@ function revealSelection(delay = 720) {
   else revealTimer = setTimeout(reveal,delay);
 }
 
+// The back of a case. A generated back cover that is still being drawn is filled in when ready;
+// now (the case viewer) draws it straight away.
+function backFace(a, now = false) {
+  const f = el('div', 'face f-back');
+  const show = url => { f.style.backgroundImage = `url("${url}")`; };
+  if (a.back) show(a.back);
+  else a.backLater?.(now).then(show);
+  return f;
+}
+
 function buildBox(game, cls = '') {
   const a = art(game);
   const box = el('div', `box ${a.sys.caseType} ${cls}`);
@@ -578,7 +590,7 @@ function buildBox(game, cls = '') {
   if(!modelsEnabled()){box.classList.add('flat-cover');box.append(EshopCovers.face(game,a,'f-front'));return {box,a};}
   Packaging.decorate(box,a);
   const face = (c, img) => { const f = el('div', 'face ' + c); if (img) f.style.backgroundImage = `url("${img}")`; return f; };
-  box.append(EshopCovers.face(game,a,'f-front'), face('f-back', a.back), Packaging.spine(game,a), face('f-right'), face('f-top'), face('f-bottom'));
+  box.append(EshopCovers.face(game,a,'f-front'), backFace(a), Packaging.spine(game,a), face('f-right'), face('f-top'), face('f-bottom'));
   Packaging.finish(box,a);
   return { box, a };
 }
@@ -1227,9 +1239,9 @@ async function openCase() {
   Packaging.decorate(c,a);
   const face = (cl, img) => { const f = el('div', 'face ' + cl); if (img) f.style.backgroundImage = `url("${img}")`; return f; };
   if(!modelsEnabled()){
-    c.classList.add('flat-case');c.append(EshopCovers.face(g,a,'f-front'),face('f-back',a.back));
+    c.classList.add('flat-case');c.append(EshopCovers.face(g,a,'f-front'),backFace(a,true));
   }else{
-  c.append(face('f-back', a.back), Packaging.spine(g,a), face('f-right'), face('f-top'), face('f-bottom'), el('div', 'face tray'));
+  c.append(backFace(a,true), Packaging.spine(g,a), face('f-right'), face('f-top'), face('f-bottom'), el('div', 'face tray'));
   if(cardboard){c.querySelector('.f-top').remove();c.append(EshopCovers.face(g,a,'f-front'));}
 
   c.append(createMedia(g,a));

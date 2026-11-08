@@ -85,8 +85,45 @@ const Art = (() => {
     });
   }
 
-  function back(game, sys, W, H) {
-    return memo('b' + JSON.stringify([game.id, game.title, sys.id]), () => {
+  // Back covers are drawn in the background: most games have none scanned, the back is rarely the
+  // side in view, and encoding one on the spot made every system switch wait for a row of them.
+  // back() returns the cover when it is ready (else null) and backLater() resolves with it.
+  // The most recently requested covers are drawn first, so fast browsing never queues behind old ones.
+  const backs = new Map(), backQueue = [];
+  let backTimer = 0;
+  const backKey = (game, sys, W, H) => 'b' + JSON.stringify([game.id, game.title, sys.id, W, H]);
+  function back(game, sys, W, H) { return backs.get(backKey(game, sys, W, H))?.url || null; }
+  // now: draw it at once (the case viewer, where the back is what people come to see).
+  function backLater(game, sys, W, H, now = false) {
+    const key = backKey(game, sys, W, H);
+    let entry = backs.get(key);
+    if (!entry) {
+      entry = {};
+      entry.promise = new Promise(resolve => { entry.resolve = resolve; });
+      backs.set(key, entry);
+      // One cover per task, encoded at once: toBlob waits for idle time, which this animated
+      // window rarely has, so every cover would appear only after the whole row was drawn.
+      entry.draw = () => {
+        if (entry.url) return;
+        entry.url = drawBack(game, sys, W, H).toDataURL('image/jpeg', 0.88);
+        entry.resolve(entry.url);
+      };
+      backQueue.push(entry.draw);
+      scheduleBack();
+    }
+    if (now) entry.draw();
+    return entry.promise;
+  }
+  // One cover per frame, drawn just after the frame is painted, so browsing stays smooth.
+  const scheduleBack = () => { if (!backTimer) backTimer = requestAnimationFrame(() => setTimeout(drawNextBack, 0)); };
+  function drawNextBack() {
+    backTimer = 0;
+    backQueue.pop()?.();
+    if (backQueue.length) scheduleBack();
+  }
+
+  function drawBack(game, sys, W, H) {
+    {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height; const p = palette(game.title);
       ctx.fillStyle = '#0d0f16'; ctx.fillRect(0, 0, w, h);
       const g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, p.a); g.addColorStop(1, '#05060a');
@@ -104,8 +141,8 @@ const Art = (() => {
       }
       ctx.fillStyle = '#fff'; ctx.fillRect(w * 0.07, h * 0.88, w * 0.3, h * 0.06);
       ctx.fillStyle = '#000'; for (let i = 0; i < 40; i++) ctx.fillRect(w * 0.08 + i * w * 0.007, h * 0.89, (i % 3) + 1, h * 0.04);
-      return c.toDataURL('image/jpeg', 0.88);
-    });
+      return c;
+    }
   }
 
   function disc(game, sys, size) {
@@ -168,5 +205,5 @@ const Art = (() => {
     }));
   }
 
-  return { front, back, disc, cart, manual, tint };
+  return { front, back, backLater, disc, cart, manual, tint };
 })();
