@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="xmb.css" />
   <link rel="stylesheet" href="minimal.css" />
   <link rel="stylesheet" href="physical-models.css" />
+  <link rel="stylesheet" href="interface.css" />
 </head>
 <body>
   <div id="bg"><div class="bg-layer" id="bgA"></div><div class="bg-layer" id="bgB"></div><canvas id="xmb" aria-hidden="true"></canvas><div class="bg-vignette"></div></div>
@@ -29,7 +30,7 @@
         <nav id="systems" class="chips" aria-label="Game systems"></nav>
         <button id="systemsNext" class="rail-arrow" aria-label="Scroll systems right" title="More systems">›</button>
       </div>
-      <div class="library-search"><label class="search"><span class="search-icon" aria-hidden="true"></span><input id="search" aria-label="Search games" placeholder="Find a game…" spellcheck="false" /><button id="clearSearch" class="hidden" type="button" aria-label="Clear game search" title="Clear search">×</button><kbd class="search-shortcut" aria-hidden="true">/</kbd></label><span id="searchSummary" class="search-summary" role="status" aria-live="polite" aria-atomic="true"></span></div>
+      <div class="library-search"><label class="search"><span class="search-icon" aria-hidden="true"></span><input id="search" aria-label="Search games" aria-keyshortcuts="/" placeholder="Find a game…" spellcheck="false" /><button id="clearSearch" class="hidden" type="button" aria-label="Clear game search" title="Clear search">×</button><kbd class="search-shortcut" aria-hidden="true">/</kbd></label><span id="searchSummary" class="search-summary" role="status" aria-live="polite" aria-atomic="true"></span></div>
     </div>
     <button id="btnLeia3D" type="button" aria-pressed="false" title="Toggle Leia SR 3D (F9)">3D</button>
     <button id="btnAppearance" aria-haspopup="dialog" aria-controls="appearancePicker" aria-expanded="false" title="Change layout, theme and sound"><span aria-hidden="true">◈</span>View &amp; theme</button>
@@ -118,8 +119,8 @@
   </dialog>
   <dialog id="appearancePicker" aria-labelledby="appearanceTitle">
     <div class="system-picker-heading"><div><h2 id="appearanceTitle">View &amp; theme</h2></div><button id="closeAppearance" aria-label="Close appearance controls">×</button></div>
-    <div class="appearance-label">Browse your games</div><div id="layoutOptions" class="layout-options"></div>
-    <div class="appearance-label">Colour theme</div><div id="themeOptions" class="theme-options"></div>
+    <div class="appearance-label">Layout</div><div id="layoutOptions" class="layout-options"></div>
+    <div class="appearance-label">Accent colour</div><div id="themeOptions" class="theme-options"></div>
     <div class="appearance-label">Interface sound</div><div class="sound-controls"><button id="soundToggle" aria-pressed="true">Sound on</button><input id="soundVolume" aria-label="Interface sound volume" type="range" min="0" max="100" step="1" value="25" /><output id="soundVolumeValue">25%</output><button id="soundPreview" title="Preview sound">Test</button></div>
     <div class="appearance-label">Game details bar</div><div id="infoBarOptions" class="theme-options"><button type="button" class="theme-option" data-info-bar="xlarge" aria-pressed="false">Extra large</button><button type="button" class="theme-option" data-info-bar="large" aria-pressed="false">Large</button><button type="button" class="theme-option" data-info-bar="small" aria-pressed="true">Small</button><button type="button" class="theme-option" data-info-bar="compact" aria-pressed="false">Compact</button><button type="button" class="theme-option" data-info-bar="hidden" aria-pressed="false">Hidden</button></div>
     <label class="row check"><input id="appearanceDetailsPinned" type="checkbox" /> Keep game details visible when overlay is hidden</label>
@@ -170,10 +171,10 @@
   <!-- EMULATORS -->
   <main id="view-emus" class="view">
     <div class="view-head">
-      <div><h1>Emulators</h1><p class="sub">Downloaded from each project's GitHub releases, or a fork you choose under Source. Updates keep your settings.</p></div>
+      <div><h1>Emulators</h1><p class="sub">Install, link, or update an emulator.</p></div>
       <div class="actions">
         <button id="btnCheckAll" class="primary">Check all for updates</button>
-        <button id="btnAddCustom">+ Add your own emulator</button>
+        <button id="btnAddCustom">Add emulator</button>
       </div>
     </div>
     <form id="customForm" class="panel hidden">
@@ -213,7 +214,7 @@
   <!-- ARTWORK -->
   <main id="view-artwork" class="view">
     <div class="view-head">
-      <div><h1>Artwork</h1><p class="sub">Download covers, spines, discs, logos, screenshots and manuals, or use your own.</p></div>
+      <div><h1>Artwork</h1><p class="sub">Download game art or use your own files.</p></div>
       <button id="artOpenFolder">Open artwork folder</button>
     </div>
     <div class="artwork-layout">
@@ -225,15 +226,15 @@
         <select id="artSystem"></select>
         <p id="artScopeSummary" class="art-scope-summary"></p>
         <fieldset id="artTypes"><legend>Artwork to download</legend>
-          <label><input type="checkbox" value="front" checked /> <span>Box covers<small>Used on your 3D game cases</small></span></label>
-          <label><input type="checkbox" value="screenshot" checked /> <span>Screenshots<small>Gameplay previews and backgrounds</small></span></label>
-          <label><input type="checkbox" value="title" /> <span>Title screens<small>An extra preview when no screenshot is available</small></span></label>
-          <label><input type="checkbox" value="disc" /> <span>Cartridge &amp; disc art<small>Disc scans, Game Boy and Switch cartridge labels</small></span></label>
-          <label><input type="checkbox" value="back" /> <span>Back covers<small>The back of the case in the case viewer</small></span></label>
-          <label><input type="checkbox" value="spine" checked /> <span>Spines<small>Real box spines on the shelf</small></span></label>
-          <label><input type="checkbox" value="logo" checked /> <span>Logos<small>The game's logo in place of its title</small></span></label>
-          <label><input type="checkbox" value="fanart" /> <span>Backgrounds<small>Artwork behind the selected game</small></span></label>
-          <label><input type="checkbox" value="manual" /> <span>Manuals<small>PDF manuals, from ScreenScraper when you're signed in</small></span></label>
+          <label><input type="checkbox" value="front" checked /> <span>Box covers</span></label>
+          <label><input type="checkbox" value="screenshot" checked /> <span>Screenshots</span></label>
+          <label><input type="checkbox" value="title" /> <span>Title screens</span></label>
+          <label><input type="checkbox" value="disc" /> <span>Cartridge &amp; disc art</span></label>
+          <label><input type="checkbox" value="back" /> <span>Back covers</span></label>
+          <label><input type="checkbox" value="spine" checked /> <span>Spines</span></label>
+          <label><input type="checkbox" value="logo" checked /> <span>Logos</span></label>
+          <label><input type="checkbox" value="fanart" /> <span>Backgrounds</span></label>
+          <label><input type="checkbox" value="manual" /> <span>Manuals<small>ScreenScraper login required</small></span></label>
         </fieldset>
         <label class="art-retry"><input id="artUpgrade" type="checkbox" checked /> Replace low-resolution covers with sharper copies</label>
         <label class="art-retry"><input id="artRetry" type="checkbox" /> Refresh matches and retry missing artwork</label>
@@ -281,43 +282,49 @@
   <!-- SETTINGS -->
   <main id="view-settings" class="view">
     <div class="view-head">
-      <div><h1>Settings</h1><p class="sub">Set a ROM folder for each system. To use several folders (e.g. two SD cards), click “+ Add” or separate paths with <code>|</code>.</p></div>
+      <h1>Settings</h1>
       <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
     </div>
     <div id="settingsScanStatus" class="panel sub" role="status" aria-live="polite"></div>
-    <section class="panel feedback-entry" aria-labelledby="feedbackHeading">
-      <div><h2 id="feedbackHeading">Help improve PyroCade</h2><p class="sub">Found an error or have an idea? Tell us what happened or what you would like to see.</p></div>
-      <button id="btnFeedback" type="button" aria-haspopup="dialog" aria-controls="feedbackDialog">Report a problem or send feedback…</button>
-    </section>
-    <div class="panel">
-      <label class="row"><span>Button prompts</span><select id="sPrompts"><option value="auto">Automatic · last input used</option><option value="keyboard">Keyboard &amp; mouse</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="nintendo">Nintendo</option><option value="generic">Generic gamepad</option></select><a class="prompt-preview-link" href="assets/prompts/preview.html" target="_blank" rel="noopener">View full set ↗</a></label>
-      <p class="prompt-note" id="promptStatus" role="status"></p>
-      <p class="prompt-note">Prompt labels follow your physical controller, regardless of the emulated system. Override the family if your adapter reports a generic name.</p>
-      <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow Windows preference</option><option value="full">Full · animated media &amp; ambient light</option><option value="reduced">Reduced · instant previews</option></select></label>
-      <label class="row check"><input type="checkbox" id="sDisableModels" /> Disable 3D models · use flat covers</label>
-      <label class="row check"><input type="checkbox" id="sDisableAnimations" /> Disable animations · static backgrounds and instant navigation</label>
-      <p class="prompt-note">These options apply immediately and save automatically. Turn both on for slower computers.</p>
-      <label class="row"><span>Top &amp; bottom UI (O)</span><select id="sChromeMode"><option value="shown">Overlay on</option><option value="hidden">Overlay off</option></select></label>
-      <label class="row check"><input id="sDetailsPinned" type="checkbox" /> Keep game details visible when overlay is hidden</label>
-      <p class="prompt-note">O toggles the overlay on or off. I independently shows or hides the game details.</p>
-      <label class="row"><span>Ambient mode</span><select id="sAmbient"><option value="0">Off</option><option value="1">After 1 minute idle</option><option value="2">After 2 minutes idle</option><option value="5">After 5 minutes idle</option><option value="10">After 10 minutes idle</option></select></label>
-      <label class="row"><span>Background</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
-      <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
-      <label class="row"><span>Artwork folder (optional)</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
-      <label class="row check"><input type="checkbox" id="sFullscreen" /> Fullscreen (F11, or Ctrl/Cmd+Shift+F, does the same thing)</label>
-      <label class="row check"><input type="checkbox" id="sLaunchFx" /> Play the disc and cartridge start animation (about 2.5 seconds)</label>
-      <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes (a Game Boy box next to a PS2 case looks small)</label>
-      <label class="row check"><input type="checkbox" id="sWear" /> Used copies: scuffed cases and faded labels</label>
+    <div class="settings-groups">
+      <section class="panel" aria-labelledby="interfaceHeading">
+        <h2 id="interfaceHeading">Interface</h2>
+        <label class="row"><span>Button prompts</span><select id="sPrompts"><option value="auto">Automatic</option><option value="keyboard">Keyboard &amp; mouse</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="nintendo">Nintendo</option><option value="generic">Generic gamepad</option></select><a class="prompt-preview-link" href="assets/prompts/preview.html" target="_blank" rel="noopener">View full set ↗</a></label>
+        <p class="prompt-note" id="promptStatus" role="status"></p>
+        <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow Windows preference</option><option value="full">Full</option><option value="reduced">Reduced</option></select></label>
+        <label class="row check"><input type="checkbox" id="sDisableModels" /> Use flat covers</label>
+        <label class="row check"><input type="checkbox" id="sDisableAnimations" /> Disable animations</label>
+        <label class="row"><span>Overlay (O)</span><select id="sChromeMode"><option value="shown">Overlay on</option><option value="hidden">Overlay off</option></select></label>
+        <label class="row check"><input id="sDetailsPinned" type="checkbox" /> Keep game details visible when overlay is hidden</label>
+        <label class="row check"><input type="checkbox" id="sFullscreen" /> Fullscreen (F11)</label>
+      </section>
+      <section class="panel" aria-labelledby="libraryDisplayHeading">
+        <h2 id="libraryDisplayHeading">Library display</h2>
+        <label class="row"><span>Ambient mode</span><select id="sAmbient"><option value="0">Off</option><option value="1">After 1 minute idle</option><option value="2">After 2 minutes idle</option><option value="5">After 5 minutes idle</option><option value="10">After 10 minutes idle</option></select></label>
+        <label class="row"><span>Background</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
+        <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first</option><option value="original">Original downloaded cover</option></select></label>
+        <label class="row"><span>Artwork folder</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
+        <label class="row check"><input type="checkbox" id="sLaunchFx" /> Animate game launch</label>
+        <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes</label>
+        <label class="row check"><input type="checkbox" id="sWear" /> Show wear on cases and labels</label>
+      </section>
     </div>
-    <div class="panel">
-      <div class="row"><span>PyroCade updates</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>
-      <label class="row check"><input type="checkbox" id="sCheckUpdates" /> Check for a new PyroCade release when the app starts</label>
+    <div class="settings-groups">
+      <section class="panel" aria-labelledby="updatesHeading">
+        <h2 id="updatesHeading">Updates</h2>
+        <div class="row"><span>PyroCade version</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>
+        <label class="row check"><input type="checkbox" id="sCheckUpdates" /> Check for a new PyroCade release when the app starts</label>
+      </section>
+      <section class="panel" aria-labelledby="feedbackHeading">
+        <h2 id="feedbackHeading">Feedback</h2>
+        <button id="btnFeedback" type="button" aria-haspopup="dialog" aria-controls="feedbackDialog">Report a problem or suggest a change</button>
+      </section>
     </div>
+    <h2 class="settings-section-title">Systems and games</h2>
     <div class="sys-tools">
       <button id="btnAddSystem" type="button">+ Add system…</button>
       <button id="btnAddGame" type="button">+ Add game…</button>
       <button id="btnAddRecomp" type="button">+ Recomp game…</button>
-      <span class="sub">PC games: point <b>PC Games</b> at a folder of shortcuts or game programs, or add them one by one with <b>Add game</b>.</span>
     </div>
     <form id="addSystemForm" class="panel add-form hidden">
       <input name="name" placeholder="System name (e.g. Neo Geo)" required maxlength="40" />
@@ -339,7 +346,7 @@
       <p>Hidden entries stay off every shelf and out of game counts after rescanning or restarting. Your files are kept in place.</p>
       <ul id="hiddenGamesList" class="added-list"></ul>
     </details>
-    <p class="sub">To restore a hidden console, check its Show box, then click Save &amp; rescan. Browse replaces the folder. + Add keeps the current folders and adds another.</p>
+    <p class="sub">Browse replaces the ROM folder. + Add keeps existing folders.</p>
     <table id="sysTable" class="panel">
       <thead><tr><th title="Show this system in the library">Show</th><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>
       <tbody></tbody>
@@ -363,10 +370,10 @@ ps2\Neon Drift (USA)\front.png      ps2\covers\Neon Drift (USA).png
 
   <dialog id="feedbackDialog" aria-labelledby="feedbackTitle" aria-describedby="feedbackPrivacy">
     <form id="feedbackForm">
-      <div class="feedback-heading"><h2 id="feedbackTitle">Help improve PyroCade</h2><button id="feedbackClose" type="button" aria-label="Close feedback">×</button></div>
-      <p id="feedbackPrivacy" class="sub">Reports are public on GitHub and require a GitHub account. You can review and attach screenshots there before submitting. Leave out passwords and personal information.</p>
-      <label for="feedbackKind">I want to</label>
-      <select id="feedbackKind"><option value="bug">Report a problem</option><option value="feedback">Send feedback or suggest an idea</option></select>
+      <div class="feedback-heading"><h2 id="feedbackTitle">Send feedback</h2><button id="feedbackClose" type="button" aria-label="Close feedback">×</button></div>
+      <p id="feedbackPrivacy" class="sub">Reports are public on GitHub and require an account. Review your report and attach screenshots there. Leave out personal information.</p>
+      <label for="feedbackKind">Type</label>
+      <select id="feedbackKind"><option value="bug">Report a problem</option><option value="feedback">Suggestion</option></select>
       <label for="feedbackSummary">Summary <span class="sub">(required)</span></label>
       <input id="feedbackSummary" required maxlength="120" placeholder="A short title for your report" />
       <label for="feedbackDescription" id="feedbackDescriptionLabel">What happened, and what did you expect? (required)</label>
@@ -377,7 +384,6 @@ ps2\Neon Drift (USA)\front.png      ps2\covers\Neon Drift (USA).png
       <p class="sub feedback-note">Only the details shown above are added automatically. Logs, file paths and your game library are not attached.</p>
       <p id="feedbackStatus" role="status" aria-live="polite"></p>
       <div class="feedback-actions"><button id="feedbackCopy" type="button">Copy report</button><button id="feedbackOpen" class="primary" type="submit">Continue on GitHub ↗</button></div>
-      <p class="sub feedback-note">Copy report also works offline. Opening GitHub does not submit your report.</p>
       <button id="feedbackBrowse" type="button" class="feedback-browse">Browse reports on GitHub ↗</button>
     </form>
   </dialog>

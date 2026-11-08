@@ -119,12 +119,7 @@ const DetailsResize = (() => {
     const shotHeight = width / shotAspect;
     const tight = String(shotHeight < 165);
     if (root.dataset.detailsShotTight !== tight) root.dataset.detailsShotTight = tight;
-    const padding = innerWidth <= 1250 ? 44 : 60;
-    const expansion = resized ? (height - min) / (max() - min) : mode === 'xlarge' ? 1 : mode === 'large' ? 0.55 : 0;
-    const center = innerWidth * (0.4 + 0.1 * expansion);
-    const leading=Math.max(0,center-padding-width/2-24);
     const dimensions = {
-      '--details-leading': Math.round(leading * 2) / 2,
       '--details-shot-width': width,
       '--details-shot-height': shotHeight,
       '--details-title-cap': Math.max(18, shotHeight * .24),
@@ -1889,6 +1884,11 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.target.matches?.('input, select, textarea')) return;
+  if (libraryActive() && !caseShown() && e.key === '/' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    $('#search').focus();
+    return;
+  }
   if (libraryActive() && !caseShown() && e.key.toLowerCase() === 'o' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); if (!e.repeat) LibraryChrome.cycle(); return; }
   if (libraryActive() && !caseShown() && e.key.toLowerCase() === 'i' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); if (!e.repeat) toggleGameDetails(); return; }
   if (e.target.matches?.('button,a') && (e.key === 'Enter' || e.key === ' ')) {

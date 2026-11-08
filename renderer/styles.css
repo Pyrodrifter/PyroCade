@@ -24,10 +24,6 @@ code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; 
 .hidden { display: none !important; }
 
 /* Feedback stays in-app until the user chooses to open their browser. */
-.feedback-entry { display:flex; align-items:center; justify-content:space-between; gap:24px; }
-.feedback-entry h2 { font-size:17px; margin:0 0 6px; }
-.feedback-entry p { margin:0; }
-.feedback-entry button { flex-shrink:0; }
 #feedbackDialog { width:min(650px,calc(100vw - 48px)); max-height:calc(100vh - 48px); overflow:auto; border:1px solid var(--line); border-radius:18px; padding:24px; color:var(--text); background:#151b27; box-shadow:0 30px 100px #0009; user-select:text; }
 #feedbackDialog::backdrop { background:#030710b3; backdrop-filter:blur(12px); }
 .feedback-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
@@ -663,16 +659,14 @@ html[data-details-tiny='true'] #info .actions { display:none; }
 .leia-controls-footer { margin-top:14px;color:var(--muted);font-size:10px; }.leia-controls-footer button { font-size:11px;padding:5px 10px; }
 #leiaPerformance { display:block;margin-top:12px;color:var(--muted);line-height:1.4; }
 
-/* The screenshot grows from the left toward the same center line as the selected cover. */
-html[data-details-flow='true'] #info { display:grid;grid-template-columns:var(--details-leading) var(--details-shot-width) minmax(0,1fr);gap:24px;align-items:center; }
+/* Keep the game actions in view as the screenshot resizes. */
+html[data-details-flow='true'] #info { display:grid;grid-template-columns:minmax(0,1fr) var(--details-shot-width);gap:24px;align-items:center; }
 html[data-details-flow='true'] #info .info-text { grid-column:1;grid-row:1;max-width:none;min-width:0; }
 html[data-details-flow='true'] #info .shot { grid-column:2;grid-row:1;width:100%;box-sizing:border-box;align-self:end;position:relative; }
 html[data-details-resized='true'][data-details-flow='true'] #info { grid-template-rows:minmax(0,1fr); }
 #info #gShot video { position:absolute;inset:0; }
 html[data-details-resized='true'] #info { max-height:var(--details-max-height); }
 .cover-drag-preview { position:fixed;left:8px;top:8px;width:104px;height:146px;border-radius:4px;background-size:100% 100%;background-position:center;box-shadow:0 6px 20px #0007;z-index:10000;transform:none !important;pointer-events:none; }
-
-.search-shortcut { display:none !important; }
 
 html[data-leia-rendering='true'],html[data-leia-rendering='true'] *{cursor:none!important;}
 .leia-cursor{position:fixed;left:0;top:0;width:25px;height:34px;pointer-events:none!important;z-index:2147483647;will-change:transform;filter:drop-shadow(-1px 2px 0 #9b491e) drop-shadow(-2px 3px 0 #532710) drop-shadow(0 3px 5px #0009);}
@@ -689,11 +683,9 @@ html[data-details-flow='true'] #gShot.shot{width:100%!important;}
 
 html[data-details-flow='true'] #info .info-text {
   align-self:end;
-  height:var(--details-shot-height);
-  min-height:0;
+  min-height:var(--details-shot-height);
   display:flex;
   flex-direction:column;
-  overflow:hidden;
 }
 html[data-details-flow='true'] #info .info-text #gTitle {
   flex:none;
@@ -714,9 +706,7 @@ html[data-details-flow='true'] #info #gDesc {
 }
 html[data-details-flow='true'] #info .actions {
   flex:none;
-  flex-wrap:nowrap;
+  flex-wrap:wrap;
   margin-top:auto;
-  overflow-x:auto;
-  scrollbar-width:thin;
 }
 html[data-details-flow='true'] #info .actions button { flex:none; white-space:nowrap; }
