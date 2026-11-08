@@ -12,7 +12,7 @@ on:
         description: 'Release tag to build (e.g. v0.2.0)'
         required: true
       use_electron_mirror:
-        description: 'Use the Electron mirror if GitHub downloads are unavailable'
+        description: 'Use alternate Electron and packaging tool downloads'
         type: boolean
         default: false
 
@@ -44,6 +44,44 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --build native/build --config Release
       - run: npm ci
+      - &seed_builder_tools
+        name: Fetch packaging tools through the GitHub API
+        if: ${{ inputs.use_electron_mirror }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # electron-builder validates the cached archives against its pinned checksums.
+          cache="$RUNNER_TEMP/electron-builder-cache"
+          fetch_tool() {
+            mkdir -p "$cache/$1"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/electron-userland/electron-builder-binaries/releases/assets/$3" > "$cache/$1/$2"
+          }
+          case "$RUNNER_OS" in
+            Windows)
+              fetch_tool '7zip@1.0.0' 7zip-win-x64.tar.gz 437402797
+              fetch_tool winCodeSign-2.6.0 winCodeSign-2.6.0.7z 18435274
+              fetch_tool nsis-3.0.4.1 nsis-3.0.4.1.7z 16428442
+              fetch_tool nsis-resources-3.4.1 nsis-resources-3.4.1.7z 13752602
+              ;;
+            Linux)
+              fetch_tool '7zip@1.0.0' 7zip-linux-x64.tar.gz 437402746
+              fetch_tool appimage-12.0.1 appimage-12.0.1.7z 13613639
+              fetch_tool 'fpm@2.1.4' fpm-1.17.0-ruby-3.4.3-linux-amd64.7z 319525808
+              ;;
+            macOS)
+              fetch_tool 'icons@1.2.3' icons-bundle.tar.gz 459442159
+              if [[ "$RUNNER_ARCH" == ARM64 ]]; then
+                fetch_tool '7zip@1.0.0' 7zip-darwin-arm64.tar.gz 437402642
+                fetch_tool 'dmg-builder@1.2.5' dmgbuild-bundle-arm64-75c8a6c.tar.gz 436378817
+              else
+                fetch_tool '7zip@1.0.0' 7zip-darwin-x86_64.tar.gz 437402689
+                fetch_tool 'dmg-builder@1.2.5' dmgbuild-bundle-x86_64-75c8a6c.tar.gz 436378863
+              fi
+              ;;
+          esac
+          echo "ELECTRON_BUILDER_CACHE=$cache" >> "$GITHUB_ENV"
       - run: npx electron-builder --win nsis --publish never
       - name: Verify the packaged Leia SR presenter
         shell: pwsh
@@ -67,6 +105,7 @@ jobs:
       # rpm builds the Fedora package, libarchive-tools the Arch one; xvfb runs the smoke test.
       - run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools xvfb
       - run: npm ci
+      - *seed_builder_tools
       - run: npx electron-builder --linux AppImage deb rpm pacman --publish never
       - name: Smoke test the AppImage
         env:
@@ -108,6 +147,7 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - *seed_builder_tools
       - run: npx electron-builder --mac --publish never
       - name: Check the signature
         run: codesign --verify --deep --verbose=2 dist/mac-arm64/PyroCade.app
