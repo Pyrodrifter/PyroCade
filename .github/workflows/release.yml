@@ -11,12 +11,17 @@ on:
       tag:
         description: 'Release tag to build (e.g. v0.2.0)'
         required: true
+      use_electron_mirror:
+        description: 'Use the Electron mirror if GitHub downloads are unavailable'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 env:
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  ELECTRON_MIRROR: ${{ inputs.use_electron_mirror && 'https://npmmirror.com/mirrors/electron/' || '' }}
 
 jobs:
   windows:
