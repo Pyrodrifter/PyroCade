@@ -1,7 +1,7 @@
 {
   "version": 1,
   "canvas": 64,
-  "style": "PyroCade graphite / amber",
+  "style": "PyroCade flat graphite",
   "families": {
     "xbox": "Xbox",
     "playstation": "PlayStation",

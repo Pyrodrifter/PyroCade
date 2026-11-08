@@ -1,6 +1,6 @@
 # PyroCade button prompts
 
-283 original icons in the frontend's graphite, orange and amber style. All files have a transparent background and a consistent 64 × 64 coordinate space.
+283 original icons with flat graphite keycaps, clear symbols and controller-specific face colours. All files have a transparent background and a consistent 64 × 64 coordinate space.
 
 | Family | Icons |
 | --- | ---: |
