@@ -139,7 +139,7 @@ On Windows you can also double-click `start.bat`. Build the installer with `npm 
 - `npm run ui:check` and `npm run eshop:check` use covers from your local `data/` folder.
 - `npm run docs:screens` captures the demo shelf. Set `PYROCADE_SCREENS_DIR` to write those images to a separate folder.
 
-**Releasing:** raise `version` in `package.json`, commit, and push a tag `v<version>`. The **Release** workflow builds the Windows installer and Linux packages, smoke-tests Linux and attaches everything to a draft release. Publish the draft and installed copies offer the update.
+**Releasing:** raise `version` in `package.json`, commit, and push a tag `v<version>`. The **Release** workflow builds the Windows installer with the Leia SR presenter, plus the Linux and macOS packages. It smoke-tests Linux and macOS and attaches the installers to a draft release. Publish the draft and installed copies offer the update.
 
 ## Your data stays local
 Everything personal lives in `data/` and is never part of this repository:

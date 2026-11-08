@@ -26,8 +26,26 @@ jobs:
         with: { ref: '${{ env.TAG }}' }
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: npm }
+      - uses: actions/checkout@v7
+        with:
+          repository: bo3b/SR-lib
+          ref: 39de32110ca05842cd0a7b48560e9194c28ef7cb
+          path: native/SR-lib
+          persist-credentials: false
+      - name: Build Leia SR presenter
+        shell: pwsh
+        run: |
+          cmake -S native -B native/build -A x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build native/build --config Release
       - run: npm ci
       - run: npx electron-builder --win nsis --publish never
+      - name: Verify the packaged Leia SR presenter
+        shell: pwsh
+        run: |
+          if (!(Test-Path -LiteralPath 'dist/win-unpacked/resources/leia/PyroCadeLeia.exe' -PathType Leaf)) {
+            throw 'The Windows package is missing the Leia SR presenter'
+          }
       - uses: actions/upload-artifact@v7
         with:
           name: windows

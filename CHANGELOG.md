@@ -4,11 +4,18 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-08
+
 ### Added
+- Optional Leia SR stereo on Windows. Press **F9** for 3D and **Shift+F9** for depth, popout, convergence and stereo FPS. Stereo needs a compatible display and the Leia SR runtime.
+- Shelf-edge previews, drag-to-reorder, editable game versions and media models, custom screenshots, and a Recomp shelf for standalone Windows games.
 - **Report a problem or send feedback from Settings.** Describe an error or suggestion, optionally include the app version and basic device details, then review and submit a prefilled public GitHub issue. **Copy report** works offline. The repository also has problem and feedback templates.
 - **Two more places to find a missing front cover: the Super Mario Wiki and the Internet Archive.** When LaunchBox, ScreenScraper, GameTDB and Libretro have no cover, PyroCade now asks the [Super Mario Wiki](https://www.mariowiki.com/) for Mario, Yoshi, Wario, Donkey Kong and Smash Bros. games, then the Internet Archive's [box scan collection](https://archive.org/details/softwareboxart). They are only ever a last resort, so a game that already gets a cover keeps the same one. A wrong cover is worse than none, so a picture is used only when it is filed under the game's own system, named as the front of the box and shaped like one (collectors often scan a box flat, flaps and all, and call it the front): full wraps, cartridge scans, store displays, promos and fan-made covers are skipped, and so are demos, prototypes and ROM hacks, which share a name with the original game. Both sites are run by volunteers: PyroCade asks each at most once a second, reads the wiki's raw page text (its robots.txt allows that, not its API), and keeps the answers for a month. GamesDatabase.org was considered too, but its terms forbid automated queries.
 
 ### Changed
+- Charcoal interface, brighter accents, a transparent top bar and flatter, centred keyboard and controller prompts.
+- Hiding game details makes more room for the shelf. Cartridges rise higher so their labels are visible.
+- Large libraries skip unnecessary file-size checks, reuse neighbouring shelf previews and do less rendering work in Bookshelf and Spinner rack.
 - **Bookshelf spines are twice the size and readable.** The layout took its size from the same scale as every other layout, which stops growing at 1.16, so on a 1920×1080 screen the whole shelf sat 600px wide in the middle with spine titles 8px tall. It now sizes the shelf from the room it has: standing cases fill about half the stage height, titles come out around 16px on that screen (24px on 2560×1440), and the case you pulled out grows with them while staying clear of the header and the game details. Every case also stands on the same line now; the cardboard boxes used to sit slightly lower than the rest.
 - **The cartridges look like moulded plastic rather than modelling clay.** Every shell now catches a sheen off the top left, bounces a little light back from the bottom right, darkens where the face turns into its own walls and ends on a crisp lit edge, instead of sitting under one flat wash. Ribs, raised panels and the label recess all got the same lift.
 - **The Nintendo 64 cartridge has lost the two raised rectangles** either side of its label. A real cartridge is smooth there; the moulding seams that are genuinely on the face are unchanged.

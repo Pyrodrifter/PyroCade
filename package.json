@@ -1,6 +1,6 @@
 {
   "name": "pyrocade",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "3D carousel front-end for emulators with built-in emulator downloader/updater",
   "license": "MIT",
   "main": "main.js",
@@ -71,7 +71,13 @@
           ]
         }
       ],
-      "icon": "renderer/assets/brand/pyrocade.ico"
+      "icon": "renderer/assets/brand/pyrocade.ico",
+      "extraResources": [
+        {
+          "from": "native/bin/PyroCadeLeia.exe",
+          "to": "leia/PyroCadeLeia.exe"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -144,13 +150,7 @@
     },
     "pacman": {
       "artifactName": "pyrocade-${version}-x86_64.pkg.tar.zst"
-    },
-    "extraResources": [
-      {
-        "from": "native/bin/PyroCadeLeia.exe",
-        "to": "leia/PyroCadeLeia.exe"
-      }
-    ]
+    }
   },
   "homepage": "https://github.com/Pyrodrifter/PyroCade"
 }
