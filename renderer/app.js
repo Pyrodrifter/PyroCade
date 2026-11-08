@@ -1277,7 +1277,7 @@ async function openCase() {
 
   c.append(createMedia(g,a));
   const man = el('div', 'manual'), page = el('div', 'page');
-  page.style.backgroundImage = `url("${await Art.manual(g, a.sys, a.front, a.W, a.H)}")`;
+  page.style.backgroundImage = `url("${await Art.manual(g, a.sys, a.front, a.W, a.H, Packaging.design(a.sys))}")`;
   if (CV.token !== token) return;
   if(a.digital||a.packshot) {
     page.style.backgroundImage='none';page.classList.add('manual-custom-cover');

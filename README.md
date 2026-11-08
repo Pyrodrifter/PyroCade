@@ -27,7 +27,7 @@ The screenshots show the current source build. The GameCube shelf has **Shrek 2*
   - Discs slide out of the selected case, and cartridges rise above the cover so you can see the label. In the case view, a cartridge comes up out of its cardboard box and settles in front of it.
   - **Cartridges come in their real colours:** taken from a photo of the actual cartridge, or from a list of famous ones (gold Ocarina of Time, the coloured Pokémon cartridges…). You can also pick your own colour per game in **Artwork → Change an image**.
   - Generated spines follow each console's retail design, and real spine scans always win.
-  - Open a case to turn it around, flip it and read the manual.
+  - Open a case to turn it around, flip it and read the manual. The booklet inside is printed like that system's real manuals, in its retail colours.
 - **Library controls.**
   - **Favourites** (press **F**) and **Recently played** get their own shelves.
   - **Play time** and **last played** show with each game.

@@ -4,6 +4,11 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-08
+
+### Changed
+- **The instruction booklet looks like that system's real manual.** The box art now fills the booklet edge to edge (cropped, never squashed) instead of sitting in a plain off-white frame. Nintendo, Sega and other systems get a strip along the foot in their retail colours, with the system's wordmark and "INSTRUCTION BOOKLET", and the same colours as the case spine. PlayStation, PS2 and PSP booklets simply reprint the cover, as their manuals did.
+
 ## [0.8.0] - 2026-11-08
 
 ### Added
@@ -214,6 +219,7 @@ Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](h
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.8.1]: https://github.com/Pyrodrifter/PyroCade/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.5.0...v0.6.0

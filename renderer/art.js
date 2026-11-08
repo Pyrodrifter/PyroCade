@@ -173,17 +173,35 @@ const Art = (() => {
     });
   }
 
-  function manual(game, sys, frontUrl, W, H) {
-    return memo('m' + JSON.stringify([game.id, game.title, sys.id, frontUrl, W, H]), () => new Promise(res => {
+  // The instruction booklet's cover, printed the way that system's manuals were: the box art edge to
+  // edge (cropped to the booklet, never squashed), then, except on PlayStation, whose manuals simply
+  // reprint the cover, a strip along the foot in the system's retail colours with its wordmark and
+  // "INSTRUCTION BOOKLET". design is the system's spine design (Packaging.design), so the booklet
+  // and the case's spine match.
+  function manual(game, sys, frontUrl, W, H, design = {}) {
+    return memo('m' + JSON.stringify([game.id, game.title, sys.id, frontUrl, W, H, design.style]), () => new Promise(res => {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height;
+      const strip = design.style === 'ps' ? 0 : Math.round(h * 0.085), rule = strip && (design.rule || design.accent) ? Math.max(2, h * 0.006) : 0;
       const img = new Image();
       img.onload = () => {
-        ctx.fillStyle = '#f1efe9'; ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, w * 0.06, h * 0.05, w * 0.88, h * 0.7);
-        ctx.fillStyle = sys.color; ctx.fillRect(0, h * 0.8, w, h * 0.12);
-        ctx.font = `800 ${w * 0.055}px "Segoe UI"`; ctx.fillStyle = lum(sys.color) > 0.6 ? '#111' : '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('INSTRUCTION BOOKLET', w / 2, h * 0.86);
-        res(c.toDataURL('image/jpeg', 0.88));
+        const artH = h - strip - rule, s = Math.max(w / img.naturalWidth, artH / img.naturalHeight);
+        const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+        ctx.fillStyle = design.body || '#111'; ctx.fillRect(0, 0, w, h);
+        ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, artH); ctx.clip();
+        ctx.drawImage(img, (w - dw) / 2, 0, dw, dh); ctx.restore();   // keep the top: that is where the logo is
+        if (strip) {
+          if (rule) { ctx.fillStyle = design.rule || design.accent; ctx.fillRect(0, artH, w, rule); }
+          const band = design.band || sys.color || '#222', ink = design.ink || (lum(band) > 0.6 ? '#111' : '#fff');
+          ctx.fillStyle = band; ctx.fillRect(0, h - strip, w, strip);
+          ctx.fillStyle = ink; ctx.textBaseline = 'middle'; const mid = h - strip / 2, pad = w * 0.05;
+          const mark = (design.mark || [sys.name]).join(' ');
+          ctx.textAlign = 'left'; ctx.font = `900 ${strip * 0.36}px "Segoe UI", Arial, sans-serif`;
+          const markW = Math.min(ctx.measureText(mark.toUpperCase()).width, w * 0.48);
+          ctx.fillText(mark.toUpperCase(), pad, mid, w * 0.48);
+          ctx.textAlign = 'right'; ctx.font = `700 ${strip * 0.27}px "Segoe UI", Arial, sans-serif`;
+          ctx.fillText('INSTRUCTION BOOKLET', w - pad, mid, w - pad * 3 - markW);
+        }
+        res(c.toDataURL('image/jpeg', 0.9));
       };
       img.onerror = () => res(frontUrl);
       img.src = frontUrl;

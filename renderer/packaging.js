@@ -217,5 +217,5 @@ const Packaging=(()=>{
     footer.style.fontSize=fitText(footer.textContent,footerHeight*.9,a.D*.24)+'px';
     insert.append(brand(a.sys,a.D,header),titleArea,footer);face.append(insert);return face;
   }
-  return {profiles,profile,size:sys=>model(sys)?.size,decorate,spine,finish};
+  return {profiles,profile,size:sys=>model(sys)?.size,design:spineDesign,decorate,spine,finish};
 })();
