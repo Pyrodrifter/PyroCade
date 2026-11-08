@@ -87,7 +87,7 @@ html.ambient:has(#xmb[data-scene=ribbon]) #xmb { opacity: .45; }
 #caseView { background: radial-gradient(ellipse at 50% 43%, var(--stage-light), #171615 76%); }
 
 /* Library */
-html:not(.ambient) header { background: var(--canvas); }
+header { background: transparent; }
 header::after, #info::before, html:not([data-theme=ember]) #info::before { background: var(--line); }
 header .toolbar { border-color: var(--line); }
 .brand { letter-spacing: .17em; }
