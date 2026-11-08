@@ -6,7 +6,7 @@ An emulator launcher for Windows, macOS and Linux. Browse your library as 3D gam
 
 ![Shrek 2 selected in the GameCube carousel, with four other Shrek games and a gameplay preview](docs/media/screen-carousel.jpg)
 
-[Download the 15-second demo (MP4)](docs/media/pyrocade-demo.mp4?raw=true)
+[Download the 15-second demo (MP4)](https://raw.githubusercontent.com/Pyrodrifter/PyroCade/c98a7157e0955632aaee55aec19da6c698e091ad/docs/media/pyrocade-demo.mp4)
 
 The screenshots show the current source build. The GameCube shelf has **Shrek 2**, **Shrek Extra Large**, **Shrek Super Party**, **Shrek SuperSlam** and **Shrek: Smash n’ Crash Racing**. Press **/** and type **shrek** on the GameCube shelf to find them, or switch to **All games** to search across systems. That also turns up **Shrek: Swamp Kart Speedway** on Game Boy Advance and **Shrek: Ogres & Dronkeys** on Nintendo DS.
 
