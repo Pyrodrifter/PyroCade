@@ -7,15 +7,21 @@ const Appearance=(()=>{
     mint: {name: 'Mint', accent: '#83d5a4', light: '#b5eccb'},
     rose: {name: 'Rose', accent: '#ed9da7', light: '#ffc6ce'},
   };
-  const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Page through'},bookshelf:{name:'Bookshelf',note:'Spines on a shelf'},spinner:{name:'Spinner rack',note:'Rotating store tower'},swatches:{name:'Colour cards',note:'Colour grid'}};
+  const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Fanned covers'},bookshelf:{name:'Bookshelf',note:'Spines on a shelf'},'page-turn':{name:'Page turn',note:'Cases swing around a spine'},media:{name:'Media carousel',note:'Discs and cartridges'}};
+  // Old layout names in saved settings. Top flip was replaced by the media carousel before release.
+  const retiredLayouts={spinner:'page-turn',swatches:'media','top-flip':'media'};
   let theme='ember',mode='carousel',infoBar='small',context,saves=Promise.resolve(),volumeTimer;
+  const browsesVertically=(layout=mode)=>layout==='vertical';
   function persist(){
     const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.uiSound=AudioUI.settings();state.config.libraryInfoBar=infoBar;if(infoBar!=='hidden')state.config.libraryLastDetailsSize=infoBar;
     saves=saves.catch(()=>{}).then(()=>api.setConfig(structuredClone(context.getState().config))).catch(()=>context.toast('Appearance could not be saved. Try changing the option again.'));
     return saves;
   }
   function apply(next={},save=true){
-    const old=mode,oldInfo=infoBar;if(['xlarge','large','small','compact','hidden'].includes(next.infoBar))infoBar=next.infoBar;if(themes[next.theme])theme=next.theme;if(layouts[next.layout])mode=next.layout;
+    const old=mode,oldInfo=infoBar,layout=retiredLayouts[next.layout]||next.layout;
+    if(['xlarge','large','small','compact','hidden'].includes(next.infoBar))infoBar=next.infoBar;
+    if(Object.hasOwn(themes,next.theme))theme=next.theme;
+    if(Object.hasOwn(layouts,layout))mode=layout;
     document.documentElement.dataset.infoBar=infoBar;
     $('#btnToggleDetails').setAttribute('aria-pressed',String(infoBar!=='hidden'));
     $('#btnToggleDetails').textContent=infoBar==='hidden'?'Show details (I)':'Hide details (I)';
@@ -31,7 +37,7 @@ const Appearance=(()=>{
     context=options;const config=context.getState().config;
     for(const [id,v]of Object.entries(layouts)){
       const b=document.createElement('button');b.className='layout-option';b.dataset.layout=id;b.type='button';
-      b.innerHTML=`<span class="layout-mini" data-kind="${id}" aria-hidden="true"><i></i><i></i><i></i>${id==='swatches'?'<i></i>':''}</span><strong>${v.name}</strong><small>${v.note}</small>`;
+      b.innerHTML=`<span class="layout-mini" data-kind="${id}" aria-hidden="true"><i></i><i></i><i></i></span><strong>${v.name}</strong><small>${v.note}</small>`;
       b.onclick=()=>apply({layout:id});$('#layoutOptions').append(b);
     }
     for(const [id,v]of Object.entries(themes)){
@@ -45,7 +51,8 @@ const Appearance=(()=>{
     }
     for(const b of document.querySelectorAll('#infoBarOptions button'))b.onclick=()=>apply({infoBar:b.dataset.infoBar});
     syncBackground();
-    apply({infoBar:config.libraryInfoBar||'small',theme:config.libraryTheme||'ember',layout:config.libraryLayout||'carousel'},false);
+    apply({infoBar:config.libraryInfoBar||'small',theme:config.libraryTheme||'ember',layout:config.libraryLayout},false);
+    config.libraryLayout=mode;
     $('#btnAppearance').onclick=()=>{if($('#appearancePicker').open)return $('#appearancePicker').close();if($('#systemPicker').open)$('#systemPicker').close();AudioUI.play('open');$('#appearancePicker').showModal();$('#btnAppearance').setAttribute('aria-expanded','true');$('#layoutOptions [aria-pressed=true]').focus()};
     $('#closeAppearance').onclick=()=>$('#appearancePicker').close();
     $('#appearancePicker').addEventListener('close',()=>{$('#btnAppearance').setAttribute('aria-expanded','false');$('#btnAppearance').focus();AudioUI.play('back')});
@@ -57,14 +64,10 @@ const Appearance=(()=>{
     $('#appearancePicker').addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&!e.target.matches('input')){e.preventDefault();controller(e.key.slice(5).toLowerCase())}});
   }
   function syncBackground(){const current=Ambient.settings().background;for(const b of document.querySelectorAll('#backgroundOptions button'))b.setAttribute('aria-pressed',String(b.dataset.background===current))}
-  const RACK_TIERS=3;
-  function geometry(stage,selected,length){
-    if(mode==='bookshelf')return {lo:selected-26,hi:selected+26};
-    if(mode==='spinner'){const col=Math.floor(selected/RACK_TIERS);return {lo:(col-4)*RACK_TIERS,hi:(col+4)*RACK_TIERS+RACK_TIERS-1}}
-    if(mode!=='swatches')return {lo:selected-8,hi:selected+8};
-    const columns=Math.max(1,Math.min(stage.clientWidth>=1400?4:3,length||1)),rows=stage.clientHeight>=260?2:1,cells=columns*rows;
-    const start=Math.floor(selected/cells)*cells,width=Math.min(300,(stage.clientWidth-180-(columns-1)*16)/columns),height=Math.min(133,Math.max(78,(stage.clientHeight-58-(rows-1)*14)/rows));
-    return {lo:start,hi:Math.min(length-1,start+cells-1),columns,rows,width,height,start};
+  function geometry(selected,selectedHasDisc=false){
+    if(mode==='bookshelf')return {lo:selected-26,hi:selected+26,discPeek:selectedHasDisc?48:0};
+    const radius=mode==='page-turn'?3:8;
+    return {lo:selected-radius,hi:selected+radius};
   }
   // size(i) gives the [width, height, depth] of case i, so spines can stand side by side.
   function position(i,sel,scale,itemScale,stage,view,size=()=>[230,323,24]){
@@ -83,32 +86,27 @@ const Appearance=(()=>{
       const floor=Math.max(323*Math.max(scale*.6,h*.55/323)/2,h*.28);   // one floor for every case, whatever its own displayScale
       if(d===0){const [,H]=size(i);return {transform:`translate3d(0px,${floor-h*.04-H*ks/2}px,150px) scale3d(${ks},${ks},${ks})`,hidden:false}}
       const [Ws]=size(sel);let x=Ws*ks/2+26*k;
+      if(s>0)x+=view.discPeek*ks;
       for(let j=sel+s;j!==i;j+=s)x+=size(j)[2]*k+2*k;
       const [,H,D]=size(i);x+=D*k/2;
       return {transform:`translate3d(${s*x}px,${floor-H*k/2}px,0px) rotateY(90deg) scale3d(${k},${k},${k})`,hidden:x>stage.clientWidth/2+40};
     }
-    if(mode==='spinner') {
-      // A store tower: columns of three cases around a turning post; the selected case pops out.
-      const k=itemScale*.4,col=Math.floor(i/RACK_TIERS),tier=i%RACK_TIERS,dc=col-Math.floor(sel/RACK_TIERS);
-      const angle=dc*38,radius=330*scale,pitch=Math.min(330*k+12*scale,(stage.clientHeight-40)/RACK_TIERS);
-      const pop=d===0?70*scale:0,ks=d===0?k*1.12:k;
-      return {transform:`translate3d(0px,${(tier-1)*pitch}px,${-radius}px) rotateY(${angle}deg) translateZ(${radius+pop}px) scale3d(${ks},${ks},${ks})`,hidden:Math.abs(angle)>115,shade:Math.min(.75,Math.abs(angle)/120)};
+    if(mode==='page-turn'){
+      // Offset the case from its spine after rotation, so it turns across the gutter like a page.
+      const [width]=size(i),k=itemScale*(d===0?.94:.89);
+      const x=(-24+s*a*26)*scale,angle=d<0?-164-(a-1)*4:d>0?12+(a-1)*9:-8;
+      const z=d===0?90:40-a*32;
+      return {transform:`translate3d(${x}px,0px,${z}px) rotateY(${angle}deg) translateX(${width*k/2}px) scale(${k})`,hidden:a>3};
     }
-    if(mode==='swatches'){
-      const col=(i-view.start)%view.columns,row=Math.floor((i-view.start)/view.columns);
-      return {transform:`translate3d(${col*(view.width+16)-(view.columns*view.width+(view.columns-1)*16)/2}px,${row*(view.height+14)-(view.rows*view.height+(view.rows-1)*14)/2}px,0)`,hidden:i<view.lo||i>view.hi,width:view.width,height:view.height};
+    if(mode==='media'){
+      // The discs and cartridges themselves, out of their cases (library-ui.css hides the cases).
+      // A carousel like the first layout, a little tighter since the media is smaller than a case,
+      // and turned less so the discs on either side still read as discs.
+      return {transform:d===0?`translate3d(0px,-8px,140px) scale(${itemScale*1.05})`:`translate3d(${s*(270+(a-1)*150)*scale}px,10px,${-a*110-70}px) rotateY(${-s*38}deg) scale(${itemScale*.9})`,hidden:a>6};
     }
     if(mode==='vertical')return {transform:d===0?`translate3d(${85*scale}px,-8px,90px) scale(${itemScale*.91})`:`translate3d(${-235*scale}px,${d*Math.min(95*scale,stage.clientHeight*.17)}px,${-a*80}px) rotateY(12deg) scale(${itemScale*.40})`,hidden:a>(stage.clientHeight>300?2:1)};
     if(mode==='flipbook')return {transform:d===0?`translate3d(${-15*scale}px,-6px,100px) rotateY(-9deg) scale(${itemScale})`:`translate3d(${s*(275+(a-1)*37)*scale}px,${a*3}px,${-a*65}px) rotateY(${-s*62}deg) scale(${itemScale*.87})`,hidden:a>3};
     return {transform:d===0?`translate3d(0px,-8px,130px) scale(${itemScale})`:`translate3d(${s*(325+(a-1)*156)*scale}px,10px,${-a*115-85}px) rotateY(${-s*50}deg) scale(${itemScale*.92})`,hidden:a>6};
-  }
-  function card(game,a){
-    const card=document.createElement('div');card.className='swatch-card';card.setAttribute('aria-hidden','true');
-    const cover=EshopCovers.face(game,a,'swatch-cover'),copy=document.createElement('div');copy.className='swatch-copy';const title=document.createElement('strong');title.textContent=game.title;const system=document.createElement('small');system.textContent=a.sys.name;copy.append(title,system);card.append(cover,copy);
-    if(game._swatchSource!==a.front){game._swatchSource=a.front;delete game._swatchColor}
-    card.style.setProperty('--swatch-color',game._swatchColor||a.sys.color||'#554668');
-    if(!game._swatchColor)Art.tint(a.digital?.source||a.front,a.digital?.crop||a.packshot).then(color=>{if(game._swatchSource===a.front){game._swatchColor=color;card.style.setProperty('--swatch-color',color)}});
-    return card;
   }
   function controller(action){
     if(action==='back'||action==='systems')return $('#appearancePicker').close();
@@ -122,5 +120,5 @@ const Appearance=(()=>{
     else{row=Math.max(0,Math.min(rows.length-1,row+(action==='up'?-1:1)));col=Math.min(col,rows[row].length-1)}
     rows[row][col].focus();
   }
-  return {init,apply,persist,syncBackground,geometry,position,card,controller,mode:()=>mode,theme:()=>theme,panelOpen:()=>!!$('#appearancePicker')?.open,layouts,themes};
+  return {init,apply,persist,syncBackground,geometry,position,browsesVertically,controller,mode:()=>mode,theme:()=>theme,panelOpen:()=>!!$('#appearancePicker')?.open,layouts,themes};
 })();

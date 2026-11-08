@@ -111,26 +111,22 @@ html[data-view]:not([data-view=library]) header .toolbar { visibility:hidden; }
 #info .actions { gap: 8px; }
 
 /* ---- Bookshelf: spines standing side by side ---- */
-#rackPost { display: none; position: absolute; pointer-events: none; }
 html[data-layout=bookshelf] #floor { opacity: .35; }
-html[data-layout=bookshelf] .item .sway, html[data-layout=spinner] .item .sway { animation: none; transform: none; }
-html[data-layout=bookshelf] .item:not(.sel) .shadow, html[data-layout=spinner] .item .shadow { display: none; }
+html[data-layout=bookshelf] .item.sel .sway { animation: none; transform: none; }
+html[data-layout=bookshelf] .item:not(.sel) .shadow { display: none; }
 html[data-layout=bookshelf] .item { transition: transform .55s cubic-bezier(.2,.8,.2,1); }
-html[data-layout=bookshelf] .item:not(.sel):hover { filter: brightness(1.15); }
+html[data-layout=bookshelf] .item:not(.sel):hover .f-left::after { box-shadow: inset 0 0 0 100px #ffffff1a; }
+html[data-layout=bookshelf] .item.sel.media-revealed .disc-model {
+  /* Keep the disc in the gap beside the selected case, clear of adjacent spines. */
+  --media-out: calc((var(--w) - var(--mw)) / 2 + var(--bookshelf-disc-peek));
+  transform: translate3d(var(--media-out), calc(var(--h) * -.02), var(--media-back));
+}
 
-/* ---- Spinner rack: a turning store tower ---- */
-html[data-layout=spinner] #rackPost { display: block; left: calc(50% - 7px); width: 14px; top: 4%; bottom: 6%;
-  background: linear-gradient(90deg, #2a2e36, #9aa3b0 45%, #3a3f48); border-radius: 7px; box-shadow: 0 30px 50px -10px #000c;
-  transform: translateZ(-330px); }
-html[data-layout=spinner] .item { transition: transform .7s cubic-bezier(.25,.8,.25,1), filter .5s; filter: brightness(calc(1 - var(--rack-shade, 0))); }
-html[data-layout=spinner] .item.sel { filter: drop-shadow(0 18px 24px #000b); }
 
 /* Layout picker thumbnails for the new modes */
 .layout-mini[data-kind=bookshelf] { align-items: flex-end; gap: 1px; padding-bottom: 9px; }
 .layout-mini[data-kind=bookshelf] i { width: 5px !important; height: 30px !important; transform: none !important; border-radius: 1px; }
 .layout-mini[data-kind=bookshelf] i:nth-child(2) { width: 16px !important; height: 34px !important; }
-.layout-mini[data-kind=spinner] i { width: 14px !important; height: 11px !important; border-radius: 1px; }
-.layout-mini[data-kind=spinner] { flex-direction: column; gap: 3px; }
 
 /* Six layouts: three per row with shorter previews, so the panel still fits small windows. */
 .layout-options { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -198,9 +194,6 @@ select option, select optgroup { background-color: #151a22; color: #e8ebf2; }
 .manual-viewer-bar button { border-radius: 7px; padding: 6px 12px; font-size: 12px; background: #ffffff0a; border: 1px solid #ffffff18; }
 .manual-viewer-bar kbd { font-size: 10px; opacity: .7; margin-right: 4px; }
 #manualFrame { flex: 1; width: 100%; border: 0; background: #2a2d33; }
-
-/* Bookshelf and Spinner rack: the disc/cartridge stays in its case (it would cover the neighbours). */
-html:is([data-layout=bookshelf],[data-layout=spinner]) .item.sel.media-revealed .physical-media { visibility: hidden; transform: none; }
 
 /* ---- PYROCADE folds to PC after start-up; hovering spells it out again ---- */
 .brand-word { white-space: nowrap; transition: letter-spacing .8s cubic-bezier(.6,0,.2,1); }

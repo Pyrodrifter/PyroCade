@@ -27,11 +27,11 @@ app.whenReady().then(async () => {
       await snap(file);
     };
     await library('carousel', 'ember', 1, 'screen-carousel.jpg');
-    // Shelf views look best full: repeat the demo games for these two shots.
+    // Bookshelf looks best full: repeat the demo games to fill the shelf.
     await js(`window.__demo=S.games;S.games=[0,1,2,3].flatMap(k=>window.__demo.map(g=>({...g,id:g.id+'#'+k,media:{...g.media},info:{...g.info}})));setSystem('all');await pause(300);`);
     await library('bookshelf', 'glacier', 20, 'screen-bookshelf.jpg');
-    await library('spinner', 'violet', 19, 'screen-spinner.jpg');
     await js(`S.games=window.__demo;setSystem('all');await pause(300);`);
+    await library('page-turn', 'violet', 5, 'screen-page-turn.jpg');
     await js(`Appearance.apply({layout:'carousel',theme:'ember'},false);select(1);await pause(900);await openCase();await pause(2300);CV.ry=26;rig();await pause(300);`);
     await snap('screen-case.jpg');
     await js(`closeCase();await pause(700);launchFx(S.list.find(g=>sysOf(g.system).media==='cart'));await pause(2700);`);

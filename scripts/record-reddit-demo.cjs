@@ -32,7 +32,7 @@ app.whenReady().then(async()=>{
     }
     encoder.stdin.end();const [exitCode]=await finished;fs.closeSync(log);if(exitCode!==0)throw new Error('Video encoder failed: '+exitCode);
     const result=await recording;fs.writeFileSync(path.join(out,'ui-audio.webm'),Buffer.from(result.audio,'base64'));
-    fs.writeFileSync(path.join(out,'capture-info.json'),JSON.stringify({frames,paintCount,elapsedMs:result.elapsed,resolution:[width,height],fps:30,scenes:['Carousel and cartridge reveal','Open and rotate a Switch 2 case','Vertical stack / Glacier','Flipbook / Violet','Colour cards / Mint','Themes and sound controls','Feedback end card']},null,2));
+    fs.writeFileSync(path.join(out,'capture-info.json'),JSON.stringify({frames,paintCount,elapsedMs:result.elapsed,resolution:[width,height],fps:30,scenes:['Carousel and cartridge reveal','Open and rotate a Switch 2 case','Vertical stack / Glacier','Flipbook / Violet','Media carousel / Mint','Themes and sound controls','Feedback end card']},null,2));
     console.log(`Captured ${frames} frames and UI audio. Encoding upload file…`);
     const final=path.join(root,'output/PyroCade-Reddit-Demo.mp4');
     const mux=spawn('ffmpeg',['-hide_banner','-loglevel','warning','-y','-i',video,'-i',path.join(out,'ui-audio.webm'),'-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','aac','-b:a','128k','-af','aresample=async=1:first_pts=0,apad,volume=2.4,afade=t=in:st=0:d=0.15,afade=t=out:st=34.3:d=0.7','-t','35','-movflags','+faststart','-metadata','title=PyroCade — emulator frontend showcase',final],{windowsHide:true,stdio:'ignore'});

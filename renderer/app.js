@@ -30,16 +30,25 @@ const sysOf = id => S.config.systems.find(s => s.id === id) || { id, name: id, c
 const toast = (m, ms = 3200) => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), ms); };
 
 function physicalSystem(game) {
-  const sys=sysOf(game.system);if(!game.mediaType)return sys;
+  const sys=sysOf(game.system);
+  if(!game.mediaType){
+    if(sys.id!=='snes')return sys;
+    // Super Famicom boxes came in both orientations. Prefer the scan over the ROM's region.
+    const aspect=game._aspect;
+    if(aspect>1.6)return {...sys,packaging:'superfamicom-wide'};
+    if(aspect ? aspect<.95 : regionOf(game)==='Japan')return {...sys,packaging:'superfamicom-tall'};
+    return sys;
+  }
   if(game.mediaType==='disc')return {...sys,id:'physical-disc',media:'disc',caseType:'dvd'};
   const profiles={switch:'switch',switch2:'switch',gba:'cartbox',n64:'bigbox',nds:'ds'};
   return {...sys,id:game.mediaType,media:'cart',caseType:profiles[game.mediaType]||sys.caseType};
 }
 function art(game) {
   const sys = physicalSystem(game);
-  let [W, H, D] = Packaging.profiles[sys.id]?.size || CASES[sys.caseType] || CASES.dvd;
+  const standardSize = Packaging.size(sys);
+  let [W, H, D] = standardSize || CASES[sys.caseType] || CASES.dvd;
   // Recognised systems retain their physical case proportions regardless of scan margins.
-  if (game._aspect && !Packaging.profiles[sys.id]) {
+  if (game._aspect && !standardSize) {
     const area = W * H, a = Math.max(.55, Math.min(1.6, game._aspect));
     W = Math.round(Math.sqrt(area * a)); H = Math.round(W / a);
   }
@@ -567,7 +576,14 @@ function revealSelection(delay = 720) {
   revealId = game?.id || null;
   if (!game) return;
   const selected = revealNode = items.get(S.sel);
-  const reveal = () => { if (S.list[S.sel]?.id === game.id && selected?.isConnected) selected.classList.add('media-revealed'); };
+  const reveal = () => {
+    if (S.list[S.sel]?.id !== game.id || !selected?.isConnected) return;
+    if (modelsEnabled() && Appearance.mode()==='bookshelf' && !hasShell(physicalSystem(game))) {
+      const sway = selected.querySelector('.sway');
+      if (!sway.querySelector('.disc-model')) sway.prepend(createMedia(game, art(game)));
+    }
+    selected.classList.add('media-revealed');
+  };
   if ($('#carousel').classList.contains('shelf-transfer') || shelfTransition) return;
   if (document.documentElement.dataset.motion === 'reduced') reveal();
   else revealTimer = setTimeout(reveal,delay);
@@ -587,6 +603,7 @@ function buildBox(game, cls = '') {
   const a = art(game);
   const box = el('div', `box ${a.sys.caseType} ${cls}`);
   box.style.cssText = `--w:${a.W}px;--h:${a.H}px;--d:${a.D}px`;
+  if (a.sys.id === 'snes') box.dataset.packaging = a.sys.packaging || a.sys.id;
   if(!modelsEnabled()){box.classList.add('flat-cover');box.append(EshopCovers.face(game,a,'f-front'));return {box,a};}
   Packaging.decorate(box,a);
   const face = (c, img) => { const f = el('div', 'face ' + c); if (img) f.style.backgroundImage = `url("${img}")`; return f; };
@@ -603,12 +620,14 @@ function fillItem(it, game) {
   it.style.setProperty('--w',a.W+'px'); it.style.setProperty('--h',a.H+'px'); it.style.setProperty('--d',a.D+'px');
   const sway = el('div', 'sway');
   if(!modelsEnabled()){sway.append(box);it.replaceChildren(sway);return;}
-  if (!['bookshelf', 'spinner'].includes(Appearance.mode())) sway.append(createMedia(game, a));
+  const mode = Appearance.mode();
+  if (mode !== 'bookshelf' || (it.classList.contains('media-revealed') && !hasShell(a.sys))) {
+    sway.append(createMedia(game, a));
+  }
   sway.append(box);
   const reflection=el('div','ground-reflection');reflection.setAttribute('aria-hidden','true');reflection.append(EshopCovers.face(game,a,'reflection-cover'));sway.append(reflection);
   const sh = el('div', 'shadow'); sh.style.top = a.H + 'px';
   it.replaceChildren(sway, sh);
-  if(Appearance.mode()==='swatches')it.append(Appearance.card(game,a));
 }
 
 function makeItem(i) {
@@ -658,7 +677,7 @@ function measure(game) {
     // each side. Measured once, the cover fills the case front and the cartridge label instead of
     // being letterboxed. packshot() returns null unless it really finds those bars, so a normal
     // cover on any system is left exactly as it is.
-    game._packshot=EshopCovers.packshot(img);
+    game._packshot=game.system==='snes'?null:EshopCovers.packshot(img);
     game._aspect=img.naturalWidth/img.naturalHeight*(game._packshot?.w||1);
     game._eShop=['switch','switch2'].includes(game.system)?EshopCovers.analyze(img):null;
     if(game._eShop) {
@@ -711,7 +730,7 @@ function updateArtwork(result) {
 function caseSize(i) {
   const g = S.list[i]; if (!g) return [230, 323, 24];
   const sys = physicalSystem(g);
-  return Packaging.profiles[sys.id]?.size || CASES[sys.caseType] || CASES.dvd;
+  return Packaging.size(sys) || CASES[sys.caseType] || CASES.dvd;
 }
 function layout() {
   const stage = $('#stage');
@@ -719,10 +738,24 @@ function layout() {
   const stageSize = { clientWidth: stage.clientWidth, clientHeight: stage.clientHeight };
   const scaleLimit = document.documentElement.dataset.infoBar === 'hidden' ? 1.32 : 1.16;
   const scale = Math.max(.35,Math.min(scaleLimit,(stageSize.clientHeight - 66) / 350, (innerWidth - 240) / 900));
-  const view=modelsEnabled()?Appearance.geometry(stageSize,S.sel,S.list.length):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
+  const selected = S.list[S.sel];
+  const bookshelfDisc = Appearance.mode()==='bookshelf' && !!selected && !hasShell(physicalSystem(selected));
+  const view=modelsEnabled()?Appearance.geometry(S.sel,bookshelfDisc):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
+  if(view.discPeek!=null)stage.style.setProperty('--bookshelf-disc-peek',view.discPeek+'px');
   const entering = [];
   const transferring = $('#carousel').classList.contains('shelf-transfer');
-  for (const [i, e] of items) if (i < lo - (modelsEnabled()?2:0) || i > hi + (modelsEnabled()?2:0)) { e.remove(); items.delete(i); }
+  const retained = modelsEnabled() ? 2 : 0;
+  for (const [i, e] of items) {
+    if (i < lo - retained || i > hi + retained) {
+      e.remove();
+      items.delete(i);
+    } else if (i < lo || i > hi) {
+      e.classList.add('far');
+      e.classList.remove('sel');
+      e.setAttribute('aria-hidden', 'true');
+      e.setAttribute('aria-selected', 'false');
+    }
+  }
   for (let i = Math.max(0, lo); i <= Math.min(S.list.length - 1, hi); i++) {
     let e = items.get(i);
     const fresh = !e;
@@ -730,8 +763,6 @@ function layout() {
     const d = i - S.sel, a = Math.abs(d);
     const itemScale = scale * Number(e.dataset.displayScale || 1);
     const placement=modelsEnabled()?Appearance.position(i,S.sel,scale,itemScale,stageSize,view,caseSize):{transform:`translate(${d*270*scale}px,0px) scale(${itemScale*(d===0?1:.7)})`,hidden:a>2},t=placement.transform;
-    e.style.setProperty('--rack-shade',placement.shade||0);
-    e.style.width=(placement.width||caseSize(i)[0])+'px';e.style.height=(placement.height||caseSize(i)[1])+'px';
     if (fresh && !transferring) {
       e.style.transition = 'none';
       e.style.transform = t + ' translateY(40px)';
@@ -852,7 +883,7 @@ function navigateGame(dir) {
     { transform: 'translateX(' + (-dir * distance) + 'px)' }
   ], options);
   const selected = items.get(S.sel);
-  const face = selected.querySelector('.swatch-cover, .f-front') || selected;
+  const face = selected.querySelector('.f-front') || selected;
   let startScale = .25, startX = dir * distance, startY = 0;
   carousel.style.transformOrigin = '0 0';
   if (peek?.width && peek.height) {
@@ -1882,7 +1913,7 @@ $('#stage').addEventListener('pointerleave',()=>{
 let wheelAt = 0;
 $('#stage').addEventListener('wheel', e => {
   const delta = Math.abs(e.deltaX)>Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-  if (Math.abs(delta)>12 && performance.now()-wheelAt>170) { const step=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+Math.sign(delta)*step); wheelAt=performance.now(); }
+  if (Math.abs(delta)>12 && performance.now()-wheelAt>170) { select(S.sel+Math.sign(delta)); wheelAt=performance.now(); }
 }, { passive: true });
 
 const libraryActive = () => $('#view-library').classList.contains('active');
@@ -1926,7 +1957,7 @@ function input(action) {
   }
   if (!libraryActive()) return;
   if(action==='sysprev'||action==='sysnext'){cycleSystem(action==='sysprev'?-1:1);return;}
-  if(['up','down'].includes(action)&&['vertical','swatches'].includes(Appearance.mode())){const delta=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+(action==='up'?-delta:delta));return;}
+  if(['up','down'].includes(action)&&Appearance.browsesVertically()){select(S.sel+(action==='up'?-1:1));return;}
   ({ left: () => navigateGame(-1), right: () => navigateGame(1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
      play: () => play(), case: openCase, manual: () => manual(), favorite: () => toggleFavorite(), hide: () => toggleHidden(), random: randomGame, pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
 }
@@ -2096,7 +2127,7 @@ function pollPad(now) {
     } else { pad.quitSince = 0; pad.quitSent = false; }
     for (const [k, v] of Object.entries(st)) {
       if (playing || quitCombo) { pad.held[k] = v; continue; }
-      const repeat = ['left', 'right'].includes(k)||(['up','down'].includes(k)&&(LibraryUI.pickerOpen()||Appearance.panelOpen()||['vertical','swatches'].includes(Appearance.mode())));
+      const repeat = ['left', 'right'].includes(k)||(['up','down'].includes(k)&&(LibraryUI.pickerOpen()||Appearance.panelOpen()||Appearance.browsesVertically()));
       if (v && !woke && (!pad.held[k] || (repeat && now > pad.next[k]))) { input(k); pad.next[k] = now + (pad.held[k] ? 90 : 380); }
       pad.held[k] = v;
     }

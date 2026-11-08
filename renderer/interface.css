@@ -130,14 +130,6 @@ header .toolbar { border-color: var(--line); }
 #info .actions button { white-space: nowrap; }
 #info .shot { border-radius: var(--radius); box-shadow: none; }
 #gShot.shot-empty { background: var(--field); border-color: var(--control-line); }
-html[data-layout=swatches] .swatch-card {
-  background: color-mix(in srgb, var(--swatch-color, var(--accent)) 16%, var(--surface));
-  border-color: var(--line);
-  border-radius: var(--radius);
-  box-shadow: none;
-}
-html[data-layout=swatches] .item.sel .swatch-card { border-color: var(--accent); box-shadow: none; }
-.swatch-copy small { color: var(--muted); }
 
 /* Management screens */
 #view-emus, #view-artwork, #view-settings {

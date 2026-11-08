@@ -56,9 +56,9 @@
     await at(14,()=>select(S.sel+1));await at(15.5,()=>select(S.sel+1));
     await at(17,()=>{Appearance.apply({theme:'violet',layout:'flipbook'},false);label('Flipbook','Turn through your favourites.','A little shelf magic with every selection.')});
     await at(18.3,()=>select(S.sel+1));await at(19.5,()=>select(S.sel+1));await at(20.7,()=>select(S.sel+1));
-    await at(22,()=>{Appearance.apply({theme:'mint',layout:'swatches'},false);select(0);label('Colour cards','A palette from every cover.','A compact grid, coloured by the games themselves.')});
+    await at(22,()=>{Appearance.apply({theme:'mint',layout:'media'},false);select(4);label('Media carousel','The games themselves.','Discs and cartridges, out of their cases.')});
     await at(24,()=>select(5));await at(25.5,()=>select(6));
-    await at(27,()=>{document.querySelector('#btnAppearance').click();label('Make it yours','Four views. Five moods.','Themes, layouts and playful UI sounds.','top-left')});
+    await at(27,()=>{document.querySelector('#btnAppearance').click();label('Appearance','Six layouts and five themes.','Choose a layout, colours and sounds.','top-left')});
     await at(28,()=>{Appearance.apply({theme:'rose'},false);AudioUI.play('confirm')});
     await at(29.2,()=>{Appearance.apply({theme:'glacier'},false);AudioUI.play('confirm')});
     await at(30.6,()=>{document.querySelector('#appearancePicker').close();Appearance.apply({theme:'ember',layout:'carousel'},false);S.sel=Math.max(0,S.list.findIndex(g=>g.title.includes('Super Mario Bros. Wonder')));layout();showInfo();caption.remove()});

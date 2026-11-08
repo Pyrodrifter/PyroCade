@@ -58,10 +58,76 @@ app.whenReady().then(async()=>{
     await run(`select(0);await pause(1700);finish();`);
     await snap('carousel-disc-demo.png');
     step('opening the case viewer');
-    await run(`await openCase();await pause(1900);finish();`);
+    await run(`
+      await openCase();await pause(1900);finish();
+      const spine = document.querySelector('#caseRig .case-spine');
+      const lid = document.querySelector('#caseRig .lid');
+      assert(spine?.querySelector('.f-left[data-spine]') && spine.querySelector('.case-spine-inner'), 'Case hinge lost its printed spine or inner panel');
+      const spineMatrix = new DOMMatrix(getComputedStyle(spine).transform);
+      const edge = spineMatrix.transformPoint({x:spine.offsetWidth});
+      const hinge = new DOMMatrix(getComputedStyle(lid).transform).transformPoint({});
+      assert(Math.hypot(edge.x-hinge.x, edge.z-hinge.z)<.1, 'Opened lid disconnected from the spine');
+    `);
     await snap('carousel-case-viewer.png');
     step('closing the case viewer');
     await run(`closeCase();`);
+    step('checking the Bookshelf disc and hover');
+    const hover = await run(`
+      Appearance.apply({layout:'bookshelf'},false);
+      await until(()=>document.querySelector('.item.sel.media-revealed .disc-rotor'),'Bookshelf disc did not reveal');
+      finish();
+      const disc = document.querySelector('.item.sel .disc-model');
+      const discStyle = getComputedStyle(disc);
+      const box = disc.closest('.item').querySelector('.box');
+      const peek = new DOMMatrix(discStyle.transform).m41 - (box.offsetWidth-disc.offsetWidth)/2;
+      assert(discStyle.visibility==='visible' && peek>=47,'Bookshelf disc does not extend far enough past the case');
+      assert(getComputedStyle(disc.firstChild).animationDuration==='120s','Bookshelf disc should take two minutes per turn');
+      for(const spine of document.querySelectorAll('.item:not(.sel,.far) .f-left')){
+        const bounds = spine.getBoundingClientRect();
+        const x = Math.round(bounds.x+bounds.width/2), y = Math.round(bounds.y+bounds.height/2);
+        const item = spine.closest('.item');
+        if(document.elementFromPoint(x,y)?.closest('.item')===item) return {x,y,id:item.id};
+      }
+      throw new Error('No Bookshelf spine could be hit-tested');
+    `);
+    win.webContents.sendInputEvent({type:'mouseMove',x:hover.x,y:hover.y});
+    await run(`
+      const {x,y,id} = ${JSON.stringify(hover)};
+      const item = document.getElementById(id);
+      await until(()=>item.matches(':hover'),'Bookshelf spine did not receive mouse hover');
+      assert(getComputedStyle(item).filter==='none','Hover flattens the Bookshelf case');
+      for(let frame=0;frame<4;frame++){
+        await new Promise(requestAnimationFrame);
+        assert(document.elementFromPoint(x,y)?.closest('.item')===item,'Hover changed the Bookshelf hit target');
+      }
+      applyMotion('reduced');
+      assert(getComputedStyle(document.querySelector('.item.sel .disc-rotor')).animationName==='none','Bookshelf disc spins in reduced motion');
+      Appearance.apply({layout:'carousel'},false);
+      applyMotion('full');
+    `);
+    step('checking Super Famicom cover proportions');
+    await run(`
+      const originalGames = S.games;
+      const system = {id:'snes',name:'Super Nintendo',caseType:'bigbox',media:'cart'};
+      S.config.systems.push(system);
+      const cover = (width,height) => {
+        const canvas = document.createElement('canvas');
+        canvas.width=width;canvas.height=height;
+        return canvas.toDataURL();
+      };
+      const fixture = (id,base,width,height) => ({id,base,title:id,system:'snes',media:{front:cover(width,height)},info:{},demo:true});
+      S.games=[fixture('Tall','Tall (Japan)',55,100),fixture('Wide','Wide',183,100),fixture('Standard','Standard (USA)',141,100)];
+      setSystem('snes');
+      await until(()=>S.games.every(game=>game._aspect),'SNES covers were not measured');
+      for(const [game,expected] of S.games.map((game,i)=>[game,['superfamicom-tall','superfamicom-wide','snes'][i]])){
+        const box = [...items.values()].find(node=>node.dataset.id===game.id).querySelector('.box');
+        assert(box.dataset.packaging===expected,'Wrong box shape for '+game.title);
+        assert(getComputedStyle(box.querySelector('.f-front')).backgroundSize==='contain','Cover is stretched for '+game.title);
+      }
+      S.config.systems.pop();
+      S.games=originalGames;
+      setSystem('all');select(0);
+    `);
     step('checking navigation, focus, motion and empty search');
     await run(`
       // Browse quickly: pending media from earlier selections must never pop out later.
@@ -106,7 +172,7 @@ app.whenReady().then(async()=>{
     await run('await pause(3300);');
     await snap('carousel-minimum-window.png');
     if(errors.length)throw new Error(errors.join('\n'));
-    console.log('Passed: disc/cartridge reveal, six box faces, depth, fast navigation, case lifecycle, dialog focus, reduced motion, empty search, minimum layout, persisted motion preference.');
+    console.log('Passed: disc/cartridge reveal, Bookshelf hover, case depth and hinge, Super Famicom proportions, fast navigation, case lifecycle, dialog focus, reduced motion, empty search and minimum layout.');
     clearTimeout(watchdog);app.exit(0);
   }catch(e){console.error(e);app.exit(1)}
 });

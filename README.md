@@ -10,16 +10,16 @@ An emulator launcher for Windows, macOS and Linux. Browse your library as 3D gam
 
 The screenshots show the current source build. The GameCube shelf has **Shrek 2**, **Shrek Extra Large**, **Shrek Super Party**, **Shrek SuperSlam** and **Shrek: Smash n’ Crash Racing**. Press **/** and type **shrek** on the GameCube shelf to find them, or switch to **All games** to search across systems. That also turns up **Shrek: Swamp Kart Speedway** on Game Boy Advance and **Shrek: Ogres & Dronkeys** on Nintendo DS.
 
-| Bookshelf | Spinner rack |
+| Bookshelf | Page turn |
 | --- | --- |
-| ![Shrek Super Party pulled out of a row of GameCube spines with details hidden](docs/media/screen-bookshelf.jpg) | ![Shrek the Third on a Nintendo DS spinner rack](docs/media/screen-spinner.jpg) |
+| ![Shrek Super Party pulled out of a row of GameCube spines with details hidden](docs/media/screen-bookshelf.jpg) | ![Shrek GameCube cases arranged like open book pages in Page turn](docs/media/screen-page-turn.jpg) |
 | **Open the case** | **Manuals** |
 | ![The open Smash n’ Crash Racing case with its GameCube mini disc](docs/media/screen-case.jpg) | ![The Shrek SuperSlam booklet with its manual ready to open](docs/media/screen-manual.jpg) |
 | **Artwork** | **Emulators** |
 | ![Artwork options for Smash n’ Crash Racing](docs/media/screen-artwork.jpg) | ![Emulator catalog with install, link and update controls](docs/media/screen-emulators.jpg) |
 
 ## Features
-- **Six library layouts.** Choose Carousel, Bookshelf, Spinner rack, Vertical stack, Flipbook or Colour cards in **View & theme**. Pick an accent colour and background there too.
+- **Six library layouts.** Choose Carousel, Bookshelf, Vertical stack, Flipbook, Page turn or Media carousel in **View & theme**. Page turn swings cases across a spine. Media carousel shows each game's disc or cartridge instead of its case. Pick an accent colour and background there too.
 - **Physical games.**
   - Each system gets its own case, from jewel cases, DVD cases and Switch cases to cardboard boxes.
   - Discs slide out of the selected case, and cartridges rise above the cover so you can see the label.
@@ -84,7 +84,7 @@ On Linux, data lives in `~/.config/PyroCade/data` and the emulator downloader in
 3. **Artwork:** choose **Entire library** and **Download artwork**. The first download fetches LaunchBox's game list once (about 100 MB, refreshed monthly). Turn on **Replace low-resolution covers** to sharpen art you already have.
 
 **Controls:**
-- **Keyboard:** ← → browse, ↑ ↓ switch system, **Enter** play, **Space** open the case, **M** manual, **F** favourite, **Delete** hide, **/** search, **Ctrl+K** all systems, **I** show or hide details, **O** toggle the overlay, **F11** (or **Ctrl/Cmd+Shift+F**) fullscreen.
+- **Keyboard:** ← → browse, ↑ ↓ switch system or browse in Vertical stack, **Enter** play, **Space** open the case, **M** manual, **F** favourite, **Delete** hide, **/** search, **Ctrl+K** all systems, **I** show or hide details, **O** toggle the overlay, **F11** (or **Ctrl/Cmd+Shift+F**) fullscreen.
 - **Mouse:** click a game to select it, click it again to open the case, **right-click** for its menu.
 - **Controllers:** the matching buttons work, LB/RB switch system, Select stars a game and the left stick button picks a random one. While a game is running, hold **Select + Start** for 1.5 seconds to close it.
 

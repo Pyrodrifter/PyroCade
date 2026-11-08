@@ -32,14 +32,42 @@ app.whenReady().then(async()=>{
     `);
     await snap('ui-appearance-panel.png');
     await run(`document.querySelector('#appearancePicker').close();await pause(30);`);
+    await run(`
+      for(const [retired,replacement] of [['spinner','page-turn'],['swatches','media'],['top-flip','media']]){
+        assert(!document.querySelector('#layoutOptions [data-layout="'+retired+'"]'),'Retired layout remains in the picker');
+        Appearance.apply({layout:retired},false);
+        assert(Appearance.mode()===replacement,'Saved layout did not migrate to '+replacement);
+      }
+    `);
     const themes=['ember','glacier','violet','mint'];let index=0;
-    for(const layout of ['carousel','vertical','flipbook','bookshelf','spinner','swatches']){
+    const layouts=['carousel','vertical','flipbook','bookshelf','page-turn','media'];
+    for(const layout of layouts){
       await run(`
-        setSystem('switch');select(3);Appearance.apply({layout:'${layout}',theme:'${themes[index++]}' });await Appearance.persist();await pause(100);
+        setSystem('switch');select(3);Appearance.apply({layout:'${layout}',theme:'${themes[index++%themes.length]}' });await Appearance.persist();await pause(100);
         assert(document.documentElement.dataset.layout==='${layout}','Layout did not apply');
         assert(S.config.libraryLayout==='${layout}','Layout was not persisted');assert(document.querySelector('.item.sel'),'Selection was lost');
-        if('${layout}'==='vertical'){const old=S.sel;input('down');assert(S.sel===old+1,'Vertical input does not move down');input('up')}
-        if('${layout}'==='swatches'){const old=S.sel,cols=Appearance.geometry(document.querySelector('#stage'),S.sel,S.list.length).columns;input('down');assert(S.sel===old+cols,'Grid input does not move by a row');input('up');assert(document.querySelectorAll('.item:not(.far) .swatch-card').length>1,'Colour cards did not render');}
+        if('${layout}'==='vertical'){const old=S.sel;input('down');assert(S.sel===old+1,'Vertical input does not move down');input('up');assert(S.sel===old,'Vertical input does not move up')}
+        if('${layout}'==='page-turn'){
+          const old=S.sel,outgoing=items.get(old);
+          input('right');
+          assert(S.sel===old+1,'Page turn did not advance to the next case');
+          let pose;
+          for(let i=0;i<60;i++){
+            pose=new DOMMatrix(getComputedStyle(outgoing).transform);
+            if(pose.m11<0)break;
+            await pause(16);
+          }
+          assert(pose.m11<0,'Page turn did not swing the outgoing case across the spine: '+outgoing.style.transform);
+          input('left');await pause(40);
+        }
+        if('${layout}'==='media'){
+          // Discs and cartridges instead of cases: each game shows its media, never its case.
+          const sel=document.querySelector('.item.sel'),old=S.sel;
+          assert(getComputedStyle(sel.querySelector('.box')).display==='none','Media carousel still shows the case');
+          const media=sel.querySelector('.physical-media');assert(media&&getComputedStyle(media).visibility==='visible','Media carousel does not show the disc or cartridge');
+          for(const item of document.querySelectorAll('.item:not(.far)'))assert(getComputedStyle(item.querySelector('.physical-media')).visibility==='visible','A neighbouring disc or cartridge is hidden');
+          input('right');assert(S.sel===old+1,'Media carousel did not move right');input('left');assert(S.sel===old,'Media carousel did not move left');
+        }
         const p=document.querySelector('.item.sel').getBoundingClientRect(),info=document.querySelector('#info').getBoundingClientRect();assert(p.bottom<info.top+2,'Selected preview overlaps game details in ${layout}');
       `);
       await snap('ui-layout-'+layout+'.png');
@@ -48,10 +76,10 @@ app.whenReady().then(async()=>{
       for(const theme of Object.keys(Appearance.themes)){Appearance.apply({theme});assert(document.documentElement.dataset.theme===theme,'Theme did not apply');assert(document.documentElement.style.getPropertyValue('--accent')===Appearance.themes[theme].accent,'Theme accent did not change');}
       document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'/',bubbles:true}));assert(document.activeElement.id==='search','Slash did not focus search');
       const search=document.querySelector('#search');search.value='no-match-fixture';search.dispatchEvent(new Event('input'));await pause(180);assert(!S.list.length&&!document.querySelector('#clearSearch').classList.contains('hidden'),'Search clear control missing');document.querySelector('#clearSearch').click();await pause(180);assert(S.list.length===${fixtures.length},'Clear search did not restore the collection');
-      await openCase();assert(caseShown()&&document.querySelector('#caseRig .case'),'Colour cards cannot open the physical case');closeCase();
+      await openCase();assert(caseShown()&&document.querySelector('#caseRig .case'),'The last layout cannot open the physical case');closeCase();
     `);
     win.setContentSize(1100,650);
-    for(const layout of ['carousel','vertical','flipbook','bookshelf','spinner','swatches'])await run(`
+    for(const layout of layouts)await run(`
       Appearance.apply({layout:'${layout}'},false);resizeShelf();layout();await pause(60);
       const toolbar=document.querySelector('.toolbar').getBoundingClientRect(),stage=document.querySelector('#stage').getBoundingClientRect(),info=document.querySelector('#info').getBoundingClientRect();
       assert(toolbar.bottom<stage.top+10,'System bar overlaps preview at minimum size');assert(stage.bottom<info.top,'Preview overlaps details at minimum size');

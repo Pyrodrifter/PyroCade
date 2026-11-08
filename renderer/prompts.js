@@ -26,8 +26,8 @@ const Prompts = (() => {
       [family,['left-stick-horizontal'],'Browse'],[family,['lb','rb'],'System'],[family,['south'],'Play'],
       [family,['north'],'Open case'],[family,['west'],'Manual'],[family,['select'],'Favourite'],[family,['left-stick-press'],'Random'],[family,['lt','rt'],'Jump 10']
     ];
-    if(['vertical','swatches'].includes(layout)){
-      groups[0]=keyboard?['keyboard',layout==='vertical'?['up','down']:['left','right','up','down'],'Browse']:[family,[layout==='vertical'?'left-stick-vertical':'left-stick'],'Browse'];
+    if(Appearance.browsesVertically(layout)){
+      groups[0]=keyboard?['keyboard',['up','down'],'Browse']:[family,['left-stick-vertical'],'Browse'];
       if(keyboard)groups[1]=['keyboard',['ctrl','k'],'Systems'];
     }
     return groups.map(g=>hint(...g)).join('');

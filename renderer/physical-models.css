@@ -58,7 +58,6 @@ html[data-models='off'] :is(#stage,.model-stage) { perspective: none; }
 html[data-models='off'] :is(.item,.item .sway,.flat-cover,.flat-case,#caseRig) { transform-style: flat; }
 html[data-models='off'] .item .sway { transform: none !important; animation: none !important; }
 html[data-models='off'] .item .sway { display: block !important; }
-html[data-models='off'] .swatch-card { display: none !important; }
 html[data-models='off'] .item { filter: none !important; }
 html[data-models='off'] .flat-cover { display: block !important; }
 html[data-models='off'] .flat-cover .f-front { transform: none; }

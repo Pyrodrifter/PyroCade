@@ -113,7 +113,10 @@ const Cartridges=(()=>{
       part.root.style.transform=`translate3d(${left}px,${top}px,${depth/2+d/2-.1}px)`;body.append(part.root);return part;
     };
     const rib=(...args)=>{const part=relief(...args);part.root.classList.add('cartridge-rib');return part};
-    let labelZ=depth/2+.12;
+    // The label and its well stand a little clear of the face (.6px and .3px). At a tenth of a
+    // pixel the browser could not tell them from the face at an angle and drew the plain face over
+    // them, so labels went blank as cartridges turned (most visibly in the media carousel).
+    let labelZ=depth/2+.6;
     if(system==='nes'){
       relief(16,1,20,98,.6);
       for(let i=0;i<37;i++)rib(16.5,2+i*2.57,19,1.55,.95);
@@ -143,7 +146,7 @@ const Cartridges=(()=>{
     }
     const label=document.createElement('div');label.className='cartridge-label';const [x,y,w,h]=p.label;
     label.style.cssText=`left:${x}%;top:${y}%;width:${w}%;height:${h}%`+(p.labelClip?`;clip-path:polygon(${p.labelClip});border-radius:0`:'');
-    const well=document.createElement('div');well.className='cartridge-label-well';well.style.cssText=`left:${x-.8}%;top:${y-.7}%;width:${w+1.6}%;height:${h+1.4}%;transform:translateZ(${labelZ-.05}px)`;
+    const well=document.createElement('div');well.className='cartridge-label-well';well.style.cssText=`left:${x-.8}%;top:${y-.7}%;width:${w+1.6}%;height:${h+1.4}%;transform:translateZ(${labelZ-.3}px)`;
     if(p.labelClip)well.style.clipPath=`polygon(${p.labelClip})`;
     label.style.transform=`translateZ(${labelZ}px)`;label.style.backfaceVisibility='hidden';well.style.backfaceVisibility='hidden';
     body.append(well,label);

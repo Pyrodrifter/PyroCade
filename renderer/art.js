@@ -174,7 +174,7 @@ const Art = (() => {
   }
 
   function manual(game, sys, frontUrl, W, H) {
-    return memo('m' + JSON.stringify([game.id, game.title, sys.id]), () => new Promise(res => {
+    return memo('m' + JSON.stringify([game.id, game.title, sys.id, frontUrl, W, H]), () => new Promise(res => {
       const [c, ctx] = canvas(W * 2, H * 2); const w = c.width, h = c.height;
       const img = new Image();
       img.onload = () => {

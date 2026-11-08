@@ -58,8 +58,14 @@ const Packaging=(()=>{
     arcade:{band:'#28262c',ink:'#ffcc33',body:'#28262c',text:'#fff',mark:['ARCADE'],style:'sega'},
     pc:{band:'#111216',ink:'#fff',body:'#f2f3f5',text:'#111',mark:['PC','DVD-ROM'],style:'xbox',rule:'#1f6feb'},
   };
-  const spineDesign=sys=>spines[sys.id]||{band:sys.color||'#333',ink:'#fff',body:'#151515',text:'#fff',mark:[sys.name],style:'plain'};
-  function profile(sys){return profiles[sys.id]||p([230,323,24],'#292a31','plastic','#252631','#fff',sys.name,sys.color||'#444')}
+  const regionalProfiles={
+    'superfamicom-tall':p([174,318,42],'#c8bca6','cardboard','#f0ece3','#1b1b20','SUPER FAMICOM','#d13839'),
+    'superfamicom-wide':p([318,174,42],'#c8bca6','cardboard','#f0ece3','#1b1b20','SUPER FAMICOM','#d13839'),
+  };
+  const famicomSpine={band:'#f0ece3',ink:'#1b1b20',body:'#f0ece3',text:'#1b1b20',mark:['SUPER','FAMICOM'],style:'nintendo',rule:'#d13839'};
+  const model=sys=>regionalProfiles[sys.packaging]||profiles[sys.id];
+  const spineDesign=sys=>regionalProfiles[sys.packaging]?famicomSpine:spines[sys.id]||{band:sys.color||'#333',ink:'#fff',body:'#151515',text:'#fff',mark:[sys.name],style:'plain'};
+  function profile(sys){return model(sys)||p([230,323,24],'#292a31','plastic','#252631','#fff',sys.name,sys.color||'#444')}
   // Corners describe the moulded shell, not a rounded card laid over the cover.
   function geometry(v,sys){
     if(v.material==='cardboard')return {radius:.25,rim:0,bevel:.45};
@@ -69,7 +75,7 @@ const Packaging=(()=>{
     return {radius:1.5,rim:1.2,bevel:.8};
   }
   function decorate(box,a){
-    const v=profile(a.sys),shape=geometry(v,a.sys);box.dataset.packaging=a.sys.id;box.dataset.material=v.material;box.dataset.media=a.sys.media;
+    const v=profile(a.sys),shape=geometry(v,a.sys);box.dataset.packaging=a.sys.packaging||a.sys.id;box.dataset.material=v.material;box.dataset.media=a.sys.media;
     box.style.setProperty('--case-shell',v.shell);box.style.setProperty('--case-rim',shape.rim+'px');
     box.style.setProperty('--case-print',v.bg);
     box.style.setProperty('--case-ink',v.ink);
@@ -138,6 +144,9 @@ const Packaging=(()=>{
       }
       return;
     }
+    const caseSpine=node('case-spine');
+    caseSpine.append(box.querySelector(':scope > .f-left'),node('face case-spine-inner'));
+    box.append(caseSpine);
     const lidDepth=D*.40,baseDepth=D-lidDepth;
     rails(base,-D/2+baseDepth/2,W,H,baseDepth);
     const inside=node('case-structure');inside.setAttribute('aria-hidden','true');lid.append(inside);
@@ -208,5 +217,5 @@ const Packaging=(()=>{
     footer.style.fontSize=fitText(footer.textContent,footerHeight*.9,a.D*.24)+'px';
     insert.append(brand(a.sys,a.D,header),titleArea,footer);face.append(insert);return face;
   }
-  return {profiles,profile,decorate,spine,finish};
+  return {profiles,profile,size:sys=>model(sys)?.size,decorate,spine,finish};
 })();

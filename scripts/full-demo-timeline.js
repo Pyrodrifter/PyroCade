@@ -43,13 +43,13 @@
     await at(38.5,()=>view('bookshelf','glacier'));
     await at(39.8,()=>document.querySelector('#appearancePicker').close());
     await at(41,()=>select(Math.min(S.sel+2,S.list.length-1)));
-    await at(43,()=>view('spinner','glacier'));
+    await at(43,()=>view('page-turn','glacier'));
     await at(45,()=>select(Math.min(S.sel+3,S.list.length-1)));
     await at(47,()=>view('vertical','glacier'));
     await at(48.5,()=>select(Math.min(S.sel+1,S.list.length-1)));
     await at(50,()=>view('flipbook','glacier'));
     await at(51.5,()=>select(Math.min(S.sel+1,S.list.length-1)));
-    await at(53,()=>view('swatches','glacier'));
+    await at(53,()=>view('media','glacier'));
     await at(54.5,()=>select(Math.min(S.sel+2,S.list.length-1)));
     await at(56,()=>{showView('settings');document.querySelector('#sDisableModels').scrollIntoView({block:'center',behavior:'smooth'});});
     await at(58,()=>toggle('sDisableAnimations',true));
