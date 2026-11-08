@@ -4,7 +4,13 @@ const path = require('node:path');
 const root = path.join(__dirname, '../renderer/assets/prompts');
 const xml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const ink = '#f4f0eb', accent = '#b9d3f0', shell = '#2e2b29', edge = '#817a73';
-const text = (s, size = 24, color = ink, y = 32) => `<text x="32" y="${y}" text-anchor="middle" dominant-baseline="middle" font-family="Segoe UI,Arial,sans-serif" font-size="${size}" font-weight="650" fill="${color}">${xml(s)}</text>`;
+function text(label, size = 24, color = ink) {
+  // SVG middle aligns to the lowercase x-height. Raise the baseline for descenders
+  // and lower it for cap-height labels to centre the visible glyphs.
+  const offset = /[gjpqy]/.test(label) ? 0 : label === "Q" ? .06 : .095;
+  const y = 32 + size * offset;
+  return `<text x="32" y="${y}" text-anchor="middle" dominant-baseline="middle" font-family="Segoe UI,Arial,sans-serif" font-size="${size}" font-weight="650" fill="${color}">${xml(label)}</text>`;
+}
 const line = (d, color = ink, width = 3) => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
 const circle = (cx, cy, r, fill, stroke = 'none', sw = 2) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
 function cap(shape = 'round') {
@@ -13,7 +19,7 @@ function cap(shape = 'round') {
   return `<rect ${rect} fill="${shell}" stroke="${edge}" stroke-width="2"/>`;
 }
 const directionAngles = {up:0, 'up-right':45, right:90, 'down-right':135, down:180, 'down-left':225, left:270, 'up-left':315};
-const arrow = (direction, color = accent, small = false) => `<g transform="rotate(${directionAngles[direction]} 32 32)">${line(small ? 'M27 18 L32 13 L37 18 M32 14 V23' : 'M23 27 L32 18 L41 27 M32 19 V43',color,3)}</g>`;
+const arrow = (direction, color = accent, small = false) => `<g transform="rotate(${directionAngles[direction]} 32 32)">${line(small ? 'M27 18 L32 13 L37 18 M32 14 V23' : 'M23 28 L32 19 L41 28 M32 19 V45',color,3)}</g>`;
 const cross = () => `<path d="M24 9 H40 V24 H55 V40 H40 V55 H24 V40 H9 V24 H24 Z" fill="${shell}" stroke="${edge}" stroke-width="2" stroke-linejoin="round"/>`;
 function dpad(dir) {
   const base = cross();
@@ -30,11 +36,23 @@ function stick(side, dir) {
   if (dir === 'vertical') return base + arrow('up',accent,true) + arrow('down',accent,true) + text(side === 'left' ? 'L' : 'R',16);
   return base + (dir ? arrow(dir) : text(side === 'left' ? 'L' : 'R',22));
 }
+const keyMarks = {
+  '+': 'M23 32 H41 M32 23 V41',
+  '−': 'M23 32 H41',
+  ',': 'M34 28 Q34 34 30 36',
+  '/': 'M26 44 L38 20',
+  '[': 'M36 20 H28 V44 H36',
+  ']': 'M28 20 H36 V44 H28',
+};
+function keyMark(label, size) {
+  if (label === '.') return circle(32, 32, 2.5, ink);
+  return keyMarks[label] ? line(keyMarks[label], ink) : text(label, size);
+}
 function symbol(name, color) {
   if (name === 'cross') return line('M23 23 L41 41 M41 23 L23 41',color,3.5);
   if (name === 'circle') return circle(32,32,12,'none',color,3);
   if (name === 'square') return `<rect x="21" y="21" width="22" height="22" rx="1" fill="none" stroke="${color}" stroke-width="3"/>`;
-  return line('M32 18 L47 43 H17 Z',color,3);
+  return line('M32 19 L47 45 H17 Z',color,3);
 }
 const families = {
   xbox: {name:'Xbox', face:['A','B','X','Y'], colors:['#8fe09a','#ff8d93','#80bcff','#ffe082'], shoulders:['LB','RB','LT','RT'], menus:['View','Menu','Guide','Share']},
@@ -59,7 +77,7 @@ for (const [family, spec] of Object.entries(families)) {
       : label === 'View' ? line('M20 22 H36 V36 H20 Z M28 28 H44 V42 H28')
       : label === 'Home' ? line('M19 30 L32 19 L45 30 M23 28 V44 H41 V28 M29 44 V34 H35 V44')
       : label === 'Capture' ? circle(32,32,10,'none',ink,3)
-      : text(label,label.length > 5 ? 12 : label.length > 3 ? 15 : 22);
+      : keyMark(label, label.length > 5 ? 12 : label.length > 3 ? 15 : 22);
     add(family,id,label,cap()+drawing);
   });
   for (const dir of ['all','horizontal','vertical',...Object.keys(directionAngles)]) add(family,`dpad-${dir}`,`D-pad ${dir}`,dpad(dir));
@@ -70,19 +88,23 @@ manifest.families.keyboard = 'Keyboard';
 const keys = Object.fromEntries('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('').map(x=>[x.toLowerCase(),x]));
 Object.assign(keys,{enter:'Enter',space:'Space',escape:'Esc',tab:'Tab',backspace:'Bksp',shift:'Shift',ctrl:'Ctrl',alt:'Alt',delete:'Del',insert:'Ins',home:'Home',end:'End',pageup:'PgUp',pagedown:'PgDn',plus:'+',minus:'−',comma:',',period:'.',slash:'/',bracketleft:'[',bracketright:']'});
 for(let i=1;i<=12;i++) keys['f'+i] = 'F'+i;
-for(const [id,label] of Object.entries(keys)) add('keyboard',id,label,cap('wide')+text(label,label.length>3?18:label.length>1?20:26));
+for(const [id,label] of Object.entries(keys)) add('keyboard',id,label,cap('wide')+keyMark(label,label.length>3?18:label.length>1?20:26));
 for(const dir of ['up','right','down','left']) add('keyboard',dir,`Arrow ${dir}`,cap('wide')+arrow(dir,ink));
 add('keyboard','arrows','Arrow keys',cap('wide')+['up','right','down','left'].map(d=>arrow(d,ink,true)).join(''));
 manifest.families.mouse = 'Mouse';
+const mouseGestures = {
+  scroll: 'M32 36 V50 M28 40 L32 36 L36 40 M28 46 L32 50 L36 46',
+  'scroll-up': 'M28 40 L32 36 L36 40 M32 36 V50',
+  'scroll-down': 'M28 46 L32 50 L36 46 M32 36 V50',
+  move: 'M23 43 H41 M32 36 V50 M26 40 L23 43 L26 46 M38 40 L41 43 L38 46 M29 39 L32 36 L35 39 M29 47 L32 50 L35 47',
+  'drag-left': 'M23 43 H41 M27 39 L23 43 L27 47 M37 39 L41 43 L37 47',
+};
 for (const id of ['mouse','left','right','middle','scroll','scroll-up','scroll-down','move','drag-left']) {
-  let body = `<rect x="15" y="7" width="34" height="49" rx="17" fill="${shell}" stroke="${edge}" stroke-width="2"/>`;
+  let body = `<rect x="15" y="7" width="34" height="50" rx="17" fill="${shell}" stroke="${edge}" stroke-width="2"/>`;
   if (id === 'left' || id === 'drag-left') body += '<path d="M17 30 V24 Q17 9 30 9 V30 Z" fill="' + accent + '"/>';
   if (id === 'right') body += '<path d="M34 9 Q47 9 47 24 V30 H34 Z" fill="' + accent + '"/>';
   body += line('M16 31 H48 M32 8 V21',edge,2) + '<rect x="29" y="20" width="6" height="13" rx="3" fill="'+ (id === 'middle' || id.startsWith('scroll') ? accent : ink) +'"/>';
-  if (id === 'scroll-up') body += arrow('up',accent,true);
-  if (id === 'scroll-down') body += arrow('down',accent,true);
-  if (id === 'scroll') body += line('M7 23 V42 M3 27 L7 23 L11 27 M3 38 L7 42 L11 38',accent,2);
-  if (id === 'move' || id === 'drag-left') body += line('M4 37 V25 M1 29 L4 25 L7 29 M1 33 L4 37 L7 33 M53 38 H63 M56 35 L53 38 L56 41 M60 35 L63 38 L60 41',accent,2);
+  if (mouseGestures[id]) body += line(mouseGestures[id], accent, 2);
   add('mouse',id,`Mouse ${id === 'mouse' ? '' : id.replaceAll('-',' ')}`.trim(),body);
 }
 fs.writeFileSync(path.join(root,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
