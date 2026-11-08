@@ -229,9 +229,26 @@ const KINDS = {
   video:      { names: ['video', 'trailer'], folders: ['videos'], exts: ['.mp4', '.webm'] },
 };
 
+// During a scan each folder is listed once: the ROM walk, the media index and the per-game media
+// lookup all ask for the same folders, and on a hard drive every listing costs a seek.
+let scanListings = null;
 async function listDir(dir) {
-  try { return await fsp.readdir(dir, { withFileTypes: true }); } catch { return []; }
+  const cache = scanListings, key = cache && dir.toLowerCase();
+  if (cache?.has(key)) return cache.get(key);
+  const listing = fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
+  cache?.set(key, listing);
+  return listing;
 }
+// Runs fn over items with at most `limit` running at once, results in input order. Scans are mostly
+// waiting on the disk, so overlapping the waits is where the time goes.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); } };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+const SCAN_CONCURRENCY = 16;
 const stem = f => path.basename(f, path.extname(f)).toLowerCase();
 const fileUrl = p => (p ? pathToFileURL(p).href : null);
 
@@ -250,11 +267,14 @@ const displayTitle = s => cleanTitle(s).replace(/^(.+?),? (The|A|An)(?= - |$)/, 
 // in e.g. "00 Goodies\Manuals" are picked up too. Files are matched by exact name, then loosely by
 // title ("Game (USA).pdf" for "Game (USA) (Rev 1).rvz").
 async function indexMediaRoot(root) {
-  const idx = { gameDirs: new Map(), kinds: {}, loose: {} };
+  // files: every file seen in a kind folder (lower-case path), so side files such as a disc's
+  // .json can be checked without trying to read files that aren't there.
+  const idx = { gameDirs: new Map(), kinds: {}, loose: {}, files: new Set() };
   const kindOf = name => Object.entries(KINDS).find(([, k]) => k.folders.includes(name.toLowerCase()));
-  async function addKindFolder(dir, [kind, k]) {
+  async function addKindFolder(dir, [kind, k], entries) {
     const m = (idx.kinds[kind] ||= new Map()), loose = (idx.loose[kind] ||= new Map());
-    for (const f of await listDir(dir)) {
+    for (const f of entries ?? await listDir(dir)) {
+      if (f.isFile()) idx.files.add(path.join(dir, f.name).toLowerCase());
       if (!f.isFile() || !k.exts.includes(path.extname(f.name).toLowerCase())) continue;
       const file = path.join(dir, f.name);
       if (!m.has(stem(f.name))) m.set(stem(f.name), file);
@@ -262,27 +282,32 @@ async function indexMediaRoot(root) {
       for (const k of [key, bareKey(path.basename(f.name, path.extname(f.name)))]) if (k && !loose.has(k)) loose.set(k, file);
     }
   }
-  for (const e of await listDir(root)) {
-    if (!e.isDirectory()) continue;
-    const kind = kindOf(e.name);
-    if (kind) { await addKindFolder(path.join(root, e.name), kind); continue; }
-    idx.gameDirs.set(e.name.toLowerCase(), path.join(root, e.name));
-    for (const sub of await listDir(path.join(root, e.name))) {
-      const inner = sub.isDirectory() && kindOf(sub.name);
-      if (inner) await addKindFolder(path.join(root, e.name, sub.name), inner);
-    }
+  // Folders are listed in parallel but added in their listed order, so "first match wins" is unchanged.
+  const dirs = (await listDir(root)).filter(e => e.isDirectory());
+  const listed = await mapLimit(dirs, SCAN_CONCURRENCY, async e => {
+    const kind = kindOf(e.name), dir = path.join(root, e.name);
+    if (kind) return { kind, dir, entries: await listDir(dir) };
+    const subs = (await listDir(dir)).filter(sub => sub.isDirectory() && kindOf(sub.name));
+    return { dir, subs: await Promise.all(subs.map(async sub => ({ kind: kindOf(sub.name), dir: path.join(dir, sub.name), entries: await listDir(path.join(dir, sub.name)) }))) };
+  });
+  for (const [i, e] of dirs.entries()) {
+    const l = listed[i];
+    if (l.kind) { await addKindFolder(l.dir, l.kind, l.entries); continue; }
+    idx.gameDirs.set(e.name.toLowerCase(), l.dir);
+    for (const sub of l.subs) await addKindFolder(sub.dir, sub.kind, sub.entries);
   }
   return idx;
 }
 
 async function findMedia(indexes, base) {
   const key = base.toLowerCase();
-  const media = {};
+  const media = {}, seen = new Set();
   let info = null;
   for (const idx of indexes) {
     const dir = idx.gameDirs.get(key) || idx.gameDirs.get(cleanTitle(base).toLowerCase());
     if (dir) {
       const files = (await listDir(dir)).filter(f => f.isFile());
+      for (const f of files) seen.add(path.join(dir, f.name).toLowerCase());
       for (const [kind, k] of Object.entries(KINDS)) {
         if (media[kind]) continue;
         const hit = k.names.map(name=>files.filter(f=>stem(f.name)===name&&k.exts.includes(path.extname(f.name).toLowerCase())).sort((a,b)=>(path.extname(a.name).toLowerCase()==='.png'?0:1)-(path.extname(b.name).toLowerCase()==='.png'?0:1))[0]).find(Boolean);
@@ -295,7 +320,9 @@ async function findMedia(indexes, base) {
   }
   const loose = looseKey(base);
   for (const k of [loose, bareKey(base)]) if (k) for (const idx of indexes) for (const [kind, m] of Object.entries(idx.loose || {})) if (!media[kind] && m.has(k)) media[kind] = m.get(k);
-  return { media, info };
+  // Whether a file next to the found media exists, from the folder listings already made.
+  const has = p => { const lower = p.toLowerCase(); return seen.has(lower) || indexes.some(idx => idx.files?.has(lower)); };
+  return { media, info, has };
 }
 
 // Minimal EmulationStation gamelist.xml reader.
@@ -382,10 +409,16 @@ function copyScore(f, titleIds) {
 }
 
 // Only tied copies need a size check. Keep the existing 9 GB cap on the tie-break.
+// Sizes of tied copies are remembered in the library cache: on a hard drive (and with antivirus
+// opening every .zip) reading them is most of a scan. A full rescan from Settings reads them again.
+// knownSizes: from the cache; scanSizes: the sizes this scan used, saved for the next one.
+let knownSizes = null, scanSizes = null, rereadSizes = false;
 async function copySize(file) {
+  if (file.size === undefined && !rereadSizes && knownSizes?.has(file.path)) file.size = knownSizes.get(file.path);
   if (file.size === undefined) {
     try { file.size = (await fsp.stat(file.path)).size; } catch { file.size = 0; }
   }
+  if (!file.dump) scanSizes?.set(file.path, file.size);
   return Math.min(file.size, 9e9);
 }
 
@@ -393,6 +426,20 @@ const romDirsOf = sys => [...new Set(String(sys.romDir || '').split('|')
   .map(folder => folder.trim().replace(/^"(.*)"$/, '$1').trim()).filter(Boolean))];
 let libraryGames = [];
 async function scanLibrary(folderReport) {
+  if (!knownSizes) await readLibraryCache();
+  const listings = scanListings = new Map(), sizes = scanSizes = new Map();
+  rereadSizes = !!folderReport; // Settings' "Save & rescan" reads every size again
+  try {
+    const games = await scanFolders(folderReport, listings);
+    knownSizes = sizes;
+    lastScanChanged = writeLibraryCache(games.raw);
+    return games.shown;
+  } finally {
+    if (scanListings === listings) scanListings = null;
+    if (scanSizes === sizes) scanSizes = null;
+  }
+}
+async function scanFolders(folderReport, listings) {
   const games = [];
   for (const sys of config.systems) {
     // A system can have several ROM folders (e.g. games split across two SD cards), separated by "|".
@@ -415,6 +462,7 @@ async function scanLibrary(folderReport) {
         continue;
       }
       scannedDirs.push(dir);
+      listings.set(dir.toLowerCase(), Promise.resolve(entries));
       const matches = (await walkRoms(dir, exts, sys.direct ? 4 : 0, [], entries))
         .filter(file => !/\(track \d+\)/i.test(file.name));
       for (const file of matches) files.push({ ...file, root: dir, rootIndex: ri });
@@ -428,17 +476,26 @@ async function scanLibrary(folderReport) {
     const m3u = new Set(files.filter(f => /\.m3u$/i.test(f.name)).map(f => looseKey(stem(f.name))));
     // Switch-style libraries group by title ID, so an update or a DLC pack never becomes its own game.
     const titleIds = ['.nsp', '.xci', '.nsz', '.xcz'].some(e => exts.includes(e));
-    const best = new Map();
+    // Keep every copy that shares the top score; only those ties need their file sizes read,
+    // and those reads all run together.
+    const tops = new Map();
     for (const f of files) {
       const base = sys.id === 'recomp' ? f.name : path.basename(f.name, path.extname(f.name));
       if (!/\.m3u$/i.test(f.name) && /\(disc \d+\)/i.test(base) && m3u.has(looseKey(base))) continue;
       const key = sys.id === 'recomp' ? f.added : (titleIds && switchGroup(base)) || looseKey(base) || base.toLowerCase();
       if (f.score !== Infinity) f.score = copyScore(f, titleIds);
-      const current = best.get(key);
-      if (!current || current.score < f.score ||
-          (current.score === f.score && f.score !== Infinity && await copySize(current) < await copySize(f))) {
-        best.set(key, f);
-      }
+      const top = tops.get(key);
+      if (!top || top[0].score < f.score) tops.set(key, [f]);
+      else if (top[0].score === f.score) top.push(f);
+    }
+    const tied = [...tops.values()].filter(t => t.length > 1 && t[0].score !== Infinity).flat();
+    await mapLimit(tied, SCAN_CONCURRENCY, copySize);
+    const best = new Map();
+    for (const [key, top] of tops) {
+      let pick = top[0];
+      // The first copy wins unless a later one is strictly bigger (sizes capped at 9 GB).
+      for (const f of top.slice(1)) if (pick.score !== Infinity && await copySize(pick) < await copySize(f)) pick = f;
+      best.set(key, pick);
     }
     const roots = [...(sys.id === 'recomp' ? extras.flatMap(x => [path.join(x.path, 'media'), x.path]) : []), config.mediaRoot && path.join(config.mediaRoot, sys.id), ...scannedDirs.flatMap(d => [path.join(d, 'media'), d]), path.join(DATA, 'media', sys.id)].filter(Boolean);
     const indexes = await Promise.all(roots.map(indexMediaRoot));
@@ -460,13 +517,15 @@ async function scanLibrary(folderReport) {
       const discs = [...seen].sort((a, b) => a[0] - b[0]);
       best.set(key, { ...discs[0][1], score: chosen.score, discs: discs.map(([n, f]) => ({ n, path: f.path })) });
     }
-    for (const f of best.values()) {
+    // Games are matched to their media in parallel; results keep the order of `best`.
+    games.push(...await mapLimit([...best.values()], SCAN_CONCURRENCY, async f => {
       const base = sys.id === 'recomp' ? f.name : path.basename(f.name, path.extname(f.name));
-      const { media, info } = await findMedia(indexes, base);
+      const { media, info, has } = await findMedia(indexes, base);
       const meta = { ...(gamelist.get(base.toLowerCase()) || {}), ...(info || {}), ...(f.title ? { title: f.title } : {}) };
       let shell = null;
-      if (media.disc) try { shell = JSON.parse(await fsp.readFile(media.disc.replace(/\.[^.\\/]+$/, '.json'), 'utf8')).shell || null; } catch {}
-      games.push({
+      const shellFile = media.disc && media.disc.replace(/\.[^.\\/]+$/, '.json');
+      if (shellFile && has(shellFile)) try { shell = JSON.parse(await fsp.readFile(shellFile, 'utf8')).shell || null; } catch {}
+      return {
         id: `${sys.id}:${f.rootIndex ? f.rootIndex + ':' : ''}${path.relative(f.root, f.path)}`,
         system: sys.id,
         romPath: f.path,
@@ -477,9 +536,55 @@ async function scanLibrary(folderReport) {
         ...(shell && /^#[0-9a-f]{6}$/i.test(shell) ? { shell } : {}),
         info: meta,
         media: Object.fromEntries(Object.entries(media).map(([k, v]) => [k, k === 'manual' ? v : fileUrl(v)])),
-      });
-    }
+      };
+    }));
   }
+  // The cache copy is taken before presentLibrary lays the player's settings over the games.
+  const raw = JSON.stringify(games);
+  return { raw, shown: presentLibrary(games) };
+}
+let lastScanChanged = true;
+
+// ---------- Library cache ----------
+// The last scan, so the next start shows the shelf at once and rescans behind it. It holds only
+// what the scan found: favourites, play time, custom titles and per-game settings are laid over it
+// fresh every time. It is used only while the folders and app version it was made with still match.
+const LIBRARY_CACHE_PATH = path.join(DATA, 'library-cache.json');
+const libraryCacheKey = () => JSON.stringify({
+  version: APP_VERSION, mediaRoot: config.mediaRoot || '', extraGames: config.extraGames || [],
+  systems: config.systems.map(s => [s.id, s.romDir || '', s.extensions || [], !!s.direct]),
+});
+let libraryCacheText = null; // the games part of the last written or read cache, to tell if a rescan changed anything
+let libraryCacheSizes = null;
+// text: the scanned games as JSON. Returns whether they differ from the cached ones.
+function writeLibraryCache(text) {
+  const sizes = JSON.stringify(Object.fromEntries(knownSizes || []));
+  const changed = text !== libraryCacheText;
+  if (!changed && sizes === libraryCacheSizes) return false;
+  libraryCacheText = text; libraryCacheSizes = sizes;
+  const tmp = `${LIBRARY_CACHE_PATH}.tmp`;
+  fsp.mkdir(DATA, { recursive: true })
+    .then(() => fsp.writeFile(tmp, `{"key":${JSON.stringify(libraryCacheKey())},"sizes":${sizes},"games":${text}}`))
+    .then(() => fsp.rename(tmp, LIBRARY_CACHE_PATH))
+    .catch(e => log(`library cache not saved: ${e.message}`));
+  return changed;
+}
+// Returns the cached games when they were scanned with the current folders and app version.
+// File sizes are kept whatever the key: they belong to files, not to the settings.
+async function readLibraryCache() {
+  let cached = null;
+  try { cached = JSON.parse(await fsp.readFile(LIBRARY_CACHE_PATH, 'utf8')); } catch {}
+  if (!knownSizes) {
+    knownSizes = new Map(Object.entries(cached?.sizes && typeof cached.sizes === 'object' ? cached.sizes : {}).filter(([, v]) => Number.isFinite(v)));
+    libraryCacheSizes = JSON.stringify(Object.fromEntries(knownSizes));
+  }
+  if (cached?.key !== libraryCacheKey() || !Array.isArray(cached.games) || !cached.games.length) return null;
+  libraryCacheText = JSON.stringify(cached.games);
+  return cached.games;
+}
+
+// Lays the player's own settings over scanned games and sorts them for the shelf.
+function presentLibrary(games) {
   for (const g of games) {
     if (config.shellColors?.[g.id]) g.shellCustom = config.shellColors[g.id];
     if (config.gameEmulators?.[g.id]) g.emulator = config.gameEmulators[g.id];
@@ -1322,13 +1427,24 @@ async function fillGameDetails(games) {
 // After the first scan, shrink oversized images saved by 0.3.0 in the background and hand the
 // new files to the window as they are ready.
 let compacted = false;
-handle('library:scan', async (withReport = false) => {
+// Details are filled in after the library is shown, so a scan never waits on them.
+const fillDetailsLater = games => setImmediate(() => fillGameDetails(games).then(changed => {
+  if (changed.length && win && !win.isDestroyed()) win.webContents.send('library:info', changed);
+}).catch(() => {}));
+// The last scan's games, for showing the shelf before the first scan of this start finishes.
+handle('library:cached', async () => {
+  const cached = await readLibraryCache();
+  if (!cached) return null;
+  const games = presentLibrary(cached);
+  fillDetailsLater(games);
+  return games;
+});
+// onlyIfChanged: the window already shows the cached library, so return null when nothing changed.
+handle('library:scan', async (withReport = false, { onlyIfChanged = false } = {}) => {
   const folders = withReport ? [] : undefined;
   const games = await scanLibrary(folders);
-  // Details are filled in after the library is shown, so a scan never waits on them.
-  setImmediate(() => fillGameDetails(games).then(changed => {
-    if (changed.length && win && !win.isDestroyed()) win.webContents.send('library:info', changed);
-  }).catch(() => {}));
+  if (onlyIfChanged && !withReport && !lastScanChanged) return null;
+  fillDetailsLater(games);
   if (!compacted) {
     compacted = true;
     const marker = path.join(DATA, 'media', '_index', 'compacted-v1');

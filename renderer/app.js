@@ -214,7 +214,7 @@ async function boot() {
     consoleNavigation = null;
     showInfo();
   });
-  await loadLibrary();
+  await startLibrary();
   LibraryChrome.init();
   DetailsResize.init();
   LeiaUI.init(S.config);
@@ -230,7 +230,24 @@ async function boot() {
   requestAnimationFrame(pollPad);
 }
 
+// Start-up: show the last scan's games at once, then rescan behind them and only redraw if the
+// folders changed. Without a cache (first start, folders or app version changed) it scans as before.
+let libraryLoads = 0;
+async function startLibrary() {
+  const cached = await (api.cachedLibrary?.() || Promise.resolve(null)).catch(() => null);
+  if (!cached?.length) return loadLibrary();
+  applyLibrary(cached);
+  const load = ++libraryLoads;
+  api.scan(false, { onlyIfChanged: true }).then(games => {
+    if (!games || load !== libraryLoads) return; // unchanged, or a newer scan has already been shown
+    S.pendingGame = S.list[S.sel]?.id || null;
+    S.list = []; // the selection is restored by id, not by the old game object
+    applyLibrary(games);
+  }).catch(error => toast('Scan failed: ' + error.message));
+}
+
 async function loadLibrary(withReport = false) {
+  ++libraryLoads;
   $('#loading').classList.remove('hidden');
   let result;
   try {
@@ -242,7 +259,11 @@ async function loadLibrary(withReport = false) {
   } finally {
     $('#loading').classList.add('hidden');
   }
-  let games = withReport ? result.games : result;
+  applyLibrary(withReport ? result.games : result);
+  return result;
+}
+
+function applyLibrary(games) {
   S.demo = games.length === 0;
   if (S.demo) games = DEMO.map(([system, title, year, developer, genre, players, description]) => ({
     id: `${system}:demo-${title}`, system, title, romPath: null, demo: true, media: {},
@@ -254,7 +275,6 @@ async function loadLibrary(withReport = false) {
   renderChips();
   renderShelfTools();
   setSystem(S.system);
-  return result;
 }
 
 let lastDetailsSize = 'small', editingGameId = null;
