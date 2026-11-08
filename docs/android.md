@@ -9,7 +9,7 @@ renderer/ (unchanged) ──copied by android/scripts/build-web.cjs──► and
 android/android/  native project: MainActivity + PyroNativePlugin.java (SAF, Intents, installed apps)
 ```
 
-> **Experimental.** From 0.8.1, a debug-signed APK (`PyroCade-x.y.z-android-experimental.apk`) is attached to each main PyroCade release on GitHub, next to the desktop downloads. The desktop updater only looks for its own installer, so it never offers the APK. It is a proof of concept. Artwork download, manuals and the updater are not available, and launching an emulator has not been confirmed on a real phone yet. Expect rough edges.
+> **Experimental.** From 0.8.1, a debug-signed APK (`PyroCade-x.y.z-android-experimental.apk`) is attached to each main PyroCade release on GitHub, next to the desktop downloads. The release workflow builds it from the tag (the `android` job in `.github/workflows/release.yml`): its versionName is the tag and its versionCode is major×10000 + minor×100 + patch, so the Android files never need a version bump by hand. To rebuild just the APK for a tag, run the Release workflow with **android_only**, which leaves the release alone and keeps the APK as a workflow artifact. The desktop updater only looks for its own installer, so it never offers the APK. It is a proof of concept. Artwork download, manuals and the updater are not available, and launching an emulator has not been confirmed on a real phone yet. Expect rough edges.
 
 ## Build
 
