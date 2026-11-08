@@ -2,7 +2,7 @@ const Appearance=(()=>{
   const $=s=>document.querySelector(s);
   const themes = {
     ember: {name: 'Ember', accent: '#c9ac85', light: '#e0c9a9'},
-    glacier: {name: 'Glacier', accent: '#a8c0bc', light: '#ccded9'},
+    glacier: {name: 'Glacier', accent: '#aebdcd', light: '#d2dce6'},
     violet: {name: 'Violet', accent: '#bdafc9', light: '#dacfe3'},
     mint: {name: 'Mint', accent: '#aebd9d', light: '#ccd9bc'},
     rose: {name: 'Rose', accent: '#caa89e', light: '#e3c9c0'},

@@ -1,19 +1,19 @@
 /* Shared chrome for the launcher and both Leia views. Game art and case materials keep their own colours. */
 :root {
   color-scheme: dark;
-  --canvas: #191c18;
-  --surface: #232720;
-  --raised: #2b3028;
-  --hover: #343b31;
-  --field: #1c201b;
-  --line: #3d4539;
-  --control-line: #51594c;
-  --text: #f2eee4;
-  --muted: #b5baad;
-  --secondary: #989f91;
+  --canvas: #1d1c1b;
+  --surface: #272523;
+  --raised: #302e2c;
+  --hover: #3b3936;
+  --field: #211f1e;
+  --line: #45423f;
+  --control-line: #5c5853;
+  --text: #f2eee8;
+  --muted: #bbb7b1;
+  --secondary: #a39e98;
   --accent: #c9ac85;
   --accent2: #e0c9a9;
-  --ink: #20241e;
+  --ink: #24211f;
   --selected: color-mix(in srgb, var(--accent) 15%, var(--surface));
   --glass: var(--surface);
   --bar-text: var(--muted);
@@ -72,18 +72,18 @@ a { color: var(--accent2); }
 
 /* Let cover artwork supply the colour. Keep the default ribbon barely visible behind it. */
 #bg, html:not([data-theme=ember]) #bg {
-  background: radial-gradient(ellipse at 50% 43%, #33392e, var(--canvas) 71%);
+  background: radial-gradient(ellipse at 50% 43%, #363330, var(--canvas) 71%);
 }
-.bg-layer, html:not([data-theme=ember]) .bg-layer { filter: blur(68px) saturate(.48); }
+.bg-layer, html:not([data-theme=ember]) .bg-layer { filter: blur(68px) grayscale(.76); }
 .bg-layer.on { opacity: .12; }
-.bg-vignette { background: linear-gradient(180deg, #191c181a 25%, var(--canvas) 97%); }
+.bg-vignette { background: linear-gradient(180deg, transparent 25%, var(--canvas) 97%); }
 html:has(#xmb[data-scene=ribbon]) #xmb { opacity: .13; }
 html.ambient:has(#xmb[data-scene=ribbon]) #xmb { opacity: .3; }
 #floor, html:not([data-theme=ember]) #floor {
-  background: radial-gradient(ellipse at 50% 50%, #9c9d7133, transparent 70%);
+  background: radial-gradient(ellipse at 50% 50%, #9a897733, transparent 70%);
   opacity: .65;
 }
-#caseView { background: radial-gradient(ellipse at 50% 43%, #33392f, #151813 76%); }
+#caseView { background: radial-gradient(ellipse at 50% 43%, #363330, #171615 76%); }
 
 /* Library */
 html:not(.ambient) header { background: var(--canvas); }
@@ -194,7 +194,7 @@ html[data-layout=swatches] .item.sel .swatch-card { border-color: var(--accent);
   backdrop-filter: none;
 }
 :is(#systemPicker, #appearancePicker, #emuChoice, #renameGame, #gameDetailsEditor, #feedbackDialog, #shotViewer, #manualViewer)::backdrop {
-  background: #11150fb3;
+  background: #151413b3;
   backdrop-filter: blur(4px);
 }
 #appearancePicker { margin-top: calc(var(--bar-h) + 12px); max-height: calc(100vh - var(--bar-h) - 24px); }
