@@ -91,6 +91,8 @@ On Linux, data lives in `~/.config/PyroCade/data` and the emulator downloader in
 - **Mouse:** click a game to select it, click it again to open the case, **right-click** for its menu.
 - **Controllers:** the matching buttons work, LB/RB switch system, Select stars a game and the left stick button picks a random one. While a game is running, hold **Select + Start** for 1.5 seconds to close it.
 
+Use **Settings → Quit application** to close PyroCade, including in fullscreen mode.
+
 ### Supported systems
 Each system's file types and emulator can be changed in **Settings**, and **Add system…** adds any system that isn't listed.
 

@@ -44,6 +44,14 @@ public class PyroNativePlugin extends Plugin {
     private static final int MAX_FILES = 50000;
 
     @PluginMethod
+    public void quitApp(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            call.resolve();
+            getActivity().finishAndRemoveTask();
+        });
+    }
+
+    @PluginMethod
     public void pickFolder(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);

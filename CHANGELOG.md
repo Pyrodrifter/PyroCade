@@ -4,6 +4,14 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-08
+
+### Added
+- **Quit application** in Settings closes PyroCade, including in fullscreen mode.
+
+### Changed
+- Refreshed the README screenshots and demo with games from the GameCube, PlayStation and Game Boy Advance libraries.
+
 ## [0.8.1] - 2026-11-08
 
 ### Changed
@@ -219,6 +227,7 @@ Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](h
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.8.2]: https://github.com/Pyrodrifter/PyroCade/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Pyrodrifter/PyroCade/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.6.0...v0.7.0

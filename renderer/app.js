@@ -1835,6 +1835,13 @@ function showView(v) {
   if (v === 'library') { resizeShelf(); layout(); }
 }
 $$('#tabs button').forEach(b => (b.onclick = () => showView(b.dataset.view)));
+const quitButton = $('#btnQuit');
+if (api.quitApp) {
+  quitButton.hidden = false;
+  quitButton.onclick = async () => {
+    try { await api.quitApp(); } catch (e) { toast(e.message); }
+  };
+}
 $('#btnPlay').onclick = () => play();
 $('#btnCase').onclick = openCase;
 $('#btnManual').onclick = () => manual();

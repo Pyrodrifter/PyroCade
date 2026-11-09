@@ -1458,6 +1458,9 @@ handle('library:scan', async (withReport = false, { onlyIfChanged = false } = {}
   return withReport ? { games, folders } : games;
 });
 handle('app:version', () => APP_VERSION);
+ipcMain.on('app:quit', event => {
+  if (event.sender === win?.webContents && event.senderFrame === event.sender.mainFrame) app.quit();
+});
 const feedback = createFeedbackService({
   diagnostics: () => `PyroCade: ${APP_VERSION}\nOS: ${os.type()} ${os.release()} (${process.arch})\nElectron: ${process.versions.electron}\nInstallation: ${app.isPackaged ? 'Packaged app' : 'From source'}`,
   openExternal: url => shell.openExternal(url),

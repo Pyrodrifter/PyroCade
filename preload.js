@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('api', {
   onProgress: fn => ipcRenderer.on('emu:progress', (_e, p) => fn(p)),
   onToast: fn => ipcRenderer.on('toast', (_e, m) => fn(m)),
   appVersion: () => call('app:version'),
+  quitApp: () => ipcRenderer.send('app:quit'),
   feedbackInfo: () => call('feedback:info'),
   feedbackOpen: report => call('feedback:open', report),
   feedbackCopy: report => call('feedback:copy', report),

@@ -297,6 +297,7 @@
     onProgress: nothing(),
     onToast: fn => listeners.toast.push(fn),
     appVersion: async () => (await Pyro('appInfo').catch(() => ({}))).version || 'android-preview',
+    quitApp: () => Pyro('quitApp'),
     appCheckUpdate: async () => ({ available: false, current: 'android-preview' }),
     appInstallUpdate: unsupported('Updating'),
     appOpenRelease: unsupported('Opening links'),

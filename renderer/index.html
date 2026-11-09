@@ -282,7 +282,10 @@
   <main id="view-settings" class="view">
     <div class="view-head">
       <h1>Settings</h1>
-      <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
+      <div class="actions">
+        <button id="btnQuit" type="button" hidden>Quit application</button>
+        <button id="btnSave" class="primary">Save &amp; rescan</button>
+      </div>
     </div>
     <div id="settingsScanStatus" class="panel sub" role="status" aria-live="polite"></div>
     <div class="settings-groups">
