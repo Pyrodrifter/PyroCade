@@ -52,13 +52,127 @@ function art(game) {
   };
 }
 
+// Library chrome visibility is independent of the game-details (I) shortcut.
+const LibraryChrome = (() => {
+  let mode = 'shown', pinned = false, saves = Promise.resolve();
+  function refresh() {
+    const library = $('#view-library').classList.contains('active') && !caseShown() && !document.querySelector('dialog[open]');
+    document.documentElement.dataset.chromeMode = mode;
+    document.documentElement.dataset.detailsPinned = String(pinned);
+    const hidden = library && mode === 'hidden';
+    document.documentElement.dataset.chromeHidden = String(hidden);
+    for (const node of [document.querySelector('header'), $('#libraryHints'), $('.shelf-position'), ...document.querySelectorAll('.banner'), ...document.querySelectorAll('.shelf-arrow')]) if (node) node.inert = hidden;
+    $('#info').inert = hidden && !pinned;
+  }
+  function activity() { refresh(); }
+  function persist() {
+    S.config.libraryChromeMode = mode; S.config.libraryDetailsPinned = pinned;
+    delete S.config.libraryChromeIdleSeconds;
+    saves = saves.catch(() => {}).then(() => api.setConfig(structuredClone(S.config))).catch(() => toast('UI preference could not be saved.'));
+    return saves;
+  }
+  function configure(next, save = true) {
+    if (['shown','hidden'].includes(next.mode)) mode = next.mode;
+    if (typeof next.pinned === 'boolean') pinned = next.pinned;
+    $('#sChromeMode').value = mode;
+    $('#sDetailsPinned').checked = pinned; $('#appearanceDetailsPinned').checked = pinned;
+    Ambient.exit(); refresh(); if (save) persist();
+  }
+  function cycle() {
+    configure({ mode: mode === 'shown' ? 'hidden' : 'shown' });
+    toast(mode === 'shown' ? 'Overlay on · O: hide overlay' : 'Overlay off · O: show overlay', 3200);
+  }
+  function init() {
+    configure({mode:S.config.libraryChromeMode === 'hidden' ? 'hidden' : 'shown',pinned:!!S.config.libraryDetailsPinned}, false);
+    setInterval(refresh, 200);
+    $('#sChromeMode').onchange = event => configure({mode:event.target.value});
+    $('#sDetailsPinned').onchange = event => configure({pinned:event.target.checked});
+    $('#appearanceDetailsPinned').onchange = event => configure({pinned:event.target.checked});
+  }
+  return {init,activity,refresh,configure,cycle,persist,mode:()=>mode};
+})();
+
+const DetailsResize = (() => {
+  const min = 128;
+  let drag = null;
+  const topPadding = 22;
+  const shotAspect = 16 / 10;
+  const shotWidthLimit = () => Math.min(420, innerWidth * .23, (innerHeight * .36 - topPadding) * shotAspect);
+  // The screenshot sets the top edge of the expanded panel, with room for the grip.
+  const max = () => Math.max(min + 1, Math.ceil(shotWidthLimit() / shotAspect) + topPadding);
+  function align() {
+    const root=document.documentElement,view=$('#view-library'),mode=root.dataset.infoBar||'small';
+    const resized=root.dataset.detailsResized==='true';
+    const height = S.config.libraryDetailsHeight ?? min;
+    const flow=String(!['compact','hidden'].includes(mode));if(root.dataset.detailsFlow!==flow)root.dataset.detailsFlow=flow;
+    const width = resized ? Math.min(shotWidthLimit(), (height - topPadding) * shotAspect)
+      : mode === 'xlarge' ? shotWidthLimit()
+      : mode === 'large' ? Math.min(shotWidthLimit(), 360, innerWidth * .22)
+      : Math.min(shotWidthLimit(), Math.max(145, Math.min(210, innerWidth * .16)));
+    const shotHeight = width / shotAspect;
+    const tight = String(shotHeight < 165);
+    if (root.dataset.detailsShotTight !== tight) root.dataset.detailsShotTight = tight;
+    const dimensions = {
+      '--details-shot-width': width,
+      '--details-shot-height': shotHeight,
+      '--details-title-cap': Math.max(18, shotHeight * .24),
+      '--details-max-height': max(),
+    };
+    for (const [name, value] of Object.entries(dimensions)) {
+      const pixels = value + 'px';
+      if (view.style.getPropertyValue(name) !== pixels) view.style.setProperty(name, pixels);
+    }
+  }
+  function setHeight(value) {
+    const height = Math.max(min, Math.min(max(), Math.round(value)));
+    const root = document.documentElement, view = $('#view-library');
+    root.dataset.detailsResized = 'true';root.dataset.detailsTiny = String(height < 175);
+    view.style.setProperty('--details-height',height+'px');
+    view.style.setProperty('--details-title-size',Math.max(18,Math.min(58,height*.14))+'px');
+    view.style.setProperty('--details-meta-size',Math.max(12,Math.min(19,height*.05))+'px');
+    view.style.setProperty('--details-desc-size',Math.max(12,Math.min(20,height*.055))+'px');
+    S.config.libraryDetailsHeight = height;
+    const tab = $('#detailsResizeHandle');tab.setAttribute('aria-valuenow',height);tab.setAttribute('aria-valuemin',min);tab.setAttribute('aria-valuemax',max());
+    resizeShelf();layout();return height;
+  }
+  function reset() {
+    delete S.config.libraryDetailsHeight;
+    delete document.documentElement.dataset.detailsResized;
+    delete document.documentElement.dataset.detailsTiny;
+  }
+  function init() {
+    const tab = $('#detailsResizeHandle');
+    if (Number.isFinite(S.config.libraryDetailsHeight)) setHeight(S.config.libraryDetailsHeight);
+    tab.onpointerdown = event => {
+      if(event.button!==0)return;event.preventDefault();event.stopPropagation();
+      drag = {y:event.clientY,height:$('#info').getBoundingClientRect().height};
+      try{tab.setPointerCapture(event.pointerId);}catch{}
+      setHeight(drag.height);Appearance.apply({infoBar:'xlarge'},false);LibraryChrome.configure({pinned:true},false);
+      document.documentElement.classList.add('details-dragging');
+    };
+    tab.onpointermove = event => {if(drag){event.preventDefault();const requested=drag.height+drag.y-event.clientY,applied=setHeight(requested);if(applied!==Math.round(requested))drag={y:event.clientY,height:applied};}};
+    const finish = () => {if(!drag)return;drag=null;document.documentElement.classList.remove('details-dragging');Appearance.persist();LibraryChrome.persist();};
+    tab.onpointerup=finish;tab.onpointercancel=finish;tab.onlostpointercapture=finish;
+    tab.onkeydown = event => {
+      if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;
+      event.preventDefault();event.stopPropagation();
+      const height=$('#info').getBoundingClientRect().height;
+      setHeight(event.key==='Home'?min:event.key==='End'?max():height+(event.key==='ArrowUp'?24:-24));
+      Appearance.apply({infoBar:'xlarge'},false);LibraryChrome.configure({pinned:true},false);Appearance.persist();LibraryChrome.persist();
+    };
+    $('#infoBarOptions').addEventListener('click',event=>{if(event.target.closest('button[data-info-bar]:not([data-info-bar="hidden"])'))reset();},true);
+    addEventListener('resize',()=>{if(Number.isFinite(S.config.libraryDetailsHeight))setHeight(S.config.libraryDetailsHeight);else resizeShelf();});
+  }
+  return {init,setHeight,reset,max,align};
+})();
+
 // ---------- boot ----------
 async function boot() {
   S.config = await api.getConfig();
   LibraryUI.init({getState:()=>S,select:setSystem});
   AudioUI.init(S.config.uiSound);
   Ambient.init({initial:S.config.ambient,canRun:()=>libraryActive()&&!caseShown()&&!LibraryUI.pickerOpen()&&!Appearance.panelOpen()&&!document.activeElement?.matches?.('input,select,textarea'),advance:()=>select(S.sel+1>=S.list.length?0:S.sel+1)});
-  Appearance.init({getState:()=>S,toast,refresh:()=>{for(const it of items.values()){const game=S.games.find(g=>g.id===it.dataset.id);if(game)fillItem(it,game)}if(S.list.length)layout();promptFamilyRendered='';renderPrompts()}});
+  Appearance.init({getState:()=>S,toast,refresh:()=>{resizeShelf();for(const it of items.values()){const game=S.games.find(g=>g.id===it.dataset.id);if(game)fillItem(it,game)}if(S.list.length)layout();promptFamilyRendered='';renderPrompts()}});
   eShopStyle=S.config.eShopStyle==='original'?'original':'enhanced';
   promptPreference = validPromptPreference(S.config.promptFamily);
   applyMotion(S.config.motion || 'auto');
@@ -69,9 +183,14 @@ async function boot() {
   api.onProgress(onProgress);
   ArtworkUI.init({getGames:()=>S.games,getSystems:()=>S.config.systems,getSelected:()=>S.list[S.sel],updateGame:updateArtwork});
   await loadLibrary();
+  LibraryChrome.init();
+  DetailsResize.init();
   initAppUpdates();
-  new ResizeObserver(resizeShelf).observe($('#info'));
-  new ResizeObserver(() => { if (S.config && libraryActive()) layout(); }).observe($('#stage'));
+  let shelfResizeFrame=0;const scheduleShelfResize=()=>{if(shelfResizeFrame)return;shelfResizeFrame=requestAnimationFrame(()=>{shelfResizeFrame=0;resizeShelf();if(S.config&&libraryActive())layout();});};
+  const shelfObserver = new ResizeObserver(scheduleShelfResize);
+  shelfObserver.observe($('#info'));
+  shelfObserver.observe($('#stage'));
+  shelfObserver.observe($('#libraryHints'));
   renderEmus();
   renderSettings();
   setInterval(() => ($('#clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })), 1000);
@@ -98,7 +217,8 @@ async function loadLibrary() {
 function renderChips() {
   LibraryUI.render();
 }
-function setSystem(id) {
+function setSystem(id, edge = null) {
+  consoleNavigation = null;
   const previousSystem=S.system;
   S.system = S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && s.romDir) ? id : 'all';
   if(previousSystem!==S.system)AudioUI.play('system');
@@ -106,9 +226,10 @@ function setSystem(id) {
   const q = S.query.trim().toLowerCase();
   S.list = S.games.filter(g => (S.system === 'all' || g.system === S.system) && (!q || g.title.toLowerCase().includes(q)));
   LibraryUI.select();
-  $('#carousel').innerHTML = ''; items.clear();
+  $('#carousel').innerHTML = ''; items.clear();revealNode=null;
   const k = keep ? S.list.indexOf(keep) : -1;
   S.sel = k >= 0 ? k : Math.min(S.sel, Math.max(0, S.list.length - 1));
+  if (edge !== null) S.sel = edge > 0 ? 0 : Math.max(0, S.list.length - 1);
   $('#empty').textContent = q ? `No games match “${S.query}”.` : (() => { const s = S.config.systems.find(x => x.id === S.system);
       return s?.romDir ? `No games found in ${s.romDir.split('|').map(d => d.trim()).filter(Boolean).join(' or ')}` : 'No games for this system yet.'; })();
   $('#empty').classList.toggle('hidden', S.list.length > 0);
@@ -117,12 +238,49 @@ function setSystem(id) {
 function cycleSystem(dir) {
   const ids = $$('#systems button').map(b => b.dataset.id);
   const i = (ids.indexOf(S.system) + dir + ids.length) % ids.length;
-  S.sel = 0; setSystem(ids[i]);
+  setSystem(ids[i]);
 }
+let lastDetailsSize = 'small';
+function toggleGameDetails() {
+  const current = document.documentElement.dataset.infoBar || 'small';
+  const overlayHidesDetails = document.documentElement.dataset.chromeHidden === 'true' && document.documentElement.dataset.detailsPinned !== 'true';
+  const show = current === 'hidden' || overlayHidesDetails;
+  if (current !== 'hidden') { lastDetailsSize = current; S.config.libraryLastDetailsSize = current; }
+  if (show) {
+    const size = current === 'hidden' ? S.config.libraryLastDetailsSize || lastDetailsSize : current;
+    LibraryChrome.configure({pinned:true},false);
+    Appearance.apply({infoBar:size});
+    LibraryChrome.persist();
+  } else Appearance.apply({infoBar:'hidden'});
+}
+$('#btnToggleDetails').onclick = toggleGameDetails;
+// Browsing never stops at the end of the shelf. On a system's shelf, going past the last game
+// carries on into the next system that has games; All games is one list already, so it wraps round.
+const viewName = id => id === 'all' ? 'All games' : sysOf(id).name;
+const compareNames = new Intl.Collator(undefined, { sensitivity: 'base' }).compare;
+const byTitle = (a, b) => compareNames(a.title, b.title);
+let consoleNavigation = null;
+function getConsoleNavigation() {
+  if (consoleNavigation) return consoleNavigation;
+  const ids = $$('#systems button').map(button => button.dataset.id).filter(id => id !== 'all');
+  const shelves = new Map();
+  if (ids.includes(S.system)) {
+    for (const id of ids) shelves.set(id, { games: [], sorted: false });
+    const query = S.query.trim().toLowerCase();
+    for (const game of S.games) {
+      const shelf = shelves.get(game.system);
+      if (shelf && (!query || game.title.toLowerCase().includes(query))) shelf.games.push(game);
+    }
+    for (const shelf of shelves.values()) shelf.games.sort(byTitle);
+  }
+  consoleNavigation = { ids: ids.filter(id => shelves.get(id)?.games.length), shelves };
+  return consoleNavigation;
+}
+
 
 // ---------- 3D carousel ----------
 const items = new Map(); // list index -> element
-let revealTimer, revealId = null, announceTimer;
+let revealTimer, revealNode, revealId = null, announceTimer;
 // miniDiscScale is eight-twelfths, because a GameCube mini disc is 8 cm across a 12 cm disc.
 // A full-size media diameter would hide the size difference this model represents.
 const miniDiscScale=8/12;
@@ -152,18 +310,28 @@ function createMedia(game, a) {
 }
 
 function resizeShelf() {
-  $('#view-library').style.setProperty('--info-clearance', `${$('#info').offsetHeight + 114}px`);
+  DetailsResize.align();
+  const library = $('#view-library');
+  const detailsHidden = document.documentElement.dataset.infoBar === 'hidden';
+  const clearance = detailsHidden
+    ? library.getBoundingClientRect().bottom - $('#libraryHints').getBoundingClientRect().top + 12
+    : $('#info').offsetHeight + 114;
+  library.style.setProperty('--info-clearance', clearance + 'px');
 }
-function revealSelection() {
+function revealSelection(delay = 720) {
   clearTimeout(revealTimer);
   for (const [i,e] of items) if (i !== S.sel) e.classList.remove('media-revealed');
   const game = S.list[S.sel];
   revealId = game?.id || null;
   if (!game) return;
-  const selected = items.get(S.sel);
-  const reveal = () => { if (S.list[S.sel]?.id === game.id && selected?.isConnected) selected.classList.add('media-revealed'); };
+  const selected = revealNode = items.get(S.sel);
+  const reveal = () => {
+    if (S.list[S.sel]?.id !== game.id || !selected?.isConnected) return;
+    selected.classList.add('media-revealed');
+  };
+  if ($('#carousel').classList.contains('shelf-transfer') || shelfTransition) return;
   if (document.documentElement.dataset.motion === 'reduced') reveal();
-  else revealTimer = setTimeout(reveal,420);
+  else revealTimer = setTimeout(reveal,delay);
 }
 
 function buildBox(game, cls = '') {
@@ -269,7 +437,8 @@ function caseSize(i) {
 
 function layout() {
   const stage = $('#stage');
-  const scale = Math.max(.35,Math.min(1.16,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
+  const scaleLimit = document.documentElement.dataset.infoBar === 'hidden' ? 1.32 : 1.16;
+  const scale = Math.max(.35,Math.min(scaleLimit,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
   const view=modelsEnabled()?Appearance.geometry(stage,S.sel,S.list.length):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
   for (const [i, e] of items) if (i < lo - (modelsEnabled()?2:0) || i > hi + (modelsEnabled()?2:0)) { e.remove(); items.delete(i); }
   for (let i = Math.max(0, lo); i <= Math.min(S.list.length - 1, hi); i++) {
@@ -292,20 +461,140 @@ function layout() {
   $('#counter').textContent = S.list.length ? `${(S.sel + 1).toLocaleString()} / ${S.list.length.toLocaleString()}` : '';
   $('#shelfPosition').textContent = S.list.length ? `${String(S.sel+1).padStart(2,'0')} / ${S.list.length.toLocaleString()}` : '0 games';
   $('#shelfProgress').style.width = `${S.list.length ? (S.sel+1)/S.list.length*100 : 0}%`;
-  $('#shelfPrev').disabled = !S.list.length || S.sel === 0;
-  $('#shelfNext').disabled = !S.list.length || S.sel === S.list.length-1;
-  $('#shelfLabel').textContent = (S.system === 'all' ? 'All games' : sysOf(S.system).name)+' / '+Appearance.layouts[Appearance.mode()].name;
+  const stuck = !S.list.length || (S.list.length < 2 && (S.system === 'all' || getConsoleNavigation().ids.length < 2));
+  $('#shelfPrev').disabled = stuck; $('#shelfNext').disabled = stuck;
+  $('#shelfLabel').textContent = viewName(S.system)+' / '+Appearance.layouts[Appearance.mode()].name;
   if (S.list.length) $('#carousel').setAttribute('aria-activedescendant',`shelf-game-${S.sel}`);
   else $('#carousel').removeAttribute('aria-activedescendant');
   if (!S.list.length) $('#mediaType').textContent = '';
-  if (revealId !== (S.list[S.sel]?.id || null) || !items.get(S.sel)?.classList.contains('media-revealed')) revealSelection();
+  renderConsolePreviews();
+  if (revealId !== (S.list[S.sel]?.id || null) || items.get(S.sel)!==revealNode) revealSelection();
+}
+
+let shelfTransition = null;
+function nextConsole(dir) {
+  const { ids } = getConsoleNavigation();
+  const index = ids.indexOf(S.system);
+  return index < 0 || !ids.length ? S.system : ids[(index + dir + ids.length) % ids.length];
+}
+function renderConsolePreviews(force = false) {
+  const stage = $('#stage');
+  if (stage.classList.contains('console-moving') && !force) return;
+  for (const dir of [-1, 1]) {
+    const cls = dir > 0 ? 'next' : 'previous';
+    let preview = stage.querySelector('.console-preview.' + cls + ':not(.preview-departing)');
+    const remaining = dir > 0 ? S.list.length - 1 - S.sel : S.sel;
+    const target = S.list.length && remaining < Math.min(5, S.list.length) ? nextConsole(dir) : S.system;
+    if (target === S.system || !S.list.length || remaining >= Math.min(5, S.list.length)) { preview?.remove(); continue; }
+    const shelf = getConsoleNavigation().shelves.get(target);
+    if (!shelf?.games.length) { preview?.remove(); continue; }
+    const games = dir > 0 ? shelf.games.slice(0, 3) : shelf.games.slice(-3).reverse();
+    if (!games.length) { preview?.remove(); continue; }
+    if (!preview) {
+      preview = el('div', 'console-preview ' + cls);
+      preview.setAttribute('aria-hidden', 'true'); preview.inert = true;
+      stage.append(preview);
+    }
+    const key = JSON.stringify([target, ...games.map(g => [g.id, g.title, g.media.front])]);
+    if (preview._key !== key) {
+      preview._key = key; preview.replaceChildren();
+      const name = el('div', 'console-preview-name'); name.textContent = viewName(target);
+      const covers = el('div', 'console-preview-covers');
+      for (const game of games) {
+        const card = el('div', 'console-preview-cover'); card.dataset.gameId = game.id;
+        card.title = game.title;
+        card.append(EshopCovers.face(game, art(game), 'console-preview-face'));
+        covers.append(card); ensureArt(game);
+      }
+      preview.append(name, covers);
+    }
+    preview.style.opacity = .65 * (1 - remaining / Math.min(5, S.list.length));
+  }
+}
+function navigateGame(dir) {
+  if (!S.list.length || shelfTransition) return;
+  const index = S.sel + dir;
+  if (index >= 0 && index < S.list.length) return select(index);
+  const target = nextConsole(dir);
+  if (target === S.system) {
+    if (S.list.length > 1) select(dir > 0 ? 0 : S.list.length - 1);
+    return;
+  }
+  const carousel = $('#carousel');
+  const peek = $('#stage').querySelector('.console-preview.' + (dir > 0 ? 'next' : 'previous') + ' .console-preview-cover')?.getBoundingClientRect();
+  const reduced = document.documentElement.dataset.motion === 'reduced';
+  clearTimeout(revealTimer);revealId=null;for(const node of items.values())node.classList.remove('media-revealed');
+  const outgoing = reduced ? null : carousel.cloneNode(true);
+  if (outgoing) {
+    const originals = carousel.querySelectorAll('.item, .sway');
+    outgoing.querySelectorAll('.item, .sway').forEach((node, i) => {
+      node.style.transform = getComputedStyle(originals[i]).transform;
+      node.style.animation = 'none';
+      node.style.transition = 'none';
+    });
+    outgoing.removeAttribute('id'); outgoing.classList.add('shelf-continuation');
+    outgoing.removeAttribute('role'); outgoing.removeAttribute('tabindex'); outgoing.removeAttribute('aria-activedescendant');
+    outgoing.setAttribute('aria-hidden', 'true'); outgoing.inert = true;
+    for (const node of outgoing.querySelectorAll('[id]')) node.removeAttribute('id');
+    carousel.parentElement.append(outgoing);
+  }
+  const oldPreviews = reduced ? [] : [...$('#stage').querySelectorAll('.console-preview')];
+  if (!reduced) { carousel.classList.add('shelf-transfer'); $('#stage').classList.add('console-moving'); }
+  setSystem(target, dir);
+  if (!reduced) { resizeShelf(); layout(); }
+  AudioUI.play('scroll', dir);
+  if (reduced) return;
+  const distance = Math.max(500, $('#stage').clientWidth * .65);
+  const options = { duration: 580, easing: 'cubic-bezier(.2,.75,.2,1)' };
+  const exit = outgoing.animate([
+    { transform: 'translateX(0)' },
+    { transform: 'translateX(' + (-dir * distance) + 'px)' }
+  ], options);
+  const selected = items.get(S.sel);
+  const face = selected.querySelector('.f-front') || selected;
+  let startScale = .25, startX = dir * distance, startY = 0;
+  carousel.style.transformOrigin = '0 0';
+  if (peek?.width && peek.height) {
+    const restingWidth = face.getBoundingClientRect().width;
+    startScale = Math.max(.12, Math.min(.45, peek.width / restingWidth));
+    carousel.style.transform = `scale(${startScale})`;
+    const projected = face.getBoundingClientRect();
+    startX = peek.x + peek.width / 2 - projected.x - projected.width / 2;
+    startY = peek.y + peek.height / 2 - projected.y - projected.height / 2;
+    carousel.style.transform = '';
+  }
+  const enter = carousel.animate([
+    { transform: 'translate3d(' + startX + 'px,' + startY + 'px,0) scale(' + startScale + ')' },
+    { transform: 'translate3d(0,0,0) scale(1)' }
+  ], options);
+  for (const node of oldPreviews) node.classList.add('preview-departing');
+  renderConsolePreviews(true);
+  const previewFades = oldPreviews.map(node => node.animate([
+    { transform:'translateY(-50%) translate3d(0,0,0) scale(1)', opacity:Number(getComputedStyle(node).opacity) },
+    { transform:'translateY(-50%) translate3d(' + (-dir * 72) + 'px,0,0) scale(1.025)', opacity:0 }
+  ], {...options,fill:'forwards'}));
+  const incomingPreviews = [...$('#stage').querySelectorAll('.console-preview:not(.preview-departing)')];
+  for (const node of incomingPreviews) previewFades.push(node.animate([
+    { transform:'translateY(-50%) translate3d(' + (dir * 72) + 'px,0,0) scale(.975)', opacity:0 },
+    { transform:'translateY(-50%) translate3d(0,0,0) scale(1)', opacity:Number(node.style.opacity) }
+  ], options));
+  for (const node of items.values()) node.classList.add('console-arrival');
+  shelfTransition = { exit, enter, outgoing, previewFades };
+  Promise.allSettled([exit.finished, enter.finished, ...previewFades.map(animation => animation.finished)]).then(() => {
+    outgoing.remove();
+    for (const node of oldPreviews) node.remove();
+    $('#stage').classList.remove('console-moving');
+    layout(); carousel.offsetWidth;
+    carousel.classList.remove('shelf-transfer'); shelfTransition = null;revealSelection(60);
+  });
 }
 
 function select(i) {
   if (!S.list.length) return;
   const n = Math.max(0, Math.min(S.list.length - 1, i));
   if (n === S.sel) return;
-  AudioUI.play('scroll',Math.sign(n-S.sel));
+  if(!Ambient.active())AudioUI.play('scroll',Math.sign(n-S.sel));
+  for (const node of items.values()) node.classList.remove('console-arrival');
   S.sel = n; layout(); showInfo();
 }
 
@@ -608,6 +897,8 @@ function renderSettings() {
   $('#sMotion').value = motionPreference;
   $('#sDisableModels').checked = !modelsEnabled();
   $('#sDisableAnimations').checked = c.animationsEnabled === false;
+  $('#sChromeMode').value = S.config.libraryChromeMode === 'hidden' ? 'hidden' : 'shown';
+  $('#sDetailsPinned').checked = !!S.config.libraryDetailsPinned;
   $('#sRealSizes').checked = !!c.realCaseSizes;
   $('#sWear').checked = !!c.wornCases;
   $('#sMotion').disabled = c.animationsEnabled === false;
@@ -697,8 +988,8 @@ $('#cvPlay').onclick = () => play(CV.game);
 $('#cvBack').onclick = closeCase;
 $('#cvToggle').onclick = () => setOpen(!CV.open);
 $('#cvFlip').onclick = () => {if(!modelsEnabled())$('#caseRig .case')?.classList.toggle('flat-back');else tween({ ry: CV.ry + 180 }, 900);};
-$('#shelfPrev').onclick = () => select(S.sel-1);
-$('#shelfNext').onclick = () => select(S.sel+1);
+$('#shelfPrev').onclick = () => navigateGame(-1);
+$('#shelfNext').onclick = () => navigateGame(1);
 let surfaceLightFrame=null;
 $('#stage').addEventListener('pointermove',e=>{
   if(surfaceLightFrame!==null||document.documentElement.dataset.motion==='reduced')return;
@@ -723,6 +1014,7 @@ $('#stage').addEventListener('wheel', e => {
 
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
+  LibraryChrome.activity();
   if(Appearance.panelOpen()){Appearance.controller(action);return;}
   if(LibraryUI.pickerOpen()){LibraryUI.controller(action);return;}
   if(action==='systems'&&libraryActive()&&!caseShown()){LibraryUI.openPicker();return;}
@@ -740,7 +1032,7 @@ function input(action) {
   if (!libraryActive()) return;
   if(action==='sysprev'||action==='sysnext'){cycleSystem(action==='sysprev'?-1:1);return;}
   if(['up','down'].includes(action)&&['vertical','swatches'].includes(Appearance.mode())){const delta=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+(action==='up'?-delta:delta));return;}
-  ({ left: () => select(S.sel - 1), right: () => select(S.sel + 1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
+  ({ left: () => navigateGame(-1), right: () => navigateGame(1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
      play: () => play(), case: openCase, manual: () => manual(), pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
 }
 // Search: start typing anywhere in the library to filter.
@@ -754,11 +1046,20 @@ $('#search').addEventListener('keydown', e => {
   else if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); e.target.blur(); }
   e.stopPropagation();
 });
+// Mouse clicks leave focus on the clicked button, which would then swallow Enter, Space and the arrow keys.
+// Drop that focus in the library; Tab brings back normal keyboard focus.
+let pointerFocus = false;
+document.addEventListener('pointerdown', () => { pointerFocus = true; }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Tab') pointerFocus = false; }, true);
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('button,a');
+  if (!b || e.detail === 0 || !libraryActive() || caseShown() || b.closest('dialog')) return;
+  setTimeout(() => { if (document.activeElement === b) b.blur(); });
+});
 document.addEventListener('keydown', e => {
   usePromptInput('keyboard');
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&libraryActive()&&!caseShown()){e.preventDefault();LibraryUI.openPicker();return;}
   if(LibraryUI.pickerOpen()||Appearance.panelOpen())return;
-  if(e.key==='/'&&libraryActive()&&!caseShown()&&!e.target.matches?.('input,select,textarea')){e.preventDefault();$('#search').focus();return;}
   if (caseShown() && e.key === 'Tab') {
     const focusable = $$('#caseView button:not(:disabled)');
     const first=focusable[0],last=focusable[focusable.length-1];
@@ -767,9 +1068,17 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.target.matches?.('input, select, textarea')) return;
-  if (e.target.matches?.('button,a') && (e.key === 'Enter' || e.key === ' ')) return;
-  if (libraryActive() && !caseShown() && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.altKey && !(e.key.toLowerCase() === 'm' && !$('#search').value)) {
-    $('#search').focus(); return; // the key lands in the search box
+  if (libraryActive() && !caseShown() && e.key === '/' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    $('#search').focus();
+    return;
+  }
+  if (libraryActive() && !caseShown() && e.key.toLowerCase() === 'o' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); if (!e.repeat) LibraryChrome.cycle(); return; }
+  if (libraryActive() && !caseShown() && e.key.toLowerCase() === 'i' && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); if (!e.repeat) toggleGameDetails(); return; }
+  if (e.target.matches?.('button,a') && (e.key === 'Enter' || e.key === ' ')) {
+    // A button that only has focus because it was clicked keeps Enter/Space for the library, not for itself.
+    if (!(pointerFocus && libraryActive() && !caseShown() && !e.target.closest('dialog'))) return;
+    e.target.blur();
   }
   const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'play', ' ': 'case', Escape: 'back', m: 'manual', M: 'manual', PageUp: 'pgup', PageDown: 'pgdn' };
   if (map[e.key]) { e.preventDefault(); input(caseShown() && e.key === ' ' ? 'back' : map[e.key]); }
@@ -862,6 +1171,7 @@ function pollPad(now) {
     renderPrompts();
   }
   const woke = gp && active(gp) ? Ambient.activity() : false;
+  if (gp && active(gp)) LibraryChrome.activity();
   if (gp && active(gp)) usePromptInput(Prompts.detect(gp.id));
   if (gp) {
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, b = i => gp.buttons[i]?.pressed;

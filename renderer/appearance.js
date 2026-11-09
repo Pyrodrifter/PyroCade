@@ -4,15 +4,16 @@ const Appearance=(()=>{
   const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Page through'},bookshelf:{name:'Bookshelf',note:'Spines on a shelf'},spinner:{name:'Spinner rack',note:'Rotating store tower'},swatches:{name:'Colour cards',note:'Colour grid'}};
   let theme='ember',mode='carousel',infoBar='small',context,saves=Promise.resolve(),volumeTimer;
   function persist(){
-    const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.libraryInfoBar=infoBar;state.config.uiSound=AudioUI.settings();
+    const state=context.getState();state.config.libraryTheme=theme;state.config.libraryLayout=mode;state.config.libraryInfoBar=infoBar;if(infoBar!=='hidden')state.config.libraryLastDetailsSize=infoBar;state.config.uiSound=AudioUI.settings();
     const snapshot=structuredClone(state.config);
     saves=saves.catch(()=>{}).then(()=>api.setConfig(snapshot)).catch(()=>context.toast('Appearance could not be saved. Try changing the option again.'));
     return saves;
   }
   function apply(next={},save=true){
-    const old=mode,oldInfo=infoBar;if(['large','small','compact','hidden'].includes(next.infoBar))infoBar=next.infoBar;if(themes[next.theme])theme=next.theme;if(layouts[next.layout])mode=next.layout;
+    const old=mode,oldInfo=infoBar;if(['xlarge','large','small','compact','hidden'].includes(next.infoBar))infoBar=next.infoBar;if(themes[next.theme])theme=next.theme;if(layouts[next.layout])mode=next.layout;
     document.documentElement.dataset.infoBar=infoBar;
     for(const b of document.querySelectorAll('#infoBarOptions button'))b.setAttribute('aria-pressed',String(b.dataset.infoBar===infoBar));
+    const detailsBtn=$('#btnToggleDetails');if(detailsBtn){detailsBtn.setAttribute('aria-pressed',String(infoBar!=='hidden'));detailsBtn.textContent=infoBar==='hidden'?'Show details (I)':'Hide details (I)';}
     document.documentElement.dataset.theme=theme;document.documentElement.dataset.layout=mode;
     const palette=themes[theme];document.documentElement.style.setProperty('--accent',palette.accent);document.documentElement.style.setProperty('--accent2',palette.light);
     for(const b of document.querySelectorAll('#layoutOptions button'))b.setAttribute('aria-pressed',String(b.dataset.layout===mode));
@@ -97,7 +98,7 @@ const Appearance=(()=>{
     if(action==='play'||action==='case'){if(active.matches('button'))active.click();return;}
     if(!['left','right','up','down'].includes(action))return;
     if(active.id==='soundVolume'&&['left','right'].includes(action)){active.value=Math.max(0,Math.min(100,Number(active.value)+(action==='left'?-5:5)));active.dispatchEvent(new Event('input'));AudioUI.play('scroll');return;}
-    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,3),layoutButtons.slice(3),[...document.querySelectorAll('#themeOptions button')],[...document.querySelectorAll('#backgroundOptions button')],[...document.querySelectorAll('#infoBarOptions button')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
+    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,3),layoutButtons.slice(3),[...document.querySelectorAll('#themeOptions button')],[...document.querySelectorAll('#backgroundOptions button')],[...document.querySelectorAll('#infoBarOptions button')],[$('#appearanceDetailsPinned')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
     let row=rows.findIndex(r=>r.includes(active)),col=row<0?0:rows[row].indexOf(active);if(row<0){rows[0][0].focus();return;}
     if(action==='left'||action==='right')col=Math.max(0,Math.min(rows[row].length-1,col+(action==='left'?-1:1)));
     else{row=Math.max(0,Math.min(rows.length-1,row+(action==='up'?-1:1)));col=Math.min(col,rows[row].length-1)}
