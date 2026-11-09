@@ -32,6 +32,13 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - name: Test migrated Rust behavior
         run: npm run tauri:test
+      - name: Check renderer and parity scripts
+        run: |
+          node --check scripts/check-library-ui.cjs
+          node --check scripts/check-carousel.cjs
+          node --check scripts/check-artwork.cjs
+          node --check scripts/check-artwork-ui.cjs
+          npm run artwork:check
       - name: Check Rust targets
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
@@ -187,7 +194,8 @@ jobs:
           run(appimagetool, ['--appimage-extract'], { cwd: base });
           const toolDir = path.join(base, 'squashfs-root');
           if (!fs.existsSync(path.join(toolDir, 'AppRun'))) throw new Error('Failed to extract appimagetool runtime');
-          const out = path.join(root, 'dist', 'PyroCade_0.2.1_aarch64-extract.AppImage');
+          const pkgVersion = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri/tauri.conf.json'), 'utf8')).version;
+          const out = path.join(root, 'dist', `PyroCade_${pkgVersion}_aarch64-extract.AppImage`);
           run(path.join(toolDir, 'AppRun'), ['--appimage-extract', target, out], { cwd: base, env: { ...env, ARCH: 'arm64' } });
           if (!fs.existsSync(out)) throw new Error(`Missing extracted-type AppImage: ${out}`);
           for (const kind of ['deb', 'rpm']) {

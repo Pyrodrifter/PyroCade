@@ -146,7 +146,15 @@ async function run() {
       assert(unchanged === null || Array.isArray(unchanged), 'scan onlyIfChanged did not return null or a library');
       const extra = await api.gameList();
       assert(Array.isArray(extra), 'gameList did not return the user-added games array');
-      return {gamepadApi:'available', transform:'preserve-3d', canvas:'painted', audio:'AudioContext created', libraryCache:'cachedLibrary and scan onlyIfChanged exposed', collection:'M03 bridge and dialogs exposed'};
+      // M05b system catalog through the bridge; M05a play() re-entrancy guard.
+      assert(typeof api.getConfig === 'function', 'Tauri bridge does not expose getConfig');
+      const sysConfig = await api.getConfig();
+      const pcSystem = (sysConfig.systems || []).find((s) => s.id === 'pc');
+      assert(pcSystem && pcSystem.direct === true, 'PC Games direct system missing from config');
+      const switch2System = (sysConfig.systems || []).find((s) => s.id === 'switch2');
+      assert(switch2System && switch2System.extensions.includes('.nup'), 'Switch 2 .nup extension missing from config');
+      assert(typeof play === 'function' && play.toString().includes('launching'), 'play() is missing its re-entrancy guard');
+      return {gamepadApi:'available', transform:'preserve-3d', canvas:'painted', audio:'AudioContext created', libraryCache:'cachedLibrary and scan onlyIfChanged exposed', collection:'M03 bridge and dialogs exposed', m05:'pc direct, switch2 .nup, play guard'};
     })().then(complete).catch(error => complete({error:error.message || String(error), stack:error.stack}));
   `;
   const result = await request('POST', `/session/${sessionId}/execute/async`, { script, args: [] });

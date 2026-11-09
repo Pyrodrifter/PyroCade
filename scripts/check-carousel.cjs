@@ -29,6 +29,7 @@ app.whenReady().then(async()=>{
     await run(`
       await pause(100);
       assert(S.games.length===12,'Fixture library failed');
+      assert(typeof play==='function'&&play.toString().includes('launching'),'play() is missing its re-entrancy guard');
       assert(document.querySelector('#xmb'),'Ambient canvas is missing');
       assert(Ambient.backgrounds().includes('loom'),'Ambient scenes are unavailable');
       Appearance.apply({infoBar:'compact'},false);

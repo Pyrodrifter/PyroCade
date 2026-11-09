@@ -152,7 +152,40 @@ async function until(test){for(let i=0;i<300;i++){if(test())return;await pause(1
       const rejected=await badService.downloadGame(badGame,['manual']);
       assert.equal(rejected.missing,1,'Non-PDF manual bytes must be skipped as missing');
     }
-    console.log('Passed: missing screenshots with cached covers, custom-art preservation, exact-region matching, independent title art, refreshed matches, invalid-image handling, path validation, shared requests, cancellation, resume, unsupported systems and progress updates.');
+    // M05a: platform-aware launch behavior (static check of the Tauri host; unit tests in
+    // backend.rs cover the LD filter and Steam/gamescope detection without launching).
+    {
+      const rust=await fs.readFile(path.join(__dirname,'../src-tauri/src/backend.rs'),'utf8');
+      for(const needle of [
+        'pyrocade.log','log_start','log_launch','steam_start_detected','is_gamescope',
+        'steam_filtered_ld_library_path','steam-runtime','steamrt','ubuntu12_32','ubuntu12_64','pressure-vessel',
+        'apply_steam_fix_to_command','cleared LD_PRELOAD','removed Steam libraries from LD_LIBRARY_PATH',
+        'DISPLAY unset under gamescope','steamFix',
+      ]) assert(rust.includes(needle),`Rust launch logging missing ${needle}`);
+      // Launch children inherit the parent environment; the only per-child change is the
+      // Linux-only Steam LD sanitization, so nothing may clear the whole environment.
+      assert(!rust.includes('env_clear'),'Launch children must inherit the parent environment');
+      const app=await fs.readFile(path.join(__dirname,'../renderer/app.js'),'utf8');
+      assert(app.includes('let launching = false')&&app.includes('if (launching) return')&&app.includes('finally { launching = false; }'),'play() must guard re-entrant launches');
+    }
+    // M05b: emulator metadata and PC config (static check; unit tests in config.rs/emulators.rs
+    // cover the .nup migration, direct-folder scan depth and the RPCS3 asset regex).
+    {
+      const catalog=JSON.parse(await fs.readFile(path.join(__dirname,'../emulators.json'),'utf8'));
+      const rpcs3=catalog.find(e=>e.id==='rpcs3');
+      const asset=(rpcs3.platforms?.windows?.x86_64||{}).asset||'';
+      assert(asset.includes('_win64(_msvc)?'),'RPCS3 Windows asset must match the _msvc variant');
+      const config=await fs.readFile(path.join(__dirname,'../src-tauri/src/config.rs'),'utf8');
+      for(const needle of [
+        '{"id":"pc"','"direct":true','ext-switch2-nup','merge_migrates_switch2_nup_once','"migrations"',
+      ]) assert(config.includes(needle),`Rust config missing ${needle}`);
+      // Direct systems scan only the top folder, because game folders hold helper binaries.
+      const backend=await fs.readFile(path.join(__dirname,'../src-tauri/src/backend.rs'),'utf8');
+      assert(backend.includes('start_depth')&&backend.includes('direct_depth_skips_nested_helper_binaries'),'Direct-folder scan depth missing');
+      const emulators=await fs.readFile(path.join(__dirname,'../src-tauri/src/emulators.rs'),'utf8');
+      assert(emulators.includes('rpcs3_windows_asset_matches_the_msvc_variant'),'RPCS3 asset test missing');
+    }
+    console.log('Passed: missing screenshots with cached covers, custom-art preservation, exact-region matching, independent title art, refreshed matches, invalid-image handling, path validation, shared requests, cancellation, resume, unsupported systems, M05 launch-logging/Steam LD parity and M05 emulator-metadata parity.');
   } finally {
     // Only remove the unique test directory inside the OS temp directory.
     assert.equal(path.dirname(path.resolve(dir)),path.resolve(os.tmpdir()));

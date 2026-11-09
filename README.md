@@ -13,7 +13,7 @@ A glass-styled emulator front end with a 3D library, animated physical media, si
 | Platform | Artifact | Validation |
 | --- | --- | --- |
 | macOS ARM64 | DMG | Native ARM64 build and install smoke test in the release workflow. |
-| Linux ARM64 | AppImage, `.deb`, `.rpm` | Native ARM64 build and package install smoke test in the release workflow. |
+| Linux ARM64 | AppImage, `.deb`, `.rpm` | Native ARM64 build and packaging in the release workflow (no install smoke test; only macOS installs and smoke-launches its artifact). |
 | Android ARM64 | CI-only unsigned `arm64-v8a` APK for pull requests; signed APK on release runs | Signed release APKs are attached to GitHub releases. On-device renderer, controller navigation, and Web Audio startup were checked on an Odin2 running Android 13; see [platform validation](docs/SUPPORT.md). |
 
 The Android app requires Android 7.0 (API 24) or newer. Settings and managed data use app-private storage, and PyroCade does not request broad external-storage access. ROM-folder selection uses Android's Storage Access Framework; linked Android emulator apps can be launched with the selected ROM URI. Android emulator packages are separate apps, not the desktop executables managed by the macOS/Linux downloader. See [platform validation](docs/SUPPORT.md) for tested-device details and remaining validation limits.

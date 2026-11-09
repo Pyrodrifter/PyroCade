@@ -20,6 +20,7 @@ app.whenReady().then(async()=>{
     await win.loadFile(path.resolve(__dirname,'../renderer/index.html'));
     await run(`
       await until(()=>S.games.length===4);
+      assert(typeof play==='function'&&play.toString().includes('launching'),'play() is missing its re-entrancy guard');
       document.querySelector('#btnArtwork').click();
       assert(document.querySelector('#view-artwork').classList.contains('active'),'Artwork action did not open the downloader');
       assert(document.querySelector('#artScope').value==='game','Game action did not select one game');

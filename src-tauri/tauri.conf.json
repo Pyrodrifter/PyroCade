@@ -37,7 +37,7 @@
     },
     "category": "Game",
     "shortDescription": "3D carousel front end for emulators",
-    "longDescription": "A glass-styled emulator front end with a 3D library, animated physical media, four browsing layouts and a built-in emulator downloader and updater.",
+    "longDescription": "A glass-styled emulator front end with a 3D library, animated physical media, six browsing layouts and a built-in emulator downloader and updater.",
     "icon": [
       "../renderer/assets/brand/pyrocade-icon-512.png",
       "../renderer/assets/brand/pyrocade.ico"
