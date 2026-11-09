@@ -18,6 +18,23 @@ const Cartridges=(()=>{
     psp:{shell:true,wholePhoto:true,w:.6,h:.62,color:'#d6d8d3',depth:5,outline:'0,24 4,17 16,9 32,3 50,0 68,3 84,9 96,17 100,24 100,97 97,100 3,100 0,97',label:[8,6,84,65],details:'M3 30V90 M97 30V90'}
   };
   const fallback={w:.65,h:.62,color:'#5c6170',depth:7,outline:rect,label:[12,13,76,69],details:'M10 89H90'};
+  // Cartridges that shipped in their own plastic colour. Used when there is no photo of the real
+  // cartridge and no colour chosen by hand.
+  const special=[
+    ['n64',/ocarina of time|majora'?s mask/i,'#c9a227'],['n64',/donkey kong 64/i,'#f1c232'],['n64',/pok[eé]mon stadium/i,'#9aa0a6'],
+    ['nes',/^(the )?legend of zelda|zelda ii|adventure of link/i,'#c9a227'],
+    ['gbc',/pok[eé]mon.*gold/i,'#c9a227'],['gbc',/pok[eé]mon.*silver/i,'#b9bec7'],['gbc',/pok[eé]mon.*crystal/i,'#7cc6e3'],
+    ['gba',/pok[eé]mon.*ruby/i,'#c62d3e'],['gba',/pok[eé]mon.*sapphire/i,'#2c5bc4'],['gba',/pok[eé]mon.*emerald/i,'#2e9e5c'],
+    ['gba',/pok[eé]mon.*fire ?red/i,'#d9542e'],['gba',/pok[eé]mon.*leaf ?green/i,'#58b947'],
+    ['gb',/pok[eé]mon.*(red|blue|yellow)/i,'#9a9c93'],
+  ];
+  // Colour order: chosen by hand, then read from a real cartridge photo, then the list above.
+  function shellColor(game,system){
+    if(game?.shellCustom)return game.shellCustom;
+    if(game?.shell)return game.shell;
+    const title=game?.title||'';
+    return special.find(([s,re])=>s===system&&re.test(title))?.[2]||null;
+  }
   function shell(p,back=false){
     const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');
     svg.setAttribute('viewBox','0 0 100 100');svg.setAttribute('preserveAspectRatio','none');svg.classList.add('cartridge-molding');
@@ -37,9 +54,17 @@ const Cartridges=(()=>{
     for(let i=0;i<7;i++){const edge=document.createElement('div');edge.className='cartridge-shell-layer';edge.style.transform=`translateZ(${p.depth*(i/6-.5)}px)`;body.append(edge)}
     const front=document.createElement('div');front.className='cartridge-front';front.append(shell(p));
     const back=document.createElement('div');back.className='cartridge-back';back.append(shell(p,true));
+    // The label and its well stand a little clear of the face (.6px and .3px). At a tenth of a
+    // pixel the browser could not tell them from the face at an angle and drew the plain face over
+    // them, so labels went blank as cartridges turned (most visibly in the media carousel).
+    // Branch adaptation: front sits at depth/2+.1, so the label's translateZ is absolute here
+    // (siblings of front/back under the preserve-3d body), not relative to front.
+    let labelZ=p.depth/2+.6;
     const label=document.createElement('div');label.className='cartridge-label';const [x,y,w,h]=p.label;
-    label.style.cssText=`left:${x}%;top:${y}%;width:${w}%;height:${h}%`;
-    front.append(label);body.append(back,front);media.append(body);return label;
+    label.style.cssText=`left:${x}%;top:${y}%;width:${w}%;height:${h}%;transform:translateZ(${labelZ}px)`;
+    const well=document.createElement('div');well.className='cartridge-label-well';well.style.cssText=`left:${x-.8}%;top:${y-.7}%;width:${w+1.6}%;height:${h+1.4}%;transform:translateZ(${labelZ-.3}px)`;
+    label.style.backfaceVisibility='hidden';well.style.backfaceVisibility='hidden';
+    body.append(back,front,well,label);media.append(body);return label;
   }
-  return {build,profiles};
+  return {build,shellColor,profiles};
 })();

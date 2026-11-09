@@ -29,11 +29,27 @@ const DEMO = [
 const sysOf = id => S.config.systems.find(s => s.id === id) || { id, name: id, caseType: 'dvd', media: 'disc', color: '#333' };
 const toast = (m, ms = 3200) => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), ms); };
 
+function physicalSystem(game) {
+  const sys=sysOf(game.system);
+  if(!game.mediaType){
+    if(sys.id!=='snes')return sys;
+    // Super Famicom boxes came in both orientations. Prefer the scan over the ROM's region.
+    const aspect=game._aspect;
+    if(aspect>1.6)return {...sys,packaging:'superfamicom-wide'};
+    if(aspect ? aspect<.95 : regionOf(game)==='Japan')return {...sys,packaging:'superfamicom-tall'};
+    return sys;
+  }
+  // The details editor (M03) is the only writer of mediaType; the renderer already honours it.
+  if(game.mediaType==='disc')return {...sys,id:'physical-disc',media:'disc',caseType:'dvd'};
+  const profiles={switch:'switch',switch2:'switch',gba:'cartbox',n64:'bigbox',nds:'ds'};
+  return {...sys,id:game.mediaType,media:'cart',caseType:profiles[game.mediaType]||sys.caseType};
+}
 function art(game) {
-  const sys = sysOf(game.system);
-  let [W, H, D] = Packaging.profiles[sys.id]?.size || CASES[sys.caseType] || CASES.dvd;
-  // Real box art: shape the box to the scan so nothing is stretched.
-  if (game._aspect) {
+  const sys = physicalSystem(game);
+  const standardSize = Packaging.size(sys);
+  let [W, H, D] = standardSize || CASES[sys.caseType] || CASES.dvd;
+  // Recognised systems retain their physical case proportions regardless of scan margins.
+  if (game._aspect && !standardSize) {
     const area = W * H, a = Math.max(.55, Math.min(1.6, game._aspect));
     W = Math.round(Math.sqrt(area * a)); H = Math.round(W / a);
   }
@@ -44,7 +60,9 @@ function art(game) {
   return {
     sys, W, H, D, digital,packshot:game._packshot,
     front: m.front || Art.front(game, sys, W, H),
+    // A generated back cover may still be drawing: backLater() resolves with it (see backFace).
     back: m.back || Art.back(game, sys, W, H),
+    backLater: m.back ? null : now => Art.backLater(game, sys, W, H, now),
     spine: m.spine || null,
     mediaPhoto: cart?.wholePhoto ? m.disc || null : null,
     // No disc/cart scan? Use the real cover as the label, else generate one.
@@ -297,6 +315,7 @@ function createMedia(game, a) {
     media.querySelector('.cartridge-front').append(img);
   } else if (cart) {
     const label=Cartridges.build(media,a.sys.id,a.W);label.style.backgroundImage = `url("${a.disc}")`;
+    const shell=Cartridges.shellColor(game,a.sys.id);if(shell)media.style.setProperty('--shell-color',shell);
     if(a.digital&&!game.media.disc)label.append(EshopCovers.sleeve(game,a.digital,true));
     else if(a.packshot&&!game.media.disc)EshopCovers.background(label,a.front,a.packshot);
   } else {
@@ -328,7 +347,7 @@ function revealSelection(delay = 720) {
   const selected = revealNode = items.get(S.sel);
   const reveal = () => {
     if (S.list[S.sel]?.id !== game.id || !selected?.isConnected) return;
-    if (modelsEnabled() && Appearance.mode()==='bookshelf' && !hasShell(sysOf(game.system))) {
+    if (modelsEnabled() && Appearance.mode()==='bookshelf' && !hasShell(physicalSystem(game))) {
       const sway = selected.querySelector('.sway');
       if (!sway.querySelector('.disc-model')) sway.prepend(createMedia(game, art(game)));
     }
@@ -339,14 +358,25 @@ function revealSelection(delay = 720) {
   else revealTimer = setTimeout(reveal,delay);
 }
 
+// The back of a case. A generated back cover that is still being drawn is filled in when ready;
+// now (the case viewer) draws it straight away.
+function backFace(a, now = false) {
+  const f = el('div', 'face f-back');
+  const show = url => { f.style.backgroundImage = `url("${url}")`; };
+  if (a.back) show(a.back);
+  else a.backLater?.(now).then(show);
+  return f;
+}
+
 function buildBox(game, cls = '') {
   const a = art(game);
   const box = el('div', `box ${a.sys.caseType} ${cls}`);
   box.style.cssText = `--w:${a.W}px;--h:${a.H}px;--d:${a.D}px`;
+  if (a.sys.id === 'snes') box.dataset.packaging = a.sys.packaging || a.sys.id;
   if(!modelsEnabled()){box.classList.add('flat-cover');box.append(EshopCovers.face(game,a,'f-front'));return {box,a};}
   Packaging.decorate(box,a);
   const face = (c, img) => { const f = el('div', 'face ' + c); if (img) f.style.backgroundImage = `url("${img}")`; return f; };
-  box.append(EshopCovers.face(game,a,'f-front'), face('f-back', a.back), Packaging.spine(game,a), face('f-right'), face('f-top'), face('f-bottom'));
+  box.append(EshopCovers.face(game,a,'f-front'), backFace(a), Packaging.spine(game,a), face('f-right'), face('f-top'), face('f-bottom'));
   Packaging.finish(box,a);
   return { box, a };
 }
@@ -390,7 +420,7 @@ function measure(game) {
   const source=game.media.front;
   img.onload = async () => {
     if(game.media.front!==source)return;
-    game._packshot=game.system==='switch2'?EshopCovers.packshot(img):null;
+    game._packshot=game.system==='snes'?null:EshopCovers.packshot(img);
     game._aspect=img.naturalWidth/img.naturalHeight*(game._packshot?.w||1);
     game._eShop=['switch','switch2'].includes(game.system)?EshopCovers.analyze(img):null;
     if(game._eShop) {
@@ -438,9 +468,9 @@ function updateArtwork(result) {
 }
 
 function caseSize(i) {
-  const game=S.list[i];if(!game)return [230,323,24];
-  const system=sysOf(game.system);
-  return Packaging.profiles[system.id]?.size||CASES[system.caseType]||CASES.dvd;
+  const g = S.list[i]; if (!g) return [230, 323, 24];
+  const sys = physicalSystem(g);
+  return Packaging.size(sys) || CASES[sys.caseType] || CASES.dvd;
 }
 
 function layout() {
@@ -448,7 +478,7 @@ function layout() {
   const scaleLimit = document.documentElement.dataset.infoBar === 'hidden' ? 1.32 : 1.16;
   const scale = Math.max(.35,Math.min(scaleLimit,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
   const selected = S.list[S.sel];
-  const bookshelfDisc = Appearance.mode()==='bookshelf' && !!selected && !hasShell(sysOf(selected.system));
+  const bookshelfDisc = Appearance.mode()==='bookshelf' && !!selected && !hasShell(physicalSystem(selected));
   const view=modelsEnabled()?Appearance.geometry(S.sel,bookshelfDisc):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
   if(view.discPeek!=null)stage.style.setProperty('--bookshelf-disc-peek',view.discPeek+'px');
   const retained = modelsEnabled() ? 2 : 0;
@@ -727,14 +757,14 @@ async function openCase() {
   Packaging.decorate(c,a);
   const face = (cl, img) => { const f = el('div', 'face ' + cl); if (img) f.style.backgroundImage = `url("${img}")`; return f; };
   if(!modelsEnabled()){
-    c.classList.add('flat-case');c.append(EshopCovers.face(g,a,'f-front'),face('f-back',a.back));
+    c.classList.add('flat-case');c.append(EshopCovers.face(g,a,'f-front'),backFace(a,true));
   }else{
-  c.append(face('f-back', a.back), Packaging.spine(g,a), face('f-right'), face('f-top'), face('f-bottom'), el('div', 'face tray'));
+  c.append(backFace(a,true), Packaging.spine(g,a), face('f-right'), face('f-top'), face('f-bottom'), el('div', 'face tray'));
   if(cardboard){c.querySelector('.f-top').remove();c.append(EshopCovers.face(g,a,'f-front'));}
 
   c.append(createMedia(g,a));
   const man = el('div', 'manual'), page = el('div', 'page');
-  page.style.backgroundImage = `url("${await Art.manual(g, a.sys, a.front, a.W, a.H)}")`;
+  page.style.backgroundImage = `url("${await Art.manual(g, a.sys, a.front, a.W, a.H, Packaging.design(a.sys))}")`;
   if (CV.token !== token) return;
   if(a.digital||a.packshot) {
     page.style.backgroundImage='none';page.classList.add('manual-custom-cover');

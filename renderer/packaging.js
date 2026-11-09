@@ -28,9 +28,22 @@ const Packaging=(()=>{
     a2600:p([230,310,42],'#bdb09d','cardboard','#a94123','#fff','ATARI 2600','#eb9d39'),
     arcade:p([318,225,52],'#b8ad98','cardboard','#28262c','#fff','ARCADE','#bc8b29')
   };
-  function profile(sys){return profiles[sys.id]||p([230,323,24],'#292a31','plastic','#252631','#fff',sys.name,sys.color||'#444')}
+  // Super Famicom boxes came in both orientations: a tall narrow box and a wide flat one.
+  // The packaging key (sys.packaging) selects which one; the size feeds art() and caseSize().
+  const regionalProfiles={
+    'superfamicom-tall':p([174,318,42],'#c8bca6','cardboard','#f0ece3','#1b1b20','SUPER FAMICOM','#d13839'),
+    'superfamicom-wide':p([318,174,42],'#c8bca6','cardboard','#f0ece3','#1b1b20','SUPER FAMICOM','#d13839'),
+  };
+  const famicomSpine={band:'#f0ece3',ink:'#1b1b20',body:'#f0ece3',text:'#1b1b20',mark:['SUPER','FAMICOM'],style:'nintendo',rule:'#d13839'};
+  const model=sys=>regionalProfiles[sys.packaging]||profiles[sys.id];
+  const design=sys=>{
+    if(regionalProfiles[sys.packaging])return famicomSpine;
+    const v=profile(sys);
+    return {band:v.bg,ink:v.ink,body:v.bg,text:v.ink,mark:[v.brand],style:['ps1','ps2','ps3','ps4','psp'].includes(sys.id)?'ps':'plain',rule:v.accent,accent:v.accent};
+  };
+  function profile(sys){return model(sys)||p([230,323,24],'#292a31','plastic','#252631','#fff',sys.name,sys.color||'#444')}
   function decorate(box,a){
-    const v=profile(a.sys);box.dataset.packaging=a.sys.id;box.dataset.material=v.material;box.dataset.media=a.sys.media;
+    const v=profile(a.sys);box.dataset.packaging=a.sys.packaging||a.sys.id;box.dataset.material=v.material;box.dataset.media=a.sys.media;
     box.style.setProperty('--case-shell',v.shell);box.style.setProperty('--case-rim',v.material==='cardboard'?'0px':v.material==='jewel'?'3px':'2px');
     box.style.setProperty('--case-print',v.bg);
     box.style.setProperty('--case-ink',v.ink);
@@ -60,6 +73,10 @@ const Packaging=(()=>{
       const inner=lid.querySelector('.l-inner');
       for(const corner of ['tl','tr','bl','br'])inner.append(node('case-booklet-tab case-booklet-tab-'+corner));
       const right=box.querySelector(':scope > .f-right');right?.append(node('case-latch'));
+      // The cover's hinge follows the free edge of the spine as it folds out from the tray.
+      const caseSpine=node('case-spine');
+      caseSpine.append(box.querySelector(':scope > .f-left'),node('face case-spine-inner'));
+      box.append(caseSpine);
     }
   }
   function brand(sys,D,height){
@@ -95,5 +112,5 @@ const Packaging=(()=>{
     footer.style.fontSize=fitText(footer.textContent,footerHeight*.9,a.D*.24)+'px';
     insert.append(brand(a.sys,a.D,header),titleArea,footer);face.append(insert);return face;
   }
-  return {profiles,profile,decorate,spine,finish};
+  return {profiles,profile,size:sys=>model(sys)?.size,design,decorate,spine,finish};
 })();
