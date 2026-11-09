@@ -40,6 +40,8 @@ const ARCHIVE_MAX_FILE_BYTES: u64 = 19 * 1024 * 1024;
 const MAX_ARTWORK_PIXELS: u64 = 40_000_000;
 // MAX_SWITCH_CODES bounds title collisions, because each match multiplies remote requests.
 const MAX_SWITCH_CODES: usize = 4;
+// MANUAL_MAX_BYTES caps one manual PDF; manuals are PDF files, not images.
+const MANUAL_MAX_BYTES: usize = 150 * 1024 * 1024;
 const TYPES: &[(&str, &str, Option<&str>)] = &[
     ("front", "covers", Some("Named_Boxarts")),
     ("frontHQ", "cover-hq", None),
@@ -329,6 +331,7 @@ pub async fn import_artwork(
         "screenshot",
         "title",
         "fanart",
+        "manual",
     ]
     .contains(&kind)
     {
@@ -342,6 +345,46 @@ pub async fn import_artwork(
         .find(|g| g.id == game_id)
         .cloned()
         .ok_or("Select a game in your library first.")?;
+    if kind == "manual" {
+        let Some(source) = app
+            .dialog()
+            .file()
+            .set_title(format!("Choose the manual for {}", game.title))
+            .blocking_pick_file()
+            .and_then(|p| p.into_path().ok())
+        else {
+            return Ok(None);
+        };
+        let bytes = fs::read(&source).map_err(|e| e.to_string())?;
+        if !valid_pdf(&bytes) {
+            return Err(format!(
+                "{} is not a PDF file.",
+                source
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("The chosen file")
+            ));
+        }
+        let base = safe_base(&game.base)?;
+        let directory = state
+            .data_dir
+            .join("media")
+            .join(&game.system)
+            .join("manuals");
+        fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+        let file = directory.join(format!("{base}.pdf"));
+        if fs::canonicalize(&file).ok() != fs::canonicalize(&source).ok() {
+            let temporary = file.with_extension("pdf.tmp");
+            fs::write(&temporary, bytes).map_err(|e| e.to_string())?;
+            fs::rename(&temporary, &file).map_err(|e| e.to_string())?;
+        }
+        // Manual payloads stay filesystem paths for the native opener and viewer.
+        let _ = app.asset_protocol_scope().allow_file(&file);
+        let stored = file.to_string_lossy().into_owned();
+        let result = json!({"gameId":game.id,"media":{"manual":stored},"replace":true});
+        update_game_media(&state.games, &game.id, &result);
+        return Ok(Some(result));
+    }
     let Some(source) = app
         .dialog()
         .file()
@@ -384,6 +427,431 @@ pub async fn import_artwork(
     let result = json!({"gameId":game.id,"media":{kind:url},"replace":true});
     update_game_media(&state.games, &game.id, &result);
     Ok(Some(result))
+}
+
+#[tauri::command]
+pub fn artwork_sources(state: State<'_, AppState>) -> Value {
+    let config = state.config();
+    let built = fs::metadata(web_cache_file(&state.data_dir, "launchbox-index.json"))
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    let section = config.get("screenscraper");
+    let field = |key: &str| {
+        section
+            .and_then(|s| s.get(key))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned()
+    };
+    let has_password = !field("password").is_empty();
+    let has_dev_password = !field("devPassword").is_empty();
+    json!({
+        "launchbox": {"built": built},
+        "screenscraper": {
+            "user": field("user"),
+            "devId": field("devId"),
+            "hasPassword": has_password,
+            "hasDevPassword": has_dev_password,
+            "ready": screenscraper_configured(&config)
+        }
+    })
+}
+
+#[tauri::command]
+pub fn set_screenscraper(state: State<'_, AppState>, details: Value) -> Result<Value, String> {
+    if !details.is_object() {
+        return Err("Invalid ScreenScraper details".to_owned());
+    }
+    let text = |key: &str| {
+        details
+            .get(key)
+            .and_then(Value::as_str)
+            .map(|s| s.trim().chars().take(200).collect::<String>())
+    };
+    let mut current = state.config.write().map_err(|e| e.to_string())?;
+    let old = current
+        .get("screenscraper")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let old_field = |key: &str| {
+        old.get(key)
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned()
+    };
+    let clear = details
+        .get("clear")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let next_section = if clear {
+        json!({"user": "", "devId": "", "password": "", "devPassword": ""})
+    } else {
+        let mut next = old.clone();
+        if let Some(value) = text("user") {
+            next["user"] = json!(value);
+        }
+        if let Some(value) = text("devId") {
+            next["devId"] = json!(value);
+        }
+        // An empty password field keeps the saved password.
+        if let Some(value) = text("password") {
+            if !value.is_empty() {
+                next["password"] = json!(value);
+            }
+        }
+        if let Some(value) = text("devPassword") {
+            if !value.is_empty() {
+                next["devPassword"] = json!(value);
+            }
+        }
+        if next.get("user").is_none() {
+            next["user"] = json!(old_field("user"));
+        }
+        if next.get("devId").is_none() {
+            next["devId"] = json!(old_field("devId"));
+        }
+        if next.get("password").is_none() {
+            next["password"] = json!(old_field("password"));
+        }
+        if next.get("devPassword").is_none() {
+            next["devPassword"] = json!(old_field("devPassword"));
+        }
+        next
+    };
+    current["screenscraper"] = next_section;
+    let next = crate::config::config_for_save(current.clone(), &current)?;
+    crate::config::save_config(&state.config_path, &next)?;
+    *current = next;
+    drop(current);
+    Ok(artwork_sources(state))
+}
+
+#[tauri::command]
+pub fn manual_url(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<String, String> {
+    let candidate = Path::new(&path);
+    let known = path.to_lowercase().ends_with(".pdf")
+        && candidate.is_file()
+        && state
+            .games
+            .read()
+            .map(|games| {
+                games
+                    .iter()
+                    .any(|g| g.media.get("manual").is_some_and(|m| m == &path))
+            })
+            .unwrap_or(false);
+    if !known {
+        return Err("Manual not found.".to_owned());
+    }
+    let _ = app.asset_protocol_scope().allow_file(candidate);
+    Url::from_file_path(candidate)
+        .map(|url| url.to_string())
+        .map_err(|_| "Manual not found.".to_owned())
+}
+
+#[tauri::command]
+pub async fn find_manuals(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<Value>, String> {
+    let Some(folder) = app
+        .dialog()
+        .file()
+        .blocking_pick_folder()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    let mut pdfs: Vec<PathBuf> = Vec::new();
+    let mut stack = vec![(folder.clone(), 0_u8)];
+    while let Some((dir, depth)) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() && depth < 6 {
+                stack.push((p, depth + 1));
+            } else if p.is_file()
+                && p.extension()
+                    .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("pdf"))
+            {
+                pdfs.push(p);
+                if pdfs.len() >= 20000 {
+                    break;
+                }
+            }
+        }
+        if pdfs.len() >= 20000 {
+            break;
+        }
+    }
+    let mut by_key: HashMap<String, Vec<PathBuf>> = HashMap::new();
+    for p in &pdfs {
+        let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        for key in [manual_loose_key(stem), manual_bare_key(stem)] {
+            if !key.is_empty() {
+                by_key.entry(key).or_default().push(p.clone());
+            }
+        }
+    }
+    let games = state.games.read().map_err(|e| e.to_string())?.clone();
+    let mut matched = Vec::new();
+    for game in &games {
+        if game.media.contains_key("manual") || game.media.get("manual").is_some() {
+            continue;
+        }
+        let names = [game.base.clone(), game.title.clone()];
+        let mut seen = HashSet::new();
+        let mut options: Vec<PathBuf> = Vec::new();
+        for name in &names {
+            for key in [manual_loose_key(name), manual_bare_key(name)] {
+                if key.is_empty() {
+                    continue;
+                }
+                if let Some(paths) = by_key.get(&key) {
+                    for path in paths {
+                        if seen.insert(path.clone()) {
+                            options.push(path.clone());
+                        }
+                    }
+                }
+            }
+        }
+        if options.is_empty() {
+            continue;
+        }
+        let config = state.config();
+        let system_words: Vec<String> = config
+            .get("systems")
+            .and_then(Value::as_array)
+            .and_then(|systems| {
+                systems
+                    .iter()
+                    .find(|s| s.get("id").and_then(Value::as_str) == Some(&game.system))
+            })
+            .map(|s| {
+                ["name", "id", "libretro"]
+                    .into_iter()
+                    .filter_map(|k| s.get(k).and_then(Value::as_str).map(|v| v.to_lowercase()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let best = options
+            .iter()
+            .find(|p| {
+                let lower = p.to_string_lossy().to_lowercase();
+                system_words
+                    .iter()
+                    .any(|w| !w.is_empty() && lower.contains(w))
+            })
+            .cloned()
+            .unwrap_or_else(|| options[0].clone());
+        let Ok(bytes) = fs::read(&best) else { continue };
+        if !valid_pdf(&bytes) {
+            continue;
+        }
+        let Ok(base) = safe_base(&game.base) else {
+            continue;
+        };
+        let dest = state
+            .data_dir
+            .join("media")
+            .join(&game.system)
+            .join("manuals")
+            .join(format!("{base}.pdf"));
+        if let Some(parent) = dest.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if fs::canonicalize(&dest).ok() == fs::canonicalize(&best).ok() {
+            let _ = app.asset_protocol_scope().allow_file(&dest);
+            let stored = dest.to_string_lossy().into_owned();
+            let entry = json!({"gameId": game.id, "media": {"manual": stored}, "replace": true});
+            update_game_media(&state.games, &game.id, &entry);
+            matched.push(entry);
+            continue;
+        }
+        let temporary = dest.with_extension("pdf.tmp");
+        if fs::write(&temporary, bytes).is_err() {
+            continue;
+        }
+        if fs::rename(&temporary, &dest).is_err() {
+            let _ = fs::remove_file(&temporary);
+            continue;
+        }
+        let _ = app.asset_protocol_scope().allow_file(&dest);
+        let stored = dest.to_string_lossy().into_owned();
+        let entry = json!({"gameId": game.id, "media": {"manual": stored}, "replace": true});
+        update_game_media(&state.games, &game.id, &entry);
+        matched.push(entry);
+    }
+    Ok(Some(json!({"found": pdfs.len(), "matched": matched})))
+}
+
+fn valid_pdf(bytes: &[u8]) -> bool {
+    bytes.len() >= 5 && &bytes[0..5] == b"%PDF-"
+}
+
+fn manual_loose_key(name: &str) -> String {
+    let cleaned = clean_title_like(name);
+    let lower = cleaned.to_lowercase();
+    let without = regex::Regex::new(r"&|\band\b|\bthe\b")
+        .unwrap()
+        .replace_all(&lower, "");
+    without
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
+}
+
+fn manual_bare_key(name: &str) -> String {
+    static BRAND: OnceLock<regex::Regex> = OnceLock::new();
+    let brand = BRAND.get_or_init(|| {
+        regex::Regex::new(r"(?i)^\s*(disney\s*[-•]?\s*pixar|disney|pixar|dreamworks|nickelodeon|nicktoons)('s)?\b[\s:-]*").unwrap()
+    });
+    let cleaned = clean_title_like(name);
+    if !brand.is_match(&cleaned) {
+        return String::new();
+    }
+    let stripped = brand.replace(&cleaned, "");
+    let key = manual_loose_key(&stripped);
+    if key.len() >= 6 { key } else { String::new() }
+}
+
+async fn request_pdf(
+    url: Url,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<Option<Vec<u8>>, String> {
+    if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+        return Err("Cancelled".to_owned());
+    }
+    polite_gap(PoliteSite::ScreenScraper).await;
+    let response = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    match response.status().as_u16() {
+        404 | 410 => return Ok(None),
+        429 | 503 => {
+            return Err("ScreenScraper asked PyroCade to slow down; try again later".to_owned());
+        }
+        status if !response.status().is_success() => {
+            return Err(format!("ScreenScraper returned HTTP {status}"));
+        }
+        _ => {}
+    }
+    if response
+        .content_length()
+        .is_some_and(|n| n > MANUAL_MAX_BYTES as u64)
+    {
+        return Err("Manual is too large".to_owned());
+    }
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?.to_vec();
+    if bytes.len() > MANUAL_MAX_BYTES {
+        return Err("Manual is too large".to_owned());
+    }
+    if !valid_pdf(&bytes) {
+        return Err("Manual source did not return a PDF".to_owned());
+    }
+    Ok(Some(bytes))
+}
+
+async fn screenscraper_manual_urls(
+    game: &Game,
+    system: u32,
+    credentials: &ScreenScraperCredentials,
+    data_dir: &Path,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<Vec<String>, String> {
+    let rom_size = fs::metadata(&game.rom_path).map(|meta| meta.len()).ok();
+    let crc = rom_size.and_then(|size| screenscraper_crc(game, size));
+    let url = screenscraper_lookup_url(game, system, credentials, rom_size, crc);
+    let Some(data) = screenscraper_json(url, cancelled).await? else {
+        return Ok(Vec::new());
+    };
+    let Some(medias) = data
+        .get("response")
+        .and_then(|r| r.get("jeu"))
+        .and_then(|j| j.get("medias"))
+        .and_then(Value::as_array)
+    else {
+        return Ok(Vec::new());
+    };
+    let file = web_cache_file(data_dir, "screenscraper.json");
+    let key = format!("ss-manual/{system}/{}", game.id);
+    if let Some(cached) = web_cache_get(&file, &key) {
+        if let Some(urls) = cached.as_array() {
+            let found: Vec<String> = urls
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            if !found.is_empty() {
+                return Ok(found);
+            }
+        }
+    }
+    let mut candidates: Vec<(u32, String)> = medias
+        .iter()
+        .filter(|media| media.get("type").and_then(Value::as_str) == Some("manuel"))
+        .filter_map(|media| {
+            let url = media.get("url").and_then(Value::as_str)?;
+            if !screenscraper_media_url(url) {
+                return None;
+            }
+            let region = media.get("region").and_then(Value::as_str).unwrap_or("");
+            Some((screenscraper_region_rank(region), url.to_owned()))
+        })
+        .collect();
+    candidates.sort_by_key(|(rank, _)| *rank);
+    candidates.truncate(6);
+    let found: Vec<String> = candidates.into_iter().map(|(_, url)| url).collect();
+    web_cache_set(&file, &key, json!(found));
+    Ok(found)
+}
+
+async fn fetch_screenscraper_manual(
+    game: &Game,
+    sys_id: &str,
+    config: &Value,
+    data_dir: &Path,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<Option<Vec<u8>>, String> {
+    let Some(system) = screenscraper_system(sys_id) else {
+        return Ok(None);
+    };
+    let Some(credentials) = screenscraper_credentials(config) else {
+        return Ok(None);
+    };
+    let urls = screenscraper_manual_urls(game, system, &credentials, data_dir, cancelled).await?;
+    for url in urls {
+        if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            return Err("Cancelled".to_owned());
+        }
+        let parsed = Url::parse(&url).map_err(|e| e.to_string())?;
+        match request_pdf(parsed, cancelled).await {
+            Ok(Some(bytes)) => return Ok(Some(bytes)),
+            Ok(None) => {}
+            Err(error) => {
+                if error == "Cancelled" || cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+                    return Err(error);
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 fn emit_job(app: &AppHandle, control: &mut ArtworkControl, item: Option<Value>, force: bool) {
@@ -478,6 +946,52 @@ async fn download_game(
         }
         if game.media.contains_key(kind) {
             existing += 1;
+            continue;
+        }
+        if kind == "manual" {
+            let manual_path = data_dir
+                .join("media")
+                .join(&game.system)
+                .join("manuals")
+                .join(format!("{base}.pdf"));
+            if manual_path.is_file() {
+                existing += 1;
+                let _ = app.asset_protocol_scope().allow_file(&manual_path);
+                media.insert(
+                    kind.clone(),
+                    Value::String(manual_path.to_string_lossy().into_owned()),
+                );
+                continue;
+            }
+            match fetch_screenscraper_manual(game, &system_id, config, data_dir, cancelled).await {
+                Ok(Some(bytes)) => {
+                    if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+                        break;
+                    }
+                    match write_new(&manual_path, &bytes) {
+                        Ok(true) => {
+                            downloaded += 1;
+                            let _ = app.asset_protocol_scope().allow_file(&manual_path);
+                            media.insert(
+                                kind.clone(),
+                                Value::String(manual_path.to_string_lossy().into_owned()),
+                            );
+                        }
+                        Ok(false) => {
+                            existing += 1;
+                            let _ = app.asset_protocol_scope().allow_file(&manual_path);
+                            media.insert(
+                                kind.clone(),
+                                Value::String(manual_path.to_string_lossy().into_owned()),
+                            );
+                        }
+                        Err(error) => errors.push(error),
+                    }
+                }
+                Ok(None) => missing += 1,
+                Err(_) if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) => break,
+                Err(error) => errors.push(error),
+            }
             continue;
         }
         let Some((_, folder, remote)) = TYPES.iter().find(|(name, _, _)| name == kind) else {
@@ -3265,5 +3779,24 @@ mod tests {
             "http://www.screenscraper.fr/box-2D.png"
         ));
         assert!(!screenscraper_media_url("https://example.com/box-2D.png"));
+    }
+
+    #[test]
+    fn valid_pdf_tracks_the_magic_and_nothing_else() {
+        assert!(valid_pdf(b"%PDF-1.4\n%%EOF"));
+        assert!(!valid_pdf(b"%PDF"));
+        assert!(!valid_pdf(b"not a pdf"));
+        assert!(!valid_pdf(b""));
+    }
+
+    #[test]
+    fn manual_keys_match_titles_without_punctuation_or_brands() {
+        assert_eq!(manual_loose_key("Pokemon - Ruby (U) [!]"), "pokemonruby");
+        assert_eq!(
+            manual_loose_key("The Legend of Zelda & Friends"),
+            "legendofzeldafriends"
+        );
+        assert_eq!(manual_bare_key("Disney Pixar Toy Story"), "toystory");
+        assert_eq!(manual_bare_key("Toy Story"), "");
     }
 }

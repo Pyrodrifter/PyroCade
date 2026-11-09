@@ -6,9 +6,9 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 ## Next action
 
-The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), **M03 — Collection administration and per-game controls** (`f94d879`), and **M04a — Compatible artwork providers** (`a7ef170`) are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
+The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), **M03 — Collection administration and per-game controls** (`f94d879`), **M04a — Compatible artwork providers** (`a7ef170`), and **M04b — Manual artwork workflows** are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
 
-**Next action:** Start **P11b / M04b — Manual artwork workflows** from `docs/slices/NEXT.md`.
+**Next action:** Start **P12a / M05a — Platform-aware launch behavior** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -154,6 +154,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the only new network calls are the public provider hosts (`gamesdb.launchbox-app.com`, `images.launchbox-app.com`, `api.screenscraper.fr`) and the `zip`/`quick-xml` crates were already declared.
   - Seed PASS: P11a row prices 9 files at 98,253 tokens, seed total 98,251 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 121,139/225,000 tokens (54%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths untouched), #4 unaffected; no new fault was added and no numbers were withdrawn (the withdrawn 236,134-token M04 row remains the reason for the M04a/M04b split).
 
+- **P11b / M04b — Manual artwork workflows.** Manual discovery, download and viewing now work against the M04a provider contract with the filesystem-path payload preserved. Rust artwork service downloads manuals (PDF) from ScreenScraper when signed in (`manuel` media type, `%PDF-` validation, 150 MB cap, polite 1/s gap, `media/<system>/manuals/<base>.pdf` with exclusive `write_new`), imports a user-chosen PDF, finds manuals in a folder (recursive PDF walk with loose/bare-key matching), reports source readiness without passwords (`artwork_sources`), saves ScreenScraper credentials without leaking them (`set_screenscraper`), and resolves the in-app viewer URL (`manual_url`, validated against known manuals). Renderer: artwork view gains the manual checkbox/import option, sources list naming LaunchBox/ScreenScraper with the front-cover-only policy, ScreenScraper login, find-manuals button and manual viewer dialog; artwork UI enables manuals only when signed in and keeps import/download updates flowing to the game model; case viewer booklet drawing already satisfied the Tauri WebView contract (CORS + guarded `toDataURL` from D05) and needed no change. Legacy `artwork.js` gains the same manual handling (PDF branch, ScreenScraper stub injection, filesystem-path return) so the Electron fixtures exercise the same contract. Checks: `check-artwork.cjs` gains M04b static assertions plus legacy manual download/rejection coverage; `check-artwork-ui.cjs` gains login/manual-download/import/find/viewer coverage with filesystem-path assertions; preload fixture supplies the ScreenScraper stub and manual bridge.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (55 passed, 2 new), `cargo check --manifest-path src-tauri/Cargo.toml` (existing dead-code warnings), `node --check` on all touched JS, and `node scripts/check-artwork.cjs` passed (including the new M04b static contract assertions). `node scripts/check-artwork-ui.cjs` could not run on this host (`Electron failed to install correctly`, no display); its new manual assertions are syntax-checked but unexecuted. No visual inspection was performed.
+  - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js` or `preload.js`; `artwork.js` was edited in place for the legacy fixture (expected per code-to-touch) and no new network hosts or crates were introduced (`api.screenscraper.fr` was already in use).
+  - Seed PASS: P11b row prices 9 files at 41,246 tokens, seed total 41,243 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Do-Not count remains 4; #1 and #4 apply; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -167,8 +172,9 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P9 / D09 — Demo capture, docs, and delta audit close-out.** [COMPLETE] Committed as D09 (see entry above; 2026-11-06..08 delta queue closed).
 - **P10 / M03 — Collection administration and per-game controls.** [COMPLETE] Committed as `f94d879` (details editor, hidden list, and drag order absorbed from `64a5ba6` where they fit Tauri; Recomp excluded as Windows-only).
 - **P11a / M04a — Compatible artwork providers.** [COMPLETE] Committed as `a7ef170` (front-cover fallbacks through the Rust artwork service only; manual workflows stay in M04b).
-- **P11b / M04b — Manual artwork workflows.** [PENDING] Depends on M04a. Manual discovery/download/viewing (artwork.js manual handling, Art manual drawing, artwork UI) against the provider contract established in M04a.
-- **P12 / M05 — Platform-aware launch and emulator behaviour.** [PENDING] Depends on M03.
+- **P11b / M04b — Manual artwork workflows.** [COMPLETE] (manual discovery/download/viewing against the M04a provider contract; filesystem-path payload preserved).
+- **P12a / M05a — Platform-aware launch behavior.** [PENDING] Depends on M03 (split from P12/M05: the original M05 row priced 227,654 tokens, over the 225,000 work budget).
+- **P12b / M05b — Emulator metadata and custom game configuration.** [PENDING] Depends on M03.
 - **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05; D09 already closes the renderer checks and docs it covers.
 
 Task scope, planner estimates, exclusions and the renderer divergence are recorded in `.babysteps/tauri-migration.plan.md`. The approved delta task definitions are in `.babysteps/main-delta.tasks.json`; the earlier M03-M06 definitions remain in `.babysteps/main-to-tauri.tasks.json`.

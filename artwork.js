@@ -10,8 +10,9 @@ const TYPES = {
   title:{folder:'titlescreens',remote:'Named_Titles'},
   disc:{folder:'physicalmedia'},
   back:{folder:'backcovers'},
+  manual:{folder:'manuals'},
 };
-function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=fetch,onProgress=()=>{},source='https://thumbnails.libretro.com',decodeImage,
+function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=fetch,onProgress=()=>{},source='https://thumbnails.libretro.com',decodeImage,screenscraper=null,
   switchDatabase='https://www.gametdb.com/switchtdb.txt?LANG=EN',switchImages='https://art.gametdb.com/switch'}) {
   const indexes=new Map(), unavailable=new Set(), inflight=new Map();
   let switchIndex;
@@ -44,6 +45,14 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
       if(response.status===404)return null;
       if(!response.ok)throw new Error(`Artwork server returned HTTP ${response.status}`);
       if(kind==='text')return response.text();
+      if(kind==='pdf') {
+        // Manuals: PDF only, up to 150 MB.
+        const chunks=[];let total=0;
+        for await(const chunk of response.body){total+=chunk.length;if(total>150*1024*1024){await response.body.cancel?.().catch(()=>{});throw new Error('Manual is too large')}chunks.push(Buffer.from(chunk))}
+        const bytes=Buffer.concat(chunks);
+        if(bytes.subarray(0,5).toString('latin1')!=='%PDF-')throw new Error('Manual source did not return a PDF');
+        return bytes;
+      }
       if(Number(response.headers.get('content-length'))>20*1024*1024)throw new Error('Artwork image is too large');
       const chunks=[];let total=0;
       for await(const chunk of response.body) {
@@ -134,10 +143,26 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
     if(typeof base!=='string'||!base||base==='.'||base==='..'||/[<>:"/\\|?*\x00-\x1f]/.test(base))throw new Error('Invalid game filename');
     return base;
   }
+  // Manuals come only from ScreenScraper (when signed in) and are kept as PDF files, not images.
+  async function manual(game,sys,base,signal) {
+    if(game.media?.manual)return {existing:1,media:{manual:game.media.manual}};
+    const file=path.join(dataDir,'media',sys.id,'manuals',base+'.pdf');
+    if(fs.existsSync(file))return {existing:1,media:{manual:file}};
+    if(!screenscraper?.configured())return {missing:1,media:{}};
+    for(const url of await screenscraper.find(game,'manual',{signal})) {
+      const bytes=await request(url,'pdf',signal).catch(e=>{if(signal?.aborted)throw e;return null});
+      if(!bytes)continue;
+      await fs.promises.mkdir(path.dirname(file),{recursive:true});
+      await fs.promises.writeFile(file,bytes,{flag:'wx'}).catch(e=>{if(e.code!=='EEXIST')throw e});
+      return {downloaded:1,media:{manual:file}};
+    }
+    return {missing:1,media:{}};
+  }
   async function one(game,type,{signal,retryMissing=false,refreshed,failures}={}) {
     aborted(signal);
     const sys=getSystems().find(s=>s.id===game.system);
     const base=safeBase(game.base);
+    if(type==='manual')return manual(game,sys,base,signal);
     const file=path.join(dataDir,'media',sys.id,TYPES[type].folder,base+'.png');
     if(game.media?.[type])return {existing:1,media:{[type]:game.media[type]}};
     if(fs.existsSync(file)&&fs.statSync(file).size>0)return {existing:1,media:{[type]:pathToFileURL(file).href}};
@@ -181,7 +206,8 @@ function createArtworkService({dataDir,getSystems,getGames,normalize,fetchImpl=f
   async function downloadGame(game,types,options={}) {
     const result={gameId:game.id,title:game.title,media:{},downloaded:0,existing:0,missing:0,errors:[],unsupported:false};
     const sys=getSystems().find(s=>s.id===game.system);
-    if(!sys?.libretro&&sys?.artworkProvider!=='gametdb-switch'){result.unsupported=true;return result}
+    const supported=sys&&(sys.libretro||sys.artworkProvider==='gametdb-switch'||(screenscraper?.configured()&&screenscraper.systems?.[sys.id]));
+    if(!supported){result.unsupported=true;return result}
     const outcomes=await Promise.all(types.map(async type=>{
       try {return await one(game,type,options)}catch(e){if(options.signal?.aborted)throw e;return {error:e.message}}
     }));

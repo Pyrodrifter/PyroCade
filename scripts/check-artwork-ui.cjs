@@ -57,12 +57,15 @@ app.whenReady().then(async()=>{
       S.config.systems.find(s=>s.id==='switch').artworkProvider='gametdb-switch';
       select(3);ArtworkUI.open('game');
       assert(document.querySelector('#artSourceLabel').textContent.includes('GameTDB'),'Switch source was not shown');
+      assert(document.querySelector('#artSourceLabel').textContent.includes('LaunchBox'),'LaunchBox was not shown as a source');
+      assert(document.querySelector('#artSourceLabel').textContent.includes('ScreenScraper'),'ScreenScraper was not shown as a source');
       assert(document.querySelector('#artSourceLabel').textContent.includes('Super Mario Wiki'),'Fallback sources were not shown');
       assert(document.querySelector('#artSourceLabel').textContent.includes('Internet Archive'),'Internet Archive fallback was not shown');
       assert((document.querySelector('#artSourceDetails').textContent||'').includes('never replacing an existing cover'),'Front-cover fallback policy was not shown');
       assert(!document.querySelector('#artStart').disabled,'Switch download must be enabled');
       assert(document.querySelector('#artTypes input[value=screenshot]').disabled,'Unsupported Switch screenshot option should be disabled');
       assert(!document.querySelector('#artTypes input[value=disc]').disabled,'Switch cartridge labels should be enabled');
+      assert(document.querySelector('#artTypes input[value=manual]').disabled,'Manual download must be disabled before ScreenScraper login');
       const before=S.games[3].media.front;
       await document.querySelector('#artImport').onclick();
       assert(S.games[3].media.front!==before&&S.games[3].media.front.includes('import-test'),'Image import did not replace the selected artwork');
@@ -70,8 +73,57 @@ app.whenReady().then(async()=>{
       document.querySelector('#artTypes input[value=front]').checked=false;document.querySelector('#artTypes').dispatchEvent(new Event('change'));
       assert(document.querySelector('#artStart').disabled,'Switch with no chosen type should be disabled');
     `);
+    await run(`
+      // ScreenScraper login enables manual downloads; passwords never reach getConfig.
+      assert(!document.querySelector('#ssUser').disabled,'ScreenScraper login fields must be editable');
+      document.querySelector('#ssUser').value='tester';
+      document.querySelector('#ssPassword').value='pass';
+      document.querySelector('#ssDevId').value='dev';
+      document.querySelector('#ssDevPassword').value='devpass';
+      await document.querySelector('#ssSave').onclick();
+      assert(document.querySelector('#ssStatus').textContent.includes('saved'),'ScreenScraper login was not saved');
+      assert(document.querySelector('#artScreenScraperState').textContent.includes('Signed in'),'ScreenScraper ready state was not shown');
+      assert(!document.querySelector('#artTypes input[value=manual]').disabled,'Manual download must be enabled after ScreenScraper login');
+      const cfg=await api.getConfig();
+      assert(!cfg.screenscraper,'ScreenScraper passwords must never cross getConfig to the renderer');
+      // Manual download: filesystem-path payload, never a file URL (#1).
+      select(1);ArtworkUI.open('game');
+      document.querySelector('#artTypes').querySelectorAll('input').forEach(i=>i.checked=false);
+      document.querySelector('#artTypes input[value=manual]').checked=true;document.querySelector('#artTypes').dispatchEvent(new Event('change'));
+      assert(!document.querySelector('#artStart').disabled,'Manual download must be enabled for a ScreenScraper system');
+      await document.querySelector('#artStart').onclick();
+      await until(()=>document.querySelector('#artJobState').textContent==='Complete');
+      assert(S.games[1].media.manual&&S.games[1].media.manual.endsWith('.pdf'),'Manual PDF was not applied to the library');
+      assert(!S.games[1].media.manual.startsWith('file:'),'Manual payload must stay a filesystem path, not a file URL');
+      const manualUrl=await api.manualUrl(S.games[1].media.manual);
+      assert(manualUrl.startsWith('file:'),'Manual viewer URL must be a file URL for the iframe');
+      // Manual import: choose a PDF for a game without one.
+      select(2);ArtworkUI.open('game');
+      document.querySelector('#artImportKind').value='manual';document.querySelector('#artImportKind').dispatchEvent(new Event('change'));
+      assert(document.querySelector('#artImport').textContent.includes('PDF'),'Manual import button must name PDF');
+      await document.querySelector('#artImport').onclick();
+      assert(S.games[2].media.manual&&S.games[2].media.manual.endsWith('.pdf'),'Manual import did not store the PDF');
+      assert(!S.games[2].media.manual.startsWith('file:'),'Imported manual must stay a filesystem path, not a file URL');
+      assert(document.querySelector('#artImportStatus').textContent.includes('Manual added'),'Manual import feedback missing');
+      // Find manuals in a folder matches the remaining game without a manual.
+      await document.querySelector('#artFindManuals').onclick();
+      assert(document.querySelector('#artImportStatus').textContent.includes('matched'),'Find manuals matched count missing');
+      assert(S.games[0].media.manual&&!S.games[0].media.manual.startsWith('file:'),'Found manual must be a filesystem path');
+      // Manual viewer opens with the file URL and the external opener receives the filesystem path.
+      select(1);ArtworkUI.open('game');
+      let opened=null;const originalOpen=api.openManual;api.openManual=async p=>{opened=p};
+      await manual(S.games[1]);
+      assert(document.querySelector('#manualViewer').open,'Manual viewer did not open');
+      assert(document.querySelector('#manualFrame').src.includes('.pdf'),'Manual viewer iframe did not load the PDF');
+      document.querySelector('#manualExternal').click();
+      await pause(50);
+      assert(opened===S.games[1].media.manual,'External opener must receive the filesystem path');
+      assert(!String(opened).startsWith('file:'),'External opener path must not be a file URL');
+      api.openManual=originalOpen;
+      closeManual();
+    `);
     await run(`await artworkTest.cleanup();`);
     if(errors.length)throw new Error(errors.join('\n'));
-    clearTimeout(watchdog);console.log('Passed: one-game download, new artwork applied, custom-art preservation, whole-library scope, progress, cancellation, resume, unavailable matches, unsupported systems, no-type guard, and minimum-window layout.');app.exit(0);
+    clearTimeout(watchdog);console.log('Passed: one-game download, new artwork applied, custom-art preservation, whole-library scope, progress, cancellation, resume, unavailable matches, unsupported systems, no-type guard, ScreenScraper login, manual download/import/find/viewer with filesystem-path payloads, and minimum-window layout.');app.exit(0);
   } catch(e){console.error(e);await run('await artworkTest.cleanup();').catch(()=>{});app.exit(1)}
 });

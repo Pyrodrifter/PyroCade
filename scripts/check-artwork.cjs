@@ -115,6 +115,43 @@ async function until(test){for(let i=0;i<300;i++){if(test())return;await pause(1
       assert(backend.includes('object.remove("screenscraper")'),'Backend must strip ScreenScraper credentials from get_config');
       assert(backend.includes('cfg["screenscraper"] = section.clone()'),'Backend must preserve ScreenScraper credentials on set_config');
     }
+    // M04b: manual workflows against the M04a provider contract (static check of the Tauri host;
+    // the unit tests in artwork.rs cover the PDF validation without network).
+    {
+      const rust=await fs.readFile(path.join(__dirname,'../src-tauri/src/artwork.rs'),'utf8');
+      for(const needle of [
+        'MANUAL_MAX_BYTES','valid_pdf','fetch_screenscraper_manual','screenscraper_manual_urls','request_pdf',
+        'manuel','artwork_sources','set_screenscraper','find_manuals','manual_url',
+        'hasPassword','hasDevPassword','manual_loose_key','manual_bare_key',
+      ]) assert(rust.includes(needle),`Rust manual workflow missing ${needle}`);
+      // Manual payloads stay filesystem paths: the manual branch must not build a file URL.
+      assert(rust.includes('manuals')&&rust.includes('{base}.pdf'),'Manual files must live in manuals/<base>.pdf');
+      const lib=await fs.readFile(path.join(__dirname,'../src-tauri/src/lib.rs'),'utf8');
+      for(const needle of ['artwork::artwork_sources','artwork::set_screenscraper','artwork::find_manuals','artwork::manual_url'])
+        assert(lib.includes(needle),`Tauri command not registered: ${needle}`);
+      const bridge=await fs.readFile(path.join(__dirname,'../renderer/tauri-bridge.js'),'utf8');
+      for(const needle of ['artSources','artSetScreenScraper','artFindManuals','manualUrl'])
+        assert(bridge.includes(needle),`Tauri bridge missing ${needle}`);
+      const ui=await fs.readFile(path.join(__dirname,'../renderer/artwork-ui.js'),'utf8');
+      for(const needle of ['LaunchBox','ScreenScraper','artFindManuals','artSetScreenScraper','Choose PDF'])
+        assert(ui.includes(needle),`Artwork UI must expose ${needle}`);
+      const app=await fs.readFile(path.join(__dirname,'../renderer/app.js'),'utf8');
+      assert(app.includes("api.manualUrl"),'Manual viewer must resolve a file URL via manualUrl');
+      assert(app.includes("api.openManual"),'Manual viewer must keep the native opener for the filesystem path');
+      const html=await fs.readFile(path.join(__dirname,'../renderer/index.html'),'utf8');
+      for(const needle of ['value="manual"','Manual (PDF)','artFindManuals','manualViewer','ssUser','ssPassword'])
+        assert(html.includes(needle),`Artwork view missing ${needle}`);
+      // Legacy JS service: manual handling preserves the filesystem-path payload (#1).
+      const manualGame={id:'snes:Game',title:'Game',base:'Game',system:'snes',media:{}};
+      const manualService=createArtworkService({dataDir:path.join(dir,'manual-legacy'),getSystems:()=>[{id:'snes',name:'SNES',libretro:'Nintendo - Super Nintendo'}],getGames:()=>[manualGame],normalize,screenscraper:{configured:()=>true,systems:{snes:4},find:async()=>['https://example.test/manual.pdf']},fetchImpl:async()=>new Response(Buffer.from('%PDF-1.4\n%%EOF'),{headers:{'content-type':'application/pdf'}})});
+      const downloaded=await manualService.downloadGame(manualGame,['manual']);
+      assert.equal(downloaded.downloaded,1,'Legacy manual download must succeed');
+      assert(downloaded.media.manual.endsWith('.pdf')&&!downloaded.media.manual.startsWith('file:'),'Legacy manual must stay a filesystem path');
+      const badGame={id:'snes:Bad',title:'Bad',base:'Bad',system:'snes',media:{}};
+      const badService=createArtworkService({dataDir:path.join(dir,'manual-bad'),getSystems:()=>[{id:'snes',name:'SNES',libretro:'Nintendo - Super Nintendo'}],getGames:()=>[badGame],normalize,screenscraper:{configured:()=>true,systems:{snes:4},find:async()=>['https://example.test/manual.pdf']},fetchImpl:async()=>new Response('not a pdf')});
+      const rejected=await badService.downloadGame(badGame,['manual']);
+      assert.equal(rejected.missing,1,'Non-PDF manual bytes must be skipped as missing');
+    }
     console.log('Passed: missing screenshots with cached covers, custom-art preservation, exact-region matching, independent title art, refreshed matches, invalid-image handling, path validation, shared requests, cancellation, resume, unsupported systems and progress updates.');
   } finally {
     // Only remove the unique test directory inside the OS temp directory.

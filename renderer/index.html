@@ -194,6 +194,7 @@
           <label><input type="checkbox" value="title" /> <span>Title screens<small>An extra preview when no screenshot is available</small></span></label>
           <label><input type="checkbox" value="disc" /> <span>Cartridge labels<small>Switch labels for the cartridge reveal</small></span></label>
           <label><input type="checkbox" value="back" /> <span>Back covers<small>Switch packaging for the case viewer</small></span></label>
+          <label><input type="checkbox" value="manual" /> <span>Manuals<small>ScreenScraper login required</small></span></label>
         </fieldset>
         <label class="art-retry"><input id="artRetry" type="checkbox" /> Refresh matches and retry missing artwork</label>
         
@@ -213,11 +214,38 @@
           <p id="artUnsupported" class="sub hidden"></p>
           <ul id="artActivity" class="art-activity" aria-label="Recent artwork results"></ul>
         </section>
-        <section class="panel art-source" aria-labelledby="artImportTitle"><h2 id="artImportTitle">Use your own image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="fanart">Background</option></select><button id="artImport">Choose image…</button></div><p>PNG, JPG or WebP. Only the chosen type is replaced.</p><p id="artImportStatus" role="status" aria-live="polite"></p></section>
-        <section class="panel art-source"><span id="artSourceLabel" class="hidden"></span><h2>Sources</h2><p id="artSourceDetails">Libretro: covers, screenshots, title screens. GameTDB: Switch covers, back covers, cartridge labels. No account needed; availability varies by game.</p></section>
+        <section class="panel art-source" aria-labelledby="artImportTitle"><h2 id="artImportTitle">Use your own image</h2><p id="artImportGame"></p><label class="art-field" for="artImportKind">Replace artwork type</label><div class="art-import-controls"><select id="artImportKind"><option value="front">Box cover</option><option value="disc">Disc / cartridge label</option><option value="back">Back cover</option><option value="spine">Spine</option><option value="screenshot">Screenshot</option><option value="title">Title screen</option><option value="fanart">Background</option><option value="manual">Manual (PDF)</option></select><button id="artImport">Choose image…</button></div><p>Images: PNG, JPG or WebP. Manuals: PDF. Only the chosen type is replaced.</p><div class="art-manuals"><button id="artFindManuals">Find manuals in a folder…</button><span>Matches PDF manuals to your games by name, for the whole library.</span></div><p id="artImportStatus" role="status" aria-live="polite"></p></section>
+        <section class="panel art-source"><span id="artSourceLabel" class="hidden"></span><h2>Sources</h2><p id="artSourceDetails">Libretro: covers, screenshots, title screens. GameTDB: Switch covers, back covers, cartridge labels. No account needed; availability varies by game.</p>
+          <ol class="art-source-list">
+            <li><strong>LaunchBox Games Database</strong><span>Full-size box scans, discs, cartridges and screenshots. No account needed.</span><small id="artLaunchBoxState"></small></li>
+            <li><strong>ScreenScraper</strong><span>Optional. Matches by file, good for rare and regional releases. Also supplies manuals (PDF) when signed in.</span><small id="artScreenScraperState"></small></li>
+            <li><strong>GameTDB &amp; Libretro</strong><span>Fallbacks: Switch labels, and smaller covers for everything else.</span></li>
+            <li><strong>Super Mario Wiki &amp; Internet Archive</strong><span>Last resort for front covers: Mario-series boxes from the wiki, and collectors' box scans from the Internet Archive. Only used when the cover is filed under the game's own system. Front covers only, after the existing providers, never replacing an existing cover.</span></li>
+          </ol>
+          <details id="artScreenScraper" class="art-login"><summary>ScreenScraper login</summary>
+            <p>Use your free screenscraper.fr account. ScreenScraper also requires a developer ID, which developers request on the ScreenScraper forum.</p>
+            <div class="art-login-grid">
+              <label>User name<input id="ssUser" autocomplete="off" spellcheck="false" /></label>
+              <label>Password<input id="ssPassword" type="password" autocomplete="off" /></label>
+              <label>Developer ID<input id="ssDevId" autocomplete="off" spellcheck="false" /></label>
+              <label>Developer password<input id="ssDevPassword" type="password" autocomplete="off" /></label>
+            </div>
+            <div class="actions"><button id="ssSave" class="primary">Save login</button><button id="ssClear">Remove login</button></div>
+            <p id="ssStatus" class="sub" role="status" aria-live="polite"></p>
+          </details>
+        </section>
       </div>
     </div>
   </main>
+
+  <dialog id="manualViewer" aria-labelledby="manualViewerTitle">
+    <div class="manual-viewer-bar">
+      <strong id="manualViewerTitle"></strong>
+      <button id="manualExternal" type="button">Open in your PDF reader</button>
+      <button id="manualClose" type="button" aria-label="Close manual"><kbd>Esc</kbd> Close</button>
+    </div>
+    <iframe id="manualFrame" title="Game manual"></iframe>
+  </dialog>
 
   <!-- SETTINGS -->
   <main id="view-settings" class="view">

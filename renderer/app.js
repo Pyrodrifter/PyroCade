@@ -1043,10 +1043,21 @@ async function play(g = S.list[S.sel]) {
   }
   catch (e) {AudioUI.play('error');toast(e.message, 5000); }
 }
-function manual(g = S.list[S.sel]) {
-  if (g?.media.manual) api.openManual(g.media.manual);
-  else toast('No manual found. Put a manual.pdf in this game’s artwork folder.');
+async function manual(g = S.list[S.sel]) {
+  if (!g?.media.manual) return toast('No manual yet. Add one in Artwork → Change an image → Manual (PDF), or with Find manuals in a folder.');
+  let url;
+  try { url = await api.manualUrl(g.media.manual); } catch (e) { return toast(e.message, 5000); }
+  const viewer = $('#manualViewer');
+  $('#manualViewerTitle').textContent = `${g.title} · Manual`;
+  $('#manualFrame').src = url + '#view=FitH';
+  $('#manualExternal').onclick = () => api.openManual(g.media.manual).catch(e => toast(e.message, 5000));
+  viewer.showModal?.();
+  $('#manualClose').focus();
 }
+const manualOpen = () => $('#manualViewer').open;
+function closeManual() { const v = $('#manualViewer'); if (!v.open) return; v.close(); }
+$('#manualViewer').addEventListener('close', () => { $('#manualFrame').src = 'about:blank'; });
+$('#manualClose').onclick = closeManual;
 
 // ---------- case viewer ----------
 const CV = { open: false, rx: 8, ry: 32, tx: 0, z: 0, game: null, anim: null, token:0, timer:null };
@@ -1458,6 +1469,7 @@ $('#stage').addEventListener('wheel', e => {
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
   LibraryChrome.activity();
+  if(manualOpen()){if(action==='back'||action==='manual')closeManual();return;}
   if (typeof FeedbackUI !== 'undefined' && FeedbackUI.isOpen()) { FeedbackUI.controller(action); return; }
   if(Appearance.panelOpen()){Appearance.controller(action);return;}
   if(LibraryUI.pickerOpen()){LibraryUI.controller(action);return;}
