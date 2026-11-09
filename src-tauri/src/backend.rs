@@ -2491,6 +2491,11 @@ pub fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 fn supports_self_update(os: &str, arch: &str, appimage: bool) -> bool {
     matches!((os, arch), ("macos", "aarch64"))
         || matches!((os, arch), ("linux", "aarch64") if appimage)

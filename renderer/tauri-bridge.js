@@ -79,6 +79,7 @@
     onAppUpdateProgress: fn => subscribe('app:updateProgress', fn),
     onToast: fn => subscribe('toast', fn),
     appVersion: () => call('app_version'),
+    quitApp: () => call('quit_app'),
     appCheckUpdate: () => call('check_app_update'),
     appInstallUpdate: () => call('install_app_update'),
     appOpenRelease: url => call('open_release', { url }),

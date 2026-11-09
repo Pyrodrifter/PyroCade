@@ -59,6 +59,7 @@ pub fn run() {
             backend::pick_folder,
             backend::open_manual,
             backend::app_version,
+            backend::quit_app,
             backend::check_app_update,
             backend::install_app_update,
             backend::open_release,

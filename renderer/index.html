@@ -251,7 +251,10 @@
   <main id="view-settings" class="view">
     <div class="view-head">
       <div><h1>Settings</h1><p class="sub">Set a ROM folder for each system. To use several folders (e.g. two SD cards), click “+ Add” or separate paths with <code>|</code>.</p></div>
-      <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
+      <div class="actions">
+        <button id="btnQuit" type="button" hidden>Quit application</button>
+        <button id="btnSave" class="primary">Save &amp; rescan</button>
+      </div>
     </div>
     <div class="settings-groups">
       <section class="panel" aria-labelledby="interfaceHeading">
