@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 #[cfg(not(target_os = "android"))]
 use std::process::{Command, Stdio};
@@ -151,6 +152,7 @@ impl AppState {
         let (config, warning) = load_config(&config_path);
         fs::create_dir_all(&data_dir)?;
         fs::create_dir_all(data_dir.join("emulators"))?;
+        log_start(&data_dir);
         let _ = app.asset_protocol_scope().allow_directory(&data_dir, true);
         Ok(Self {
             app: app.clone(),
@@ -1285,6 +1287,145 @@ fn wait_for_child(
     })
 }
 
+// ---------- Launch logging and Steam/gamescope environment ----------
+// Main wrote data/logs/pyrocade.log so a start that fails on someone else's device
+// can be looked at without asking them to run anything. Launch children inherit
+// the parent environment; the only per-child change is the Steam LD sanitization
+// below (and nothing at all on Android, where ROM URIs stay untouched).
+fn log_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("logs").join("pyrocade.log")
+}
+
+fn append_launch_log(data_dir: &Path, entry: &str) {
+    let path = log_path(data_dir);
+    if let Some(dir) = path.parent() {
+        if fs::create_dir_all(dir).is_err() {
+            return;
+        }
+    }
+    if let Ok(meta) = fs::metadata(&path) {
+        if meta.len() > 512 * 1024 {
+            let _ = fs::rename(&path, path.with_extension("log.old"));
+        }
+    }
+    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let stamp = chrono::Utc::now().to_rfc3339();
+        let _ = writeln!(file, "{stamp} {entry}");
+    }
+}
+
+fn env_or_empty(name: &str) -> String {
+    std::env::var(name).unwrap_or_default()
+}
+
+fn log_start(data_dir: &Path) {
+    let desktop = env_or_empty("XDG_CURRENT_DESKTOP");
+    let session = env_or_empty("XDG_SESSION_TYPE");
+    let display = env_or_empty("DISPLAY");
+    let wayland = !env_or_empty("WAYLAND_DISPLAY").is_empty()
+        || !env_or_empty("GAMESCOPE_WAYLAND_DISPLAY").is_empty();
+    let steam = steam_start_detected(cfg!(target_os = "linux"), &|name| std::env::var(name).ok());
+    let app_image = !env_or_empty("APPIMAGE").is_empty();
+    append_launch_log(
+        data_dir,
+        &format!(
+            "start {} platform={} arch={} desktop={} session={} wayland={} display={} steam={} appImage={}",
+            app_version(),
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+            desktop,
+            session,
+            wayland,
+            display,
+            steam,
+            app_image
+        ),
+    );
+}
+
+fn steam_start_detected(is_linux: bool, get: &dyn Fn(&str) -> Option<String>) -> bool {
+    if !is_linux {
+        return false;
+    }
+    for key in ["SteamGameId", "SteamAppId", "STEAM_COMPAT_APP_ID"] {
+        if get(key).is_some_and(|v| !v.trim().is_empty()) {
+            return true;
+        }
+    }
+    is_gamescope(get)
+}
+
+fn is_gamescope(get: &dyn Fn(&str) -> Option<String>) -> bool {
+    get("XDG_CURRENT_DESKTOP").as_deref() == Some("gamescope")
+        || get("GAMESCOPE_WAYLAND_DISPLAY").is_some_and(|v| !v.trim().is_empty())
+}
+
+fn steam_filtered_ld_library_path(value: &str) -> Option<String> {
+    let kept: Vec<&str> = value
+        .split(':')
+        .filter(|entry| {
+            if entry.is_empty() {
+                return false;
+            }
+            let lower = entry.to_lowercase();
+            !(lower.contains("steam-runtime")
+                || lower.contains("steamrt")
+                || lower.contains("ubuntu12_32")
+                || lower.contains("ubuntu12_64")
+                || lower.contains("pressure-vessel")
+                || lower.contains("/steam/"))
+        })
+        .collect();
+    if kept.is_empty() {
+        None
+    } else {
+        Some(kept.join(":"))
+    }
+}
+
+fn log_launch(data_dir: &Path, kind: &str, game_id: &str, emulator_id: &str, fix_note: &str) {
+    if fix_note.is_empty() {
+        append_launch_log(
+            data_dir,
+            &format!("launch kind={kind} game={game_id} emulator={emulator_id}"),
+        );
+    } else {
+        append_launch_log(
+            data_dir,
+            &format!(
+                "launch kind={kind} game={game_id} emulator={emulator_id} steamFix={fix_note}"
+            ),
+        );
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn apply_steam_fix_to_command(command: &mut Command) -> String {
+    if !cfg!(target_os = "linux") {
+        return String::new();
+    }
+    let mut notes: Vec<String> = Vec::new();
+    if std::env::var_os("LD_PRELOAD").is_some() {
+        command.env_remove("LD_PRELOAD");
+        notes.push("cleared LD_PRELOAD".to_owned());
+    }
+    if let Ok(ld_library) = std::env::var("LD_LIBRARY_PATH") {
+        if let Some(kept) = steam_filtered_ld_library_path(&ld_library) {
+            if kept != ld_library {
+                command.env("LD_LIBRARY_PATH", &kept);
+                notes.push("removed Steam libraries from LD_LIBRARY_PATH".to_owned());
+            }
+        } else if !ld_library.is_empty() {
+            command.env_remove("LD_LIBRARY_PATH");
+            notes.push("removed Steam libraries from LD_LIBRARY_PATH".to_owned());
+        }
+    }
+    if is_gamescope(&|name| std::env::var(name).ok()) && std::env::var_os("DISPLAY").is_none() {
+        notes.push("DISPLAY unset under gamescope; X11 emulators may fail".to_owned());
+    }
+    notes.join(", ")
+}
+
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub(crate) fn android_launch_target(package: &str, rom_uri: &str) -> Result<String, String> {
     // ROM URIs are passed through unchanged: a SAF content URI is not a
@@ -1301,7 +1442,7 @@ pub(crate) fn android_launch_target(package: &str, rom_uri: &str) -> Result<Stri
 #[cfg(not(target_os = "android"))]
 fn launch_direct(
     app: &AppHandle,
-    _state: &AppState,
+    state: &AppState,
     config: &Value,
     game: &Game,
 ) -> Result<bool, String> {
@@ -1331,6 +1472,7 @@ fn launch_direct(
         app.opener()
             .open_path(&game.rom_path, None::<&str>)
             .map_err(|e| format!("Couldn't open: {e}"))?;
+        log_launch(&state.data_dir, "direct-opener", &game.id, "", "");
         return Ok(true);
     }
     let executable = file.to_path_buf();
@@ -1352,6 +1494,7 @@ fn launch_direct(
     } else {
         Command::new(&executable)
     };
+    let fix_note = apply_steam_fix_to_command(&mut command);
     command
         .current_dir(cwd)
         .stdin(Stdio::null())
@@ -1368,6 +1511,7 @@ fn launch_direct(
         let _ = window.minimize();
     }
     wait_for_child(child, window);
+    log_launch(&state.data_dir, "direct", &game.id, "", &fix_note);
     Ok(true)
 }
 
@@ -1515,6 +1659,8 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
         command
     };
     #[cfg(not(target_os = "android"))]
+    let fix_note = apply_steam_fix_to_command(&mut command);
+    #[cfg(not(target_os = "android"))]
     command
         .current_dir(cwd)
         .stdin(Stdio::null())
@@ -1535,6 +1681,13 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
     }
     #[cfg(not(target_os = "android"))]
     wait_for_child(child, window);
+    #[cfg(not(target_os = "android"))]
+    {
+        let data_dir = state.data_dir.clone();
+        let game_id = game.id.clone();
+        let emu_id = emulator_id.to_owned();
+        log_launch(&data_dir, "emulator", &game_id, &emu_id, &fix_note);
+    }
     Ok(true)
 }
 
@@ -2887,6 +3040,37 @@ mod library_tests {
         );
         assert!(android_launch_target("", uri).is_err());
         assert!(android_launch_target("com.retroarch.aarch64", "").is_err());
+    }
+
+    #[test]
+    fn steam_start_requires_linux_and_a_steam_marker() {
+        let plain = |_: &str| None;
+        assert!(!steam_start_detected(true, &plain));
+        assert!(!steam_start_detected(false, &|_| Some("123".to_owned())));
+        assert!(steam_start_detected(true, &|name| {
+            (name == "SteamGameId").then_some("123".to_owned())
+        }));
+        assert!(steam_start_detected(true, &|name| {
+            (name == "XDG_CURRENT_DESKTOP").then_some("gamescope".to_owned())
+        }));
+        assert!(steam_start_detected(true, &|name| {
+            (name == "GAMESCOPE_WAYLAND_DISPLAY").then_some("wayland-0".to_owned())
+        }));
+    }
+
+    #[test]
+    fn steam_library_filter_removes_only_steam_runtime_entries() {
+        let mixed = "/usr/lib:/home/u/.local/lib:/run/steam-runtime/libs:/opt/STEAM/libs:/home/u/pressure-vessel/libs";
+        assert_eq!(
+            steam_filtered_ld_library_path(mixed).unwrap(),
+            "/usr/lib:/home/u/.local/lib"
+        );
+        assert!(steam_filtered_ld_library_path("/run/steamrt/libs").is_none());
+        assert!(steam_filtered_ld_library_path("").is_none());
+        assert_eq!(
+            steam_filtered_ld_library_path("/usr/lib:/bin").unwrap(),
+            "/usr/lib:/bin"
+        );
     }
 
     // A directory-ROM is itself the game: bundles carry no inner file with
