@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), and **M03 — Collection administration and per-game controls** are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
 
-**Next action:** Start **P11 / M04 — Artwork and manual workflows** from `docs/slices/NEXT.md`.
+**Next action:** Start **P11a / M04a — Compatible artwork providers** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -161,7 +161,8 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P8 / D08 — In-app feedback reporting.** [COMPLETE] Committed as `97ed95c`.
 - **P9 / D09 — Demo capture, docs, and delta audit close-out.** [COMPLETE] Committed as D09 (see entry above; 2026-11-06..08 delta queue closed).
 - **P10 / M03 — Collection administration and per-game controls.** [COMPLETE] Committed as `f94d879` (details editor, hidden list, and drag order absorbed from `64a5ba6` where they fit Tauri; Recomp excluded as Windows-only).
-- **P11 / M04 — Artwork and manual workflows.** [PENDING] Depends on M03. Cover providers are D07; this keeps LaunchBox/ScreenScraper comparison and manual discovery/download/viewing.
+- **P11a / M04a — Compatible artwork providers.** [PENDING] Depends on M03. LaunchBox/ScreenScraper provider behavior through the Rust artwork service only; manual workflows stay in M04b.
+- **P11b / M04b — Manual artwork workflows.** [PENDING] Depends on M04a. Manual discovery/download/viewing (artwork.js manual handling, Art manual drawing, artwork UI) against the provider contract established in M04a.
 - **P12 / M05 — Platform-aware launch and emulator behaviour.** [PENDING] Depends on M03.
 - **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05; D09 already closes the renderer checks and docs it covers.
 
