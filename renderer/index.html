@@ -204,6 +204,10 @@
         <div class="row"><span>PyroCade version</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>
         <label class="row check"><input type="checkbox" id="sCheckUpdates" /> Check for a new PyroCade release when the app starts</label>
       </section>
+      <section class="panel" aria-labelledby="feedbackHeading">
+        <h2 id="feedbackHeading">Feedback</h2>
+        <button id="btnFeedback" type="button" aria-haspopup="dialog" aria-controls="feedbackDialog">Report a problem or suggest a change</button>
+      </section>
     </div>
     <h2 class="settings-section-title">Systems and games</h2>
     <table id="sysTable" class="panel">
@@ -227,8 +231,30 @@ ps2\Neon Drift (USA)\front.png      ps2\covers\Neon Drift (USA).png
     </details>
   </main>
 
+  <dialog id="feedbackDialog" aria-labelledby="feedbackTitle" aria-describedby="feedbackPrivacy">
+    <form id="feedbackForm">
+      <div class="feedback-heading"><h2 id="feedbackTitle">Send feedback</h2><button id="feedbackClose" type="button" aria-label="Close feedback">×</button></div>
+      <p id="feedbackPrivacy" class="sub">Reports are public on GitHub and require an account. Review your report and attach screenshots there. Leave out personal information.</p>
+      <label for="feedbackKind">Type</label>
+      <select id="feedbackKind"><option value="bug">Report a problem</option><option value="feedback">Suggestion</option></select>
+      <label for="feedbackSummary">Summary <span class="sub">(required)</span></label>
+      <input id="feedbackSummary" required maxlength="120" placeholder="A short title for your report" />
+      <label for="feedbackDescription" id="feedbackDescriptionLabel">What happened, and what did you expect? (required)</label>
+      <textarea id="feedbackDescription" required maxlength="4000" rows="4"></textarea>
+      <div id="feedbackStepsGroup"><label for="feedbackSteps">Steps to reproduce <span class="sub">(optional)</span></label><textarea id="feedbackSteps" maxlength="2000" rows="3" placeholder="1. Open…&#10;2. Choose…&#10;3. The error appears…"></textarea></div>
+      <label class="feedback-diagnostics-toggle"><input id="feedbackDiagnostics" type="checkbox" checked /> Include app version and basic device details</label>
+      <pre id="feedbackDevice" aria-label="Device details included in the report">Loading device details…</pre>
+      <p class="sub feedback-note">Only the details shown above are added automatically. Logs, file paths and your game library are not attached.</p>
+      <p id="feedbackStatus" role="status" aria-live="polite"></p>
+      <div class="feedback-actions"><button id="feedbackCopy" type="button">Copy report</button><button id="feedbackOpen" class="primary" type="submit">Continue on GitHub ↗</button></div>
+      <button id="feedbackBrowse" type="button" class="feedback-browse">Browse reports on GitHub ↗</button>
+    </form>
+  </dialog>
+
   <div id="toast"></div>
   <script src="tauri-bridge.js"></script>
+  <script src="feedback.js"></script>
+  <script src="feedback-ui.js"></script>
   <script src="art.js"></script>
   <script src="assets/prompts/manifest.js"></script>
   <script src="assets/brand/brand.js"></script>

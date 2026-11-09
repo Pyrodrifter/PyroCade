@@ -1609,6 +1609,68 @@ pub fn open_release(app: AppHandle, url: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+fn os_release() -> Option<String> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        std::process::Command::new("uname")
+            .arg("-r")
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+            .filter(|release| !release.is_empty())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        None
+    }
+}
+
+fn feedback_diagnostics() -> String {
+    let version = env!("CARGO_PKG_VERSION");
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let os_detail = match os_release() {
+        Some(release) => format!("{os} {release} ({arch})"),
+        None => format!("{os} ({arch})"),
+    };
+    let tauri_version = tauri::VERSION;
+    let installation = if cfg!(debug_assertions) {
+        "From source"
+    } else {
+        "Packaged app"
+    };
+    format!(
+        "PyroCade: {version}\nOS: {os_detail}\nTauri: {tauri_version}\nInstallation: {installation}"
+    )
+}
+
+#[tauri::command]
+pub fn feedback_info() -> String {
+    feedback_diagnostics()
+}
+
+#[tauri::command]
+pub fn feedback_copy(app: AppHandle, text: String) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Err("Nothing to copy yet.".to_owned());
+    }
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    app.clipboard()
+        .write_text(text)
+        .map_err(|e| format!("Could not copy the report: {e}"))
+}
+
+#[tauri::command]
+pub fn feedback_open(app: AppHandle, url: String) -> Result<(), String> {
+    if !url.starts_with("https://github.com/Pyrodrifter/PyroCade/issues/") {
+        return Err("Not a GitHub issue link".to_owned());
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 fn merge_object(target: &mut Value, source: &Value) {
     let (Some(target), Some(source)) = (target.as_object_mut(), source.as_object()) else {
         return;
@@ -1672,6 +1734,33 @@ mod library_tests {
         assert!(supports_self_update("linux", "aarch64", true));
         assert!(!supports_self_update("linux", "aarch64", false));
         assert!(!supports_self_update("linux", "x86_64", true));
+    }
+
+    #[test]
+    fn feedback_diagnostics_lists_only_basic_device_details() {
+        let diagnostics = feedback_diagnostics();
+        assert!(diagnostics.contains(&format!("PyroCade: {}", env!("CARGO_PKG_VERSION"))));
+        assert!(diagnostics.contains("OS: "));
+        assert!(diagnostics.contains("Tauri: "));
+        assert!(diagnostics.contains("Installation: "));
+        assert!(!diagnostics.contains("Electron"));
+        assert!(!diagnostics.contains("data/"));
+    }
+
+    #[test]
+    fn feedback_issue_url_must_target_this_repos_issue_pages() {
+        assert!(
+            "https://github.com/Pyrodrifter/PyroCade/issues/new?template=bug_report.md"
+                .starts_with("https://github.com/Pyrodrifter/PyroCade/issues/")
+        );
+        assert!(
+            !"https://github.com/Pyrodrifter/PyroCade/releases"
+                .starts_with("https://github.com/Pyrodrifter/PyroCade/issues/")
+        );
+        assert!(
+            !"https://example.com/issues/new"
+                .starts_with("https://github.com/Pyrodrifter/PyroCade/issues/")
+        );
     }
 
     fn rom_file(name: &str) -> RomFile {

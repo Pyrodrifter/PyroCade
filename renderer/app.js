@@ -271,6 +271,7 @@ function setSystem(id, edge = null) {
   const pending = S.pendingGame && S.games.find(g => g.id === S.pendingGame);
   if (S.games.length) S.pendingGame = null;
   const q = S.query.trim().toLowerCase();
+  // S.list follows S.games order (Rust title-sorted scan); demo games keep authored DEMO order.
   S.list = S.games.filter(g => (S.system === 'all' || g.system === S.system) && (!q || g.title.toLowerCase().includes(q)));
   LibraryUI.select();
   $('#carousel').innerHTML = ''; items.clear();revealNode=null;
@@ -318,7 +319,8 @@ function getConsoleNavigation() {
       const shelf = shelves.get(game.system);
       if (shelf && (!query || game.title.toLowerCase().includes(query))) shelf.games.push(game);
     }
-    for (const shelf of shelves.values()) shelf.games.sort(byTitle);
+    // Demo shelves keep authored DEMO order; title-sort only real libraries.
+    if (!S.demo) for (const shelf of shelves.values()) shelf.games.sort(byTitle);
   }
   consoleNavigation = { ids: ids.filter(id => shelves.get(id)?.games.length), shelves };
   return consoleNavigation;
@@ -1094,6 +1096,7 @@ $('#stage').addEventListener('wheel', e => {
 const libraryActive = () => $('#view-library').classList.contains('active');
 function input(action) {
   LibraryChrome.activity();
+  if (typeof FeedbackUI !== 'undefined' && FeedbackUI.isOpen()) { FeedbackUI.controller(action); return; }
   if(Appearance.panelOpen()){Appearance.controller(action);return;}
   if(LibraryUI.pickerOpen()){LibraryUI.controller(action);return;}
   if(action==='systems'&&libraryActive()&&!caseShown()){LibraryUI.openPicker();return;}
@@ -1137,6 +1140,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   usePromptInput('keyboard');
+  if (typeof FeedbackUI !== 'undefined' && FeedbackUI.isOpen()) return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'&&libraryActive()&&!caseShown()){e.preventDefault();LibraryUI.openPicker();return;}
   if(LibraryUI.pickerOpen()||Appearance.panelOpen())return;
   if (caseShown() && e.key === 'Tab') {

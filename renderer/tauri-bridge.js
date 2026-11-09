@@ -69,6 +69,9 @@
     appVersion: () => call('app_version'),
     appCheckUpdate: () => call('check_app_update'),
     appInstallUpdate: () => call('install_app_update'),
-    appOpenRelease: url => call('open_release', { url })
+    appOpenRelease: url => call('open_release', { url }),
+    feedbackInfo: () => call('feedback_info'),
+    feedbackCopy: text => call('feedback_copy', { text }),
+    feedbackOpen: url => call('feedback_open', { url })
   };
 })();

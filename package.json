@@ -20,6 +20,7 @@
     "prompts:check": "electron scripts/check-prompts.cjs",
     "renderer:check:carousel:electron": "electron scripts/check-carousel.cjs",
     "artwork:check": "node scripts/check-artwork.cjs",
+    "feedback:check": "node scripts/check-feedback.cjs && electron scripts/check-feedback-ui.cjs",
     "renderer:check:artwork:electron": "electron scripts/check-artwork-ui.cjs",
     "eshop:check": "electron scripts/check-eshop.cjs",
     "brand:build": "electron scripts/build-brand.cjs",

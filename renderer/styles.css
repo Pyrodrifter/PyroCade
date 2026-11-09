@@ -23,6 +23,25 @@ kbd { font: 600 11px "Segoe UI"; padding: 2px 6px; border-radius: 4px; backgroun
 code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; }
 .hidden { display: none !important; }
 
+/* Feedback stays in-app until the user chooses to open their browser. */
+#feedbackDialog { width:min(650px,calc(100vw - 48px)); max-height:calc(100vh - 48px); overflow:auto; border:1px solid var(--line); border-radius:18px; padding:24px; color:var(--text); background:#151b27; box-shadow:0 30px 100px #0009; user-select:text; }
+#feedbackDialog::backdrop { background:#030710b3; backdrop-filter:blur(12px); }
+.feedback-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.feedback-heading h2 { margin:0; font-size:22px; }
+.feedback-heading button { padding:4px 12px; font-size:24px; }
+#feedbackForm > label, #feedbackStepsGroup > label { display:block; font-size:13px; margin:14px 0 6px; }
+#feedbackForm > input, #feedbackForm > select, #feedbackForm textarea { width:100%; }
+#feedbackForm textarea { display:block; resize:vertical; min-height:70px; font:inherit; font-size:14px; color:var(--text); background:rgba(0,0,0,.35); border:1px solid var(--line); border-radius:8px; padding:9px 11px; }
+#feedbackForm textarea:focus { outline:1px solid var(--accent); }
+#feedbackForm .feedback-diagnostics-toggle { display:flex; align-items:center; gap:8px; }
+#feedbackDevice { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.5; padding:10px 12px; border-radius:8px; background:#0004; margin:8px 0; }
+.feedback-note, #feedbackPrivacy { font-size:12px; line-height:1.6; }
+#feedbackStatus { font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+#feedbackStatus:empty { display:none; }
+.feedback-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+.feedback-browse { padding:0; border:0; border-radius:0; background:transparent; color:var(--accent2); font-size:12px; }
+.feedback-browse:hover { background:transparent; text-decoration:underline; }
+
 /* ---------- ambient background ---------- */
 #bg { position: fixed; inset: 0; z-index: 0; background: radial-gradient(ellipse at 50% 30%, var(--tint), #07080c 70%); transition: background 1s; }
 .bg-layer { position: absolute; inset: -60px; background-size: cover; background-position: center; filter: blur(40px) saturate(1.3) brightness(.45);
