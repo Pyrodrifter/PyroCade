@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P4 / D04 — Page turn and media carousel** from `docs/slices/NEXT.md`.
+**Next action:** Start **P5 / D05 — Case art, physical media, and booklet proportions** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -114,12 +114,17 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
   - Seed PASS: P3 row prices 12 files at 33,797 tokens, seed 33,793 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 93,033/225,000 tokens (41%); session cost $0/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
 
+- **P4 / D04 — Page turn, media carousel, and shelf sizing.** Source committed as `fd7a8c8` (`Port Page turn and Media carousel layouts (D04/P4)`), from main commits `8e15d77` plus the bookshelf sizing in `e1b504e`. Replaced Spinner rack and Colour cards with Page turn and Media carousel in `renderer/appearance.js`, `renderer/app.js`, `renderer/library-ui.css` and `renderer/styles.css`: retired-layout migration (spinner→page-turn, swatches/top-flip→media, persisted), `Appearance.browsesVertically`, the page-turn radius/disc-peek geometry, Bookshelf disc reveal, the media reveal behaviour and layout options, and the stage-sized bookshelf (55% of stage height, pulled-out case capped at 70%, one floor for every case). The branch has no shelf-model cache, so the flat-covers toggle still clears items and rebuilds; `Appearance.card` and the rack/swatch geometry are gone. Adaptations: branch `app.js` has no `physicalSystem`/`hasShell`, so a local `hasShell` (`media === 'cart' || Cartridges.profiles[sys.id]?.shell`) and `sysOf` were used; physical-media CSS kept the branch transform/z rather than main's `--media-back`; `@keyframes disc-spin` was added to `styles.css` because the branch has no `minimal.css`. Excluded by scope: packaging shapes (Super Famicom wide/tall, `Packaging.size`), back covers and booklet proportions, the case-spine hinge and cartridge-label offset (D05), Leia, and the M03 editor/list/menus. `renderer/prompts.js` still names `swatches` but that layout can no longer be selected; the seed's code-to-touch excluded the file.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (32 passed), `cargo check --manifest-path src-tauri/Cargo.toml` (existing dead-code warnings), `node --check renderer/app.js`, `node --check renderer/appearance.js`, `node --check scripts/check-carousel.cjs`, `node --check scripts/check-library-ui.cjs`, and CSS brace balance. `scripts/check-carousel.cjs` gained retired-layout migration, Page turn swing, Media carousel visibility and Bookshelf disc-peek assertions (hinge/Super Famicom assertions from `8e15d77` left for D05); `scripts/check-library-ui.cjs` (Tauri WebDriver smoke) gained the layout-availability migration assertions. Both checks cannot run here — `node scripts/check-carousel.cjs` fails with `Electron failed to install correctly` and no `tauri-driver` exists — so they are recorded, not claimed. `npm start` was not run. No visual inspection was performed.
+  - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
+  - Seed PASS: P4 row prices 17 files at 168,954 tokens, seed 168,948 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 113,080/225,000 tokens (50%); session cost $0/$0.70. Do-Not count remains 4; #1 and #4 apply; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
 - **P2 / D02 — Launcher chrome and shelf navigation behaviour.** [COMPLETE] Committed as `60fdc7a`.
 - **P3 / D03 — Flat button-prompt assets and generator.** [COMPLETE] Committed as `030662e`.
-- **P4 / D04 — Page turn, media carousel, and shelf sizing.** [PENDING] Depends on D02.
+- **P4 / D04 — Page turn, media carousel, and shelf sizing.** [COMPLETE] Committed as `fd7a8c8`.
 - **P5 / D05 — Case art, physical media, and booklet proportions.** [PENDING] Depends on D04.
 - **P6 / D06 — Library cache and parallel Rust scan.** [PENDING] Depends on D05.
 - **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [PENDING] Depends on D06.
