@@ -47,6 +47,7 @@ pub fn default_config() -> Value {
         }).collect::<Vec<_>>(),
         "emulators": {},
         "customEmulators": [],
+        "extraGames": [],
         "favorites": [],
         "recentlyPlayed": [],
         "sortKey": "title",
@@ -156,6 +157,10 @@ pub fn config_for_save(incoming: Value, current: &Value) -> Result<Value, String
         .get("customEmulators")
         .cloned()
         .unwrap_or_else(|| json!([]));
+    next["extraGames"] = current
+        .get("extraGames")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
     // Preserve library state fields from current config.
     next["favorites"] = current
         .get("favorites")
@@ -249,6 +254,7 @@ mod tests {
         assert_eq!(config["systems"].as_array().unwrap().len(), 24);
         assert_eq!(config["systems"][0]["romDir"], "");
         assert_eq!(config["uiSound"]["volume"], 0.25);
+        assert_eq!(config["extraGames"], json!([]));
     }
 
     #[test]

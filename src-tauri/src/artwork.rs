@@ -897,6 +897,7 @@ mod tests {
                 "front".to_owned(),
                 "file:///old.png".to_owned(),
             )]),
+            shell: None,
         };
         let games = Arc::new(RwLock::new(vec![game]));
         update_game_media(

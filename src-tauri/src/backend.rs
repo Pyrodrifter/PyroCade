@@ -1,6 +1,6 @@
 use crate::config::{config_for_save, load_config, save_config};
 use crate::storage::{is_content_uri, split_storage_refs};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -26,7 +26,7 @@ pub struct AppState {
     warning: Mutex<Option<String>>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
     pub id: String,
@@ -36,6 +36,8 @@ pub struct Game {
     pub title: String,
     pub info: Value,
     pub media: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shell: Option<String>,
 }
 
 #[derive(Clone)]
@@ -44,12 +46,86 @@ struct RomFile {
     path: PathBuf,
     root: PathBuf,
     root_index: usize,
-    size: u64,
+    size: Option<u64>,
+    is_dump: bool,
 }
 
 struct MediaIndex {
     game_dirs: HashMap<String, PathBuf>,
     kinds: HashMap<String, HashMap<String, PathBuf>>,
+    files: HashSet<String>,
+}
+
+#[derive(Clone)]
+struct Listed {
+    name: String,
+    path: PathBuf,
+    is_dir: bool,
+    is_file: bool,
+}
+
+#[derive(Default)]
+struct ScanListings {
+    inner: Arc<Mutex<HashMap<String, Arc<Vec<Listed>>>>>,
+}
+
+impl ScanListings {
+    fn list(&self, dir: &Path) -> Arc<Vec<Listed>> {
+        let key = dir.to_string_lossy().to_lowercase();
+        if let Some(listed) = self
+            .inner
+            .lock()
+            .expect("listings lock poisoned")
+            .get(&key)
+            .cloned()
+        {
+            return listed;
+        }
+        let listed: Vec<Listed> = fs::read_dir(dir)
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .map(|entry| Listed {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        path: entry.path(),
+                        is_dir: entry.file_type().is_ok_and(|t| t.is_dir()),
+                        is_file: entry.file_type().is_ok_and(|t| t.is_file()),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let listed = Arc::new(listed);
+        self.inner
+            .lock()
+            .expect("listings lock poisoned")
+            .insert(key, listed.clone());
+        listed
+    }
+}
+
+const SCAN_CONCURRENCY: usize = 16;
+
+fn map_limit<T, F, R>(items: &[T], limit: usize, f: &F) -> Vec<R>
+where
+    T: Sync,
+    R: Send,
+    F: Fn(&T) -> R + Sync,
+{
+    if items.is_empty() {
+        return Vec::new();
+    }
+    let workers = limit.min(items.len()).max(1);
+    let chunk = items.len().div_ceil(workers);
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = items
+            .chunks(chunk)
+            .map(|part| scope.spawn(move || part.iter().map(f).collect::<Vec<_>>()))
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("scan worker panicked"))
+            .collect()
+    })
 }
 
 impl AppState {
@@ -119,12 +195,147 @@ pub fn set_config(state: State<'_, AppState>, cfg: Value) -> Result<Value, Strin
 }
 
 #[tauri::command]
-pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<Game>, String> {
-    let mut games = scan(&app, &state.config(), &state.data_dir)?;
-    // Apply library state filters and sorting.
-    apply_library_state(&mut games, &state.config());
+pub fn scan_library(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    with_report: Option<bool>,
+    options: Option<Value>,
+) -> Result<Option<Vec<Game>>, String> {
+    let config = state.config();
+    let only_if_changed = options
+        .as_ref()
+        .and_then(|o| o.get("onlyIfChanged"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let (cached_raw, known_sizes) = read_library_cache(&config, &state.data_dir);
+    let outcome = scan(
+        &app,
+        &config,
+        &state.data_dir,
+        &known_sizes,
+        with_report.unwrap_or(false),
+    )?;
+    let raw_text = serde_json::to_string(&outcome.games).map_err(|e| e.to_string())?;
+    let changed = write_library_cache(
+        &config,
+        &state.data_dir,
+        &raw_text,
+        &outcome.sizes,
+        cached_raw.as_ref(),
+    );
+    if only_if_changed && !with_report.unwrap_or(false) && !changed {
+        return Ok(None);
+    }
+    let mut games = outcome.games;
+    apply_library_state(&mut games, &config);
     *state.games.write().map_err(|e| e.to_string())? = games.clone();
-    Ok(games)
+    Ok(Some(games))
+}
+
+#[tauri::command]
+pub fn cached_library(state: State<'_, AppState>) -> Result<Option<Vec<Game>>, String> {
+    let config = state.config();
+    let (cached_raw, _known_sizes) = read_library_cache(&config, &state.data_dir);
+    let Some(cached) = cached_raw else {
+        return Ok(None);
+    };
+    let mut games = cached;
+    apply_library_state(&mut games, &config);
+    *state.games.write().map_err(|e| e.to_string())? = games.clone();
+    Ok(Some(games))
+}
+
+fn library_cache_key(config: &Value) -> Value {
+    let systems: Vec<Value> = config
+        .get("systems")
+        .and_then(Value::as_array)
+        .map(|systems| {
+            systems
+                .iter()
+                .map(|system| {
+                    json!([
+                        system.get("id").and_then(Value::as_str).unwrap_or(""),
+                        system.get("romDir").and_then(Value::as_str).unwrap_or(""),
+                        system.get("extensions").cloned().unwrap_or(json!([])),
+                        system
+                            .get("direct")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false),
+                    ])
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    json!({
+        "version": app_version(),
+        "mediaRoot": config.get("mediaRoot").and_then(Value::as_str).unwrap_or(""),
+        "extraGames": config.get("extraGames").cloned().unwrap_or(json!([])),
+        "systems": systems,
+    })
+}
+
+fn read_library_cache(
+    config: &Value,
+    data_dir: &Path,
+) -> (Option<Vec<Game>>, HashMap<String, u64>) {
+    let path = data_dir.join("library-cache.json");
+    let Ok(text) = fs::read_to_string(&path) else {
+        return (None, HashMap::new());
+    };
+    let Ok(cached) = serde_json::from_str::<Value>(&text) else {
+        return (None, HashMap::new());
+    };
+    let sizes: HashMap<String, u64> = cached
+        .get("sizes")
+        .and_then(Value::as_object)
+        .map(|sizes| {
+            sizes
+                .iter()
+                .filter_map(|(path, size)| size.as_u64().map(|size| (path.clone(), size)))
+                .collect()
+        })
+        .unwrap_or_default();
+    if cached.get("key") != Some(&library_cache_key(config)) {
+        return (None, sizes);
+    }
+    let games: Option<Vec<Game>> = cached
+        .get("games")
+        .and_then(|games| serde_json::from_value(games.clone()).ok())
+        .filter(|games: &Vec<Game>| !games.is_empty());
+    (games, sizes)
+}
+
+fn write_library_cache(
+    config: &Value,
+    data_dir: &Path,
+    raw_text: &str,
+    sizes: &HashMap<String, u64>,
+    cached_raw: Option<&Vec<Game>>,
+) -> bool {
+    let previous_text = cached_raw
+        .map(|games| serde_json::to_string(games).unwrap_or_default())
+        .unwrap_or_default();
+    let changed = raw_text != previous_text;
+    let sizes_text = serde_json::to_string(sizes).unwrap_or_default();
+    let previous_sizes_text = {
+        let (_games, previous_sizes) = read_library_cache(config, data_dir);
+        serde_json::to_string(&previous_sizes).unwrap_or_default()
+    };
+    if !changed && sizes_text == previous_sizes_text {
+        return false;
+    }
+    let _ = fs::create_dir_all(data_dir);
+    let tmp = data_dir.join("library-cache.json.tmp");
+    let payload = format!(
+        "{{\"key\":{},\"sizes\":{},\"games\":{}}}",
+        library_cache_key(config),
+        sizes_text,
+        raw_text
+    );
+    if fs::write(&tmp, payload).is_ok() {
+        let _ = fs::rename(&tmp, data_dir.join("library-cache.json"));
+    }
+    changed
 }
 
 /// Apply favorites filtering, recently played injection, sorting, and ordering.
@@ -200,6 +411,7 @@ fn apply_library_state(games: &mut Vec<Game>, config: &Value) {
                     title,
                     info: Value::Object(serde_json::Map::new()),
                     media: HashMap::new(),
+                    shell: None,
                 })
             })
             .collect();
@@ -554,8 +766,21 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
     Ok(true)
 }
 
-fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, String> {
+struct ScanOutcome {
+    games: Vec<Game>,
+    sizes: HashMap<String, u64>,
+}
+
+fn scan(
+    app: &AppHandle,
+    config: &Value,
+    data_dir: &Path,
+    known_sizes: &HashMap<String, u64>,
+    reread_sizes: bool,
+) -> Result<ScanOutcome, String> {
+    let listings = ScanListings::default();
     let mut games = Vec::new();
+    let mut scan_sizes: HashMap<String, u64> = HashMap::new();
     let systems = config
         .get("systems")
         .and_then(Value::as_array)
@@ -575,9 +800,6 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
         if extensions.is_empty() {
             continue;
         }
-        // romDir may hold filesystem paths (desktop) or SAF tree URIs (Android).
-        // Only filesystem roots can be walked with std::fs; URIs are stored
-        // but never converted into paths.
         let dirs: Vec<PathBuf> =
             split_storage_refs(system.get("romDir").and_then(Value::as_str).unwrap_or(""))
                 .into_iter()
@@ -590,7 +812,15 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
         let mut files = Vec::new();
         for (root_index, root) in dirs.iter().enumerate() {
             allow_tree(app, root);
-            walk_roms(root, root, root_index, 0, &extensions, &mut files);
+            walk_roms(
+                &listings,
+                root,
+                root,
+                root_index,
+                0,
+                &extensions,
+                &mut files,
+            );
         }
         let playlists: HashSet<String> = files
             .iter()
@@ -610,21 +840,25 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
                         .unwrap_or(""),
                 )))
         });
-        let best = select_best_roms(files);
+        let best = select_best_roms(files, known_sizes, reread_sizes, &mut scan_sizes);
         let roots = media_roots(config, system, &dirs, data_dir);
         for root in &roots {
             allow_tree(app, root);
         }
-        let indexes: Vec<MediaIndex> = roots.iter().map(|root| index_media_root(root)).collect();
+        let indexes: Vec<MediaIndex> = roots
+            .iter()
+            .map(|root| index_media_root(&listings, root))
+            .collect();
         let lists: Vec<HashMap<String, Value>> =
             dirs.iter().map(|root| read_gamelist(root)).collect();
-        for file in best.values() {
+        let best_files: Vec<RomFile> = best.into_values().collect();
+        let system_games = map_limit(&best_files, SCAN_CONCURRENCY, &|file| {
             let base = Path::new(&file.name)
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or(&file.name)
                 .to_owned();
-            let (media_paths, info) = find_media(&indexes, &base);
+            let (media_paths, info, shell) = find_media(&indexes, &base, &listings);
             let mut metadata = Map::new();
             for list in &lists {
                 if let Some(value) = list.get(&base.to_lowercase()).and_then(Value::as_object) {
@@ -655,7 +889,7 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
                 .and_then(Value::as_str)
                 .map(str::to_owned)
                 .unwrap_or_else(|| display_title(&base));
-            games.push(Game {
+            Game {
                 id: format!("{id}:{suffix}"),
                 system: id.to_owned(),
                 rom_path: file.path.to_string_lossy().to_string(),
@@ -663,11 +897,16 @@ fn scan(app: &AppHandle, config: &Value, data_dir: &Path) -> Result<Vec<Game>, S
                 title,
                 info: Value::Object(metadata),
                 media,
-            });
-        }
+                shell,
+            }
+        });
+        games.extend(system_games);
     }
     games.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
-    Ok(games)
+    Ok(ScanOutcome {
+        games,
+        sizes: scan_sizes,
+    })
 }
 
 fn media_roots(config: &Value, system: &Value, dirs: &[PathBuf], data_dir: &Path) -> Vec<PathBuf> {
@@ -694,6 +933,7 @@ fn allow_tree(app: &AppHandle, path: &Path) {
 }
 
 fn walk_roms(
+    listings: &ScanListings,
     root: &Path,
     dir: &Path,
     root_index: usize,
@@ -701,18 +941,11 @@ fn walk_roms(
     extensions: &HashSet<String>,
     out: &mut Vec<RomFile>,
 ) {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return;
-    };
-    let entries: Vec<_> = entries.filter_map(Result::ok).collect();
+    let entries = listings.list(dir);
     if extensions.contains(".nsp")
-        && entries.iter().any(|e| {
-            e.file_type().is_ok_and(|t| t.is_dir())
-                && matches!(
-                    e.file_name().to_string_lossy().to_lowercase().as_str(),
-                    "base" | "exefs"
-                )
-        })
+        && entries
+            .iter()
+            .any(|e| e.is_dir && matches!(e.name.to_lowercase().as_str(), "base" | "exefs"))
     {
         for main in [dir.join("base/exefs/main"), dir.join("exefs/main")] {
             if main.is_file() {
@@ -722,42 +955,39 @@ fn walk_roms(
                     path: main,
                     root: root.to_path_buf(),
                     root_index,
-                    size: 9_000_000_000,
+                    size: Some(9_000_000_000),
+                    is_dump: true,
                 });
                 return;
             }
         }
     }
-    for entry in entries {
-        let path = entry.path();
+    for entry in entries.iter() {
+        let path = &entry.path;
         let rom_ext = path
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| format!(".{}", e.to_lowercase()))
             .is_some_and(|e| extensions.contains(&e));
-        if entry.file_type().is_ok_and(|t| t.is_dir()) {
-            // A directory whose name carries a ROM extension is itself the
-            // game (macOS .app bundles are directories), not a container.
+        if entry.is_dir {
             if rom_ext {
                 out.push(RomFile {
-                    name: entry.file_name().to_string_lossy().to_string(),
-                    // Bundles are huge (tens of GB across hundreds of
-                    // thousands of members). Walking them for a size would
-                    // pay that cost on every scan; size is only a tie-break
-                    // for duplicate copies, so a directory-ROM reports 0.
-                    size: 0,
-                    path,
+                    name: entry.name.clone(),
+                    size: Some(0),
+                    is_dump: false,
+                    path: path.clone(),
                     root: root.to_path_buf(),
                     root_index,
                 });
-            } else if depth < 4 && !skip_dir(&entry.file_name().to_string_lossy()) {
-                walk_roms(root, &path, root_index, depth + 1, extensions, out);
+            } else if depth < 4 && !skip_dir(&entry.name) {
+                walk_roms(listings, root, path, root_index, depth + 1, extensions, out);
             }
-        } else if rom_ext {
+        } else if entry.is_file && rom_ext {
             out.push(RomFile {
-                name: entry.file_name().to_string_lossy().to_string(),
-                size: entry.metadata().map(|m| m.len()).unwrap_or_default(),
-                path,
+                name: entry.name.clone(),
+                size: None,
+                is_dump: false,
+                path: path.clone(),
                 root: root.to_path_buf(),
                 root_index,
             });
@@ -788,9 +1018,9 @@ fn skip_dir(name: &str) -> bool {
     )
 }
 
-fn copy_score(file: &RomFile) -> f64 {
+fn copy_score(file: &RomFile) -> i64 {
     let name = file.name.to_lowercase();
-    let mut score: f64 = 0.0;
+    let mut score: i64 = 0;
     if name.contains("(u)")
         || name.contains("(usa")
         || name.contains("(us)")
@@ -802,25 +1032,48 @@ fn copy_score(file: &RomFile) -> f64 {
         || name.contains("[usa")
         || name.contains("(ue)")
     {
-        score += 4.0;
+        score += 4;
     }
     if name.contains("(j)") || name.contains("(jp)") || name.contains("(japan)") {
-        score -= 2.0;
+        score -= 2;
     }
     if name.contains("[!]") {
-        score += 2.0;
+        score += 2;
     }
     if ["update", "upd", "dlc", "(beta", "(proto", "(demo", "(hack"]
         .iter()
         .any(|s| name.contains(s))
         || has_dump_marker(&name)
     {
-        score -= 6.0;
+        score -= 6;
     }
     if !name.ends_with(".zip") {
-        score += 1.0;
+        score += 1;
     }
-    score + (file.size as f64 / 10_000_000_000.0).min(0.9)
+    score
+}
+
+fn copy_size(
+    file: &mut RomFile,
+    known_sizes: &HashMap<String, u64>,
+    reread_sizes: bool,
+    scan_sizes: &mut HashMap<String, u64>,
+) -> u64 {
+    if file.size.is_none() {
+        let key = file.path.to_string_lossy().to_string();
+        file.size = Some(if !reread_sizes && known_sizes.contains_key(&key) {
+            known_sizes[&key]
+        } else {
+            fs::metadata(&file.path)
+                .map(|m| m.len())
+                .unwrap_or_default()
+        });
+    }
+    let size = file.size.unwrap_or_default();
+    if !file.is_dump {
+        scan_sizes.insert(file.path.to_string_lossy().to_string(), size);
+    }
+    size.min(9_000_000_000)
 }
 
 fn has_dump_marker(name: &str) -> bool {
@@ -830,8 +1083,13 @@ fn has_dump_marker(name: &str) -> bool {
         .is_match(name)
 }
 
-fn select_best_roms(files: Vec<RomFile>) -> HashMap<String, RomFile> {
-    let mut best = HashMap::new();
+fn select_best_roms(
+    files: Vec<RomFile>,
+    known_sizes: &HashMap<String, u64>,
+    reread_sizes: bool,
+    scan_sizes: &mut HashMap<String, u64>,
+) -> HashMap<String, RomFile> {
+    let mut groups: HashMap<String, Vec<RomFile>> = HashMap::new();
     for file in files {
         let base = Path::new(&file.name)
             .file_stem()
@@ -844,45 +1102,57 @@ fn select_best_roms(files: Vec<RomFile>) -> HashMap<String, RomFile> {
         } else {
             normalized
         };
-        let replace = best
-            .get(&key)
-            .is_none_or(|old| copy_score(&file) > copy_score(old));
-        if replace {
-            best.insert(key, file);
-        }
+        groups.entry(key).or_default().push(file);
+    }
+    let mut best = HashMap::new();
+    for (key, group) in groups {
+        let top_score = group.iter().map(copy_score).max().unwrap_or_default();
+        let mut top: Vec<RomFile> = group
+            .into_iter()
+            .filter(|file| copy_score(file) == top_score)
+            .collect();
+        let pick = if top.len() > 1 {
+            for file in &mut top {
+                copy_size(file, known_sizes, reread_sizes, scan_sizes);
+            }
+            let mut pick = top.remove(0);
+            for candidate in top {
+                let pick_size = copy_size(&mut pick.clone(), known_sizes, reread_sizes, scan_sizes);
+                let candidate_size = candidate.size.unwrap_or_default().min(9_000_000_000);
+                if pick_size < candidate_size {
+                    pick = candidate;
+                }
+            }
+            pick
+        } else {
+            top.remove(0)
+        };
+        best.insert(key, pick);
     }
     best
 }
 
-fn index_media_root(root: &Path) -> MediaIndex {
+fn index_media_root(listings: &ScanListings, root: &Path) -> MediaIndex {
     let mut index = MediaIndex {
         game_dirs: HashMap::new(),
         kinds: HashMap::new(),
+        files: HashSet::new(),
     };
-    let Ok(entries) = fs::read_dir(root) else {
-        return index;
-    };
-    for entry in entries
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-    {
-        let name = entry.file_name().to_string_lossy().to_lowercase();
+    for entry in listings.list(root).iter().filter(|e| e.is_dir) {
+        let name = entry.name.to_lowercase();
         if let Some((kind, _)) = media_kind_folder(&name) {
-            let Ok(files) = fs::read_dir(entry.path()) else {
-                continue;
-            };
             let map = index.kinds.entry(kind.to_owned()).or_default();
-            for file in files
-                .filter_map(Result::ok)
-                .filter(|f| f.file_type().is_ok_and(|t| t.is_file()))
-            {
-                let path = file.path();
-                if valid_media_extension(kind, &path) {
-                    map.insert(stem(&file.file_name().to_string_lossy()), path);
+            for file in listings.list(&entry.path).iter().filter(|f| f.is_file) {
+                index
+                    .files
+                    .insert(file.path.to_string_lossy().to_lowercase());
+                if valid_media_extension(kind, &file.path) {
+                    map.entry(stem(&file.name))
+                        .or_insert_with(|| file.path.clone());
                 }
             }
         } else {
-            index.game_dirs.insert(name, entry.path());
+            index.game_dirs.insert(name, entry.path.clone());
         }
     }
     index
@@ -929,57 +1199,60 @@ fn media_value(kind: &str, path: &Path) -> Option<String> {
     }
 }
 
-fn find_media(indexes: &[MediaIndex], base: &str) -> (HashMap<String, PathBuf>, Option<Value>) {
+fn find_media(
+    indexes: &[MediaIndex],
+    base: &str,
+    listings: &ScanListings,
+) -> (HashMap<String, PathBuf>, Option<Value>, Option<String>) {
     let key = base.to_lowercase();
     let mut media = HashMap::new();
     let mut info = None;
+    let mut seen: HashSet<String> = HashSet::new();
     for index in indexes {
         let dir = index
             .game_dirs
             .get(&key)
             .or_else(|| index.game_dirs.get(&clean_title(base).to_lowercase()));
         if let Some(dir) = dir {
-            if let Ok(files) = fs::read_dir(dir) {
-                let files: Vec<_> = files
-                    .filter_map(Result::ok)
-                    .filter(|f| f.file_type().is_ok_and(|t| t.is_file()))
-                    .collect();
-                for (kind, names) in media_names() {
-                    if media.contains_key(kind) {
-                        continue;
-                    }
-                    let hit = names.iter().find_map(|name| {
-                        files
-                            .iter()
-                            .filter(|f| {
-                                stem(&f.file_name().to_string_lossy()) == *name
-                                    && valid_media_extension(kind, &f.path())
-                            })
-                            .min_by_key(|f| {
-                                if f.path()
-                                    .extension()
-                                    .is_some_and(|e| e.eq_ignore_ascii_case("png"))
-                                {
-                                    0
-                                } else {
-                                    1
-                                }
-                            })
-                    });
-                    if let Some(hit) = hit {
-                        media.insert(kind.to_owned(), hit.path());
-                    }
+            let files = listings.list(dir);
+            for file in files.iter().filter(|f| f.is_file) {
+                seen.insert(file.path.to_string_lossy().to_lowercase());
+            }
+            for (kind, names) in media_names() {
+                if media.contains_key(kind) {
+                    continue;
                 }
-                if info.is_none() {
-                    if let Some(file) = files.iter().find(|f| {
-                        f.file_name()
-                            .to_string_lossy()
-                            .eq_ignore_ascii_case("info.json")
-                    }) {
-                        info = fs::read_to_string(file.path())
-                            .ok()
-                            .and_then(|s| serde_json::from_str(&s).ok());
-                    }
+                let hit = names.iter().find_map(|name| {
+                    files
+                        .iter()
+                        .filter(|f| {
+                            f.is_file
+                                && stem(&f.name) == *name
+                                && valid_media_extension(kind, &f.path)
+                        })
+                        .min_by_key(|f| {
+                            if f.path
+                                .extension()
+                                .is_some_and(|e| e.eq_ignore_ascii_case("png"))
+                            {
+                                0
+                            } else {
+                                1
+                            }
+                        })
+                });
+                if let Some(hit) = hit {
+                    media.insert(kind.to_owned(), hit.path.clone());
+                }
+            }
+            if info.is_none() {
+                if let Some(file) = files
+                    .iter()
+                    .find(|f| f.is_file && f.name.eq_ignore_ascii_case("info.json"))
+                {
+                    info = fs::read_to_string(&file.path)
+                        .ok()
+                        .and_then(|s| serde_json::from_str(&s).ok());
                 }
             }
         }
@@ -991,7 +1264,28 @@ fn find_media(indexes: &[MediaIndex], base: &str) -> (HashMap<String, PathBuf>, 
             }
         }
     }
-    (media, info)
+    let mut shell = None;
+    if let Some(disc) = media.get("disc") {
+        let shell_file = disc.with_extension("json");
+        let shell_key = shell_file.to_string_lossy().to_lowercase();
+        let listed = seen.contains(&shell_key)
+            || indexes.iter().any(|index| index.files.contains(&shell_key));
+        if listed {
+            if let Ok(text) = fs::read_to_string(&shell_file) {
+                if let Ok(parsed) = serde_json::from_str::<Value>(&text) {
+                    if let Some(value) = parsed.get("shell").and_then(Value::as_str) {
+                        let valid = value.len() == 7
+                            && value.starts_with('#')
+                            && value[1..].chars().all(|c| c.is_ascii_hexdigit());
+                        if valid {
+                            shell = Some(value.to_owned());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (media, info, shell)
 }
 
 fn media_names() -> Vec<(&'static str, &'static [&'static str])> {
@@ -1385,8 +1679,14 @@ mod library_tests {
             path: PathBuf::from(name),
             root: PathBuf::from("roms"),
             root_index: 0,
-            size: 0,
+            size: None,
+            is_dump: false,
         }
+    }
+
+    fn select(files: Vec<RomFile>) -> HashMap<String, RomFile> {
+        let mut sizes = HashMap::new();
+        select_best_roms(files, &HashMap::new(), false, &mut sizes)
     }
 
     #[test]
@@ -1414,6 +1714,7 @@ mod library_tests {
                 ("front".to_owned(), "file:///media/front.png".to_owned()),
                 ("manual".to_owned(), "/media/manual.pdf".to_owned()),
             ]),
+            shell: Some("#a1b2c3".to_owned()),
         };
 
         let payload = serde_json::to_value(game).unwrap();
@@ -1423,6 +1724,7 @@ mod library_tests {
         assert_eq!(payload["info"]["year"], "1998");
         assert_eq!(payload["media"]["front"], "file:///media/front.png");
         assert_eq!(payload["media"]["manual"], "/media/manual.pdf");
+        assert_eq!(payload["shell"], "#a1b2c3");
     }
 
     #[test]
@@ -1452,7 +1754,7 @@ mod library_tests {
 
     #[test]
     fn rom_selection_uses_clean_titles_and_rejects_numbered_dumps() {
-        let selected = select_best_roms(vec![
+        let selected = select(vec![
             rom_file("Game (USA) [v1].zip"),
             rom_file("Game (USA) [!].chd"),
         ]);
@@ -1493,7 +1795,15 @@ mod library_tests {
         fs::write(root.join("media/Game Four.nsp"), [0u8; 7]).unwrap();
         let extensions: HashSet<String> = [".app", ".nsp"].iter().map(|s| s.to_string()).collect();
         let mut out = Vec::new();
-        walk_roms(&root, &root, 0, 0, &extensions, &mut out);
+        walk_roms(
+            &ScanListings::default(),
+            &root,
+            &root,
+            0,
+            0,
+            &extensions,
+            &mut out,
+        );
         let names: Vec<_> = out.iter().map(|f| f.name.as_str()).collect();
         assert!(names.contains(&"Game One.app"));
         assert!(names.contains(&"Game Two.app"));
@@ -1503,7 +1813,7 @@ mod library_tests {
         // only uses size as a tie-break, and bundles hold tens of GB).
         assert_eq!(
             out.iter().find(|f| f.name == "Game One.app").unwrap().size,
-            0
+            Some(0)
         );
         fs::remove_dir_all(&root).unwrap();
     }
@@ -1549,6 +1859,7 @@ mod library_tests {
                 title: "Zelda".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "nes:mario".to_owned(),
@@ -1558,6 +1869,7 @@ mod library_tests {
                 title: "Mario".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "ps1:finalfantasy".to_owned(),
@@ -1567,6 +1879,7 @@ mod library_tests {
                 title: "Final Fantasy".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
         ];
         super::apply_library_state(&mut games, &config);
@@ -1595,6 +1908,7 @@ mod library_tests {
                 title: "Mario".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "snes:zelda".to_owned(),
@@ -1604,6 +1918,7 @@ mod library_tests {
                 title: "Zelda".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "ps1:ff".to_owned(),
@@ -1613,6 +1928,7 @@ mod library_tests {
                 title: "Final Fantasy".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
         ];
         super::apply_library_state(&mut games, &config);
@@ -1641,6 +1957,7 @@ mod library_tests {
             title: "Zelda".to_owned(),
             info: Value::Null,
             media: HashMap::new(),
+            shell: None,
         }];
         super::apply_library_state(&mut games, &config);
         // Crash Bandicoot should be injected (not in original library).
@@ -1660,6 +1977,7 @@ mod library_tests {
                 title: "Zebra".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "b".to_owned(),
@@ -1669,6 +1987,7 @@ mod library_tests {
                 title: "Apple".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "c".to_owned(),
@@ -1678,6 +1997,7 @@ mod library_tests {
                 title: "Mango".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
         ];
         let config_asc = json!({"favorites":[],"showFavoritesOnly":false,"showRecentlyPlayed":false,"recentlyPlayed":[],"recentlyPlayedLimit":20,"sortKey":"title","sortAsc":true});
@@ -1694,6 +2014,7 @@ mod library_tests {
                 title: "Zebra".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "b".to_owned(),
@@ -1703,6 +2024,7 @@ mod library_tests {
                 title: "Apple".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
             Game {
                 id: "c".to_owned(),
@@ -1712,6 +2034,7 @@ mod library_tests {
                 title: "Mango".to_owned(),
                 info: Value::Null,
                 media: HashMap::new(),
+                shell: None,
             },
         ];
         super::apply_library_state(&mut games2, &config_desc);
@@ -1727,17 +2050,19 @@ mod library_tests {
                 path: PathBuf::from("Game (USA).chd"),
                 root: PathBuf::from("roms"),
                 root_index: 0,
-                size: 0,
+                size: None,
+                is_dump: false,
             },
             RomFile {
                 name: "Game (USA) (Disc 2).chd".to_owned(),
                 path: PathBuf::from("Game (USA) (Disc 2).chd"),
                 root: PathBuf::from("roms"),
                 root_index: 1,
-                size: 0,
+                size: None,
+                is_dump: false,
             },
         ];
-        let best = select_best_roms(files);
+        let best = select(files);
         assert_eq!(best.len(), 1);
         let best_file = best.values().next().unwrap();
         assert_eq!(best_file.root_index, 0);
@@ -1748,17 +2073,117 @@ mod library_tests {
                 path: PathBuf::from("Game (USA).chd"),
                 root: PathBuf::from("roms"),
                 root_index: 0,
-                size: 0,
+                size: None,
+                is_dump: false,
             },
             RomFile {
                 name: "Game (USA) (Disc 2).chd".to_owned(),
                 path: PathBuf::from("Game (USA) (Disc 2).chd"),
                 root: PathBuf::from("roms"),
                 root_index: 1,
-                size: 0,
+                size: None,
+                is_dump: false,
             },
         ];
-        let best2 = select_best_roms(files2);
+        let best2 = select(files2);
         assert_eq!(best2.len(), 1);
+    }
+
+    #[test]
+    fn tied_copies_use_cached_sizes_without_statting() {
+        let mut sizes = HashMap::new();
+        let known: HashMap<String, u64> =
+            HashMap::from([("a/Game.chd".to_owned(), 10), ("b/Game.chd".to_owned(), 99)]);
+        let mut small = rom_file("Game.chd");
+        small.path = PathBuf::from("a/Game.chd");
+        let mut big = rom_file("Game.chd");
+        big.path = PathBuf::from("b/Game.chd");
+        let best = select_best_roms(vec![small, big], &known, false, &mut sizes);
+        assert_eq!(
+            best.values().next().unwrap().path,
+            PathBuf::from("b/Game.chd")
+        );
+        assert_eq!(sizes.get("a/Game.chd"), Some(&10));
+        assert_eq!(sizes.get("b/Game.chd"), Some(&99));
+    }
+
+    #[test]
+    fn cache_key_tracks_version_media_extra_and_system_shape() {
+        let config = json!({
+            "mediaRoot": "/media",
+            "extraGames": [{"id": "x"}],
+            "systems": [{"id": "snes", "romDir": "/roms", "extensions": [".sfc"], "direct": false}]
+        });
+        let key = library_cache_key(&config);
+        assert_eq!(key["version"], app_version());
+        assert_eq!(key["mediaRoot"], "/media");
+        assert_eq!(key["extraGames"].as_array().unwrap().len(), 1);
+        assert_eq!(key["systems"][0][0], "snes");
+        assert_eq!(key["systems"][0][3], false);
+    }
+
+    #[test]
+    fn cache_roundtrip_returns_games_only_for_matching_key() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../localTmp")
+            .join(format!("pyrocade-cache-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        let config = json!({"mediaRoot": "", "extraGames": [], "systems": []});
+        let games = vec![Game {
+            id: "snes:game".to_owned(),
+            system: "snes".to_owned(),
+            rom_path: "/roms/game.sfc".to_owned(),
+            base: "game".to_owned(),
+            title: "Game".to_owned(),
+            info: Value::Null,
+            media: HashMap::new(),
+            shell: Some("#123abc".to_owned()),
+        }];
+        let raw = serde_json::to_string(&games).unwrap();
+        let sizes = HashMap::from([("/roms/game.sfc".to_owned(), 42)]);
+        assert!(write_library_cache(&config, &dir, &raw, &sizes, None));
+        let (cached, known) = read_library_cache(&config, &dir);
+        assert_eq!(cached.unwrap().len(), 1);
+        assert_eq!(known.get("/roms/game.sfc"), Some(&42));
+        assert!(!write_library_cache(
+            &config,
+            &dir,
+            &raw,
+            &sizes,
+            Some(&games)
+        ));
+        let other = json!({"mediaRoot": "/elsewhere", "extraGames": [], "systems": []});
+        let (miss, kept) = read_library_cache(&other, &dir);
+        assert!(miss.is_none());
+        assert_eq!(kept.get("/roms/game.sfc"), Some(&42));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn disc_sidecar_shell_is_read_only_when_listed() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../localTmp")
+            .join(format!("pyrocade-shell-test-{}", uuid::Uuid::new_v4()));
+        let game_dir = dir.join("Game");
+        fs::create_dir_all(&game_dir).unwrap();
+        fs::write(game_dir.join("disc.png"), [0u8; 4]).unwrap();
+        fs::write(game_dir.join("disc.json"), r##"{"shell":"#00ff88"}"##).unwrap();
+        let listings = ScanListings::default();
+        let mut index = MediaIndex {
+            game_dirs: HashMap::new(),
+            kinds: HashMap::new(),
+            files: HashSet::new(),
+        };
+        index.game_dirs.insert("game".to_owned(), game_dir);
+        let (_media, _info, shell) = find_media(&[index], "Game", &listings);
+        assert_eq!(shell.as_deref(), Some("#00ff88"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn scan_sorts_titles_case_insensitively() {
+        let mut titles = vec!["zebra".to_owned(), "Apple".to_owned(), "mango".to_owned()];
+        titles.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        assert_eq!(titles, vec!["Apple", "mango", "zebra"]);
     }
 }

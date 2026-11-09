@@ -21,6 +21,7 @@ pub fn run() {
             backend::get_config,
             backend::set_config,
             backend::scan_library,
+            backend::cached_library,
             backend::toggle_favorite,
             backend::record_play,
             backend::update_library_prefs,

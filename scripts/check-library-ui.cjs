@@ -123,7 +123,16 @@ async function run() {
       AudioUI.play('scroll');
       assert(audioContextCreated, 'Renderer audio service did not create an AudioContext');
       assert(AudioUI.settings().enabled, 'Renderer audio service did not enable sound');
-      return {gamepadApi:'available', transform:'preserve-3d', canvas:'painted', audio:'AudioContext created'};
+
+      assert(typeof api.cachedLibrary === 'function', 'Tauri bridge does not expose cachedLibrary');
+      assert(typeof api.scan === 'function', 'Tauri bridge does not expose scan');
+      assert(typeof startLibrary === 'function', 'Renderer does not expose startLibrary');
+      assert(typeof applyLibrary === 'function', 'Renderer does not expose applyLibrary');
+      const cached = await api.cachedLibrary();
+      assert(cached === null || Array.isArray(cached), 'cachedLibrary did not return a library or null');
+      const unchanged = await api.scan(false, {onlyIfChanged: true});
+      assert(unchanged === null || Array.isArray(unchanged), 'scan onlyIfChanged did not return null or a library');
+      return {gamepadApi:'available', transform:'preserve-3d', canvas:'painted', audio:'AudioContext created', libraryCache:'cachedLibrary and scan onlyIfChanged exposed'};
     })().then(complete).catch(error => complete({error:error.message || String(error), stack:error.stack}));
   `;
   const result = await request('POST', `/session/${sessionId}/execute/async`, { script, args: [] });

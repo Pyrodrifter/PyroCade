@@ -200,7 +200,7 @@ async function boot() {
   api.onToast(toast);
   api.onProgress(onProgress);
   ArtworkUI.init({getGames:()=>S.games,getSystems:()=>S.config.systems,getSelected:()=>S.list[S.sel],updateGame:updateArtwork});
-  await loadLibrary();
+  await startLibrary();
   LibraryChrome.init();
   DetailsResize.init();
   initAppUpdates();
@@ -215,11 +215,38 @@ async function boot() {
   requestAnimationFrame(pollPad);
 }
 
-async function loadLibrary() {
-  let games = [];
+let libraryLoads = 0;
+async function startLibrary() {
+  const cached = await (api.cachedLibrary?.() || Promise.resolve(null)).catch(() => null);
+  if (!cached?.length) return loadLibrary();
+  applyLibrary(cached);
+  const load = ++libraryLoads;
+  api.scan(false, { onlyIfChanged: true }).then(games => {
+    if (!games || load !== libraryLoads) return;
+    S.pendingGame = S.list[S.sel]?.id || null;
+    S.list = [];
+    applyLibrary(games);
+  }).catch(error => toast('Scan failed: ' + error.message));
+}
+
+async function loadLibrary(withReport = false) {
+  ++libraryLoads;
   $('#loading').classList.remove('hidden');
-  try { games = await api.scan(); } catch (e) { toast('Scan failed: ' + e.message); }
-  $('#loading').classList.add('hidden');
+  let result;
+  try {
+    result = await api.scan(withReport);
+  } catch (error) {
+    if (withReport) throw error;
+    toast('Scan failed: ' + error.message);
+    return;
+  } finally {
+    $('#loading').classList.add('hidden');
+  }
+  applyLibrary(withReport ? result.games : (result ?? []));
+  return result;
+}
+
+function applyLibrary(games) {
   S.demo = games.length === 0;
   if (S.demo) games = DEMO.map(([system, title, year, developer, genre, players, description]) => ({
     id: `${system}:demo-${title}`, system, title, romPath: null, demo: true, media: {},
@@ -241,11 +268,13 @@ function setSystem(id, edge = null) {
   S.system = S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && s.romDir) ? id : 'all';
   if(previousSystem!==S.system)AudioUI.play('system');
   const keep = S.list[S.sel];
+  const pending = S.pendingGame && S.games.find(g => g.id === S.pendingGame);
+  if (S.games.length) S.pendingGame = null;
   const q = S.query.trim().toLowerCase();
   S.list = S.games.filter(g => (S.system === 'all' || g.system === S.system) && (!q || g.title.toLowerCase().includes(q)));
   LibraryUI.select();
   $('#carousel').innerHTML = ''; items.clear();revealNode=null;
-  const k = keep ? S.list.indexOf(keep) : -1;
+  const k = pending ? S.list.indexOf(pending) : keep ? S.list.indexOf(keep) : -1;
   S.sel = k >= 0 ? k : Math.min(S.sel, Math.max(0, S.list.length - 1));
   if (edge !== null) S.sel = edge > 0 ? 0 : Math.max(0, S.list.length - 1);
   $('#empty').textContent = q ? `No games match “${S.query}”.` : (() => { const s = S.config.systems.find(x => x.id === S.system);
