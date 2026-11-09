@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P2 / D02 — Launcher chrome and shelf navigation behaviour** from `docs/slices/NEXT.md`.
+**Next action:** Start **P3 / D03 — Flat button-prompt assets and generator** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -104,10 +104,15 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
   - The plan's slice tables were re-cut into the priced format (slice, task, scope, reads, allowance) so the seed gate could run: P1 row prices 12 files at 90,849 tokens, seed total 178,676 under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 131,539/225,000 tokens (58%); session cost $0/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
 
+- **P2 / D02 — Launcher chrome and shelf navigation behaviour.** Source committed as `60fdc7a` (`Port launcher chrome and shelf navigation behaviour (D02/P2)`). Ported `LibraryChrome` (`O` cycles overlay shown/hidden, details pinned independently via `sChromeMode`/`sDetailsPinned` and `appearanceDetailsPinned`), `DetailsResize` (drag/keyboard height, shot/title sizing, resized flow, `xlarge`), shelf space reclaimed when details are hidden (`resizeShelf` clearance plus 1.32 scale limit), the `/` focus-search shortcut with pointer-focus key handling (`o`/`i` included), console previews with cross-console `navigateGame` and shelf transfer, and the demo shelf's authored order (verified unchanged: `DEMO` identical to `0310657`, branch never sorts the shelf). Leia and M03 markup excluded; console navigation adapted to the branch shelf model. Supporting change: `renderer/appearance.js` now allows `xlarge` and tracks the last details size.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (32 passed), `cargo check --manifest-path src-tauri/Cargo.toml`, `node --check renderer/app.js`, `node --check renderer/appearance.js`, a static `$('#id')` resolution check plus `styles.css` brace balance, and `npm start` built `target/debug/pyrocade`; the pre-existing `tauri_plugin_updater` `manage()` panic remains. `node scripts/check-carousel.cjs` and `node scripts/check-library-ui.cjs` could not run on this host (no Electron runtime; no `tauri-driver`); recorded, not claimed. No visual inspection was performed.
+  - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the boundary guide was absent.
+  - Seed PASS: P2 row prices 10 files at 116,567 tokens, seed 116,563 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 124,496/225,000 tokens (55%); session cost $0/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
-- **P2 / D02 — Launcher chrome and shelf navigation behaviour.** [PENDING] Depends on D01.
+- **P2 / D02 — Launcher chrome and shelf navigation behaviour.** [COMPLETE] Committed as `60fdc7a`.
 - **P3 / D03 — Flat button-prompt assets and generator.** [PENDING] Depends on D01.
 - **P4 / D04 — Page turn, media carousel, and shelf sizing.** [PENDING] Depends on D02.
 - **P5 / D05 — Case art, physical media, and booklet proportions.** [PENDING] Depends on D04.
