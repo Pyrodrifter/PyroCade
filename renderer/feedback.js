@@ -52,6 +52,6 @@ function platformUrlLengthLimit() {
   return /win/i.test(platform) ? 2081 : 7500;
 }
 
-const api = { createReport, createFeedbackService, ISSUE_URL };
-if (typeof module !== 'undefined' && module.exports) module.exports = api;
-if (typeof window !== 'undefined') window.Feedback = api;
+const Feedback = { createReport, createFeedbackService, ISSUE_URL };
+if (typeof module !== 'undefined' && module.exports) module.exports = Feedback;
+if (typeof window !== 'undefined') window.Feedback = Feedback;

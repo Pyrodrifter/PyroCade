@@ -775,10 +775,12 @@ async fn latest_release_from_definition(
     }
     Err(format!(
         "No {} download matching /{pattern}/ found in recent releases.",
-        if cfg!(target_os = "windows") {
-            "Windows"
-        } else {
-            "platform"
+        match target_platform() {
+            "windows" => "Windows",
+            "macos" => "macOS",
+            "linux" => "Linux",
+            "android" => "Android",
+            _ => "platform",
         }
     ))
 }

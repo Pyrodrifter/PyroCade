@@ -168,7 +168,7 @@
       <input name="name" placeholder="Name (e.g. Eden)" required />
       <input name="systems" placeholder="Systems (e.g. switch)" />
       <input name="args" placeholder="Arguments" value="{rom}" />
-      <button class="primary" type="submit">Choose .exe…</button>
+      <button class="primary" type="submit">Choose program…</button>
       <button type="button" id="customCancel">Cancel</button>
     </form>
     <div id="emuGrid" class="grid"></div>
@@ -258,7 +258,7 @@
         <h2 id="interfaceHeading">Interface</h2>
         <label class="row"><span>Button prompts</span><select id="sPrompts"><option value="auto">Automatic</option><option value="keyboard">Keyboard &amp; mouse</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="nintendo">Nintendo</option><option value="generic">Generic gamepad</option></select><a class="prompt-preview-link" href="assets/prompts/preview.html" target="_blank" rel="noopener">View full set ↗</a></label>
         <p class="prompt-note" id="promptStatus" role="status"></p>
-        <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow Windows preference</option><option value="full">Full</option><option value="reduced">Reduced</option></select></label>
+        <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow system preference</option><option value="full">Full</option><option value="reduced">Reduced</option></select></label>
         <label class="row"><span>Overlay (O)</span><select id="sChromeMode"><option value="shown">Overlay on</option><option value="hidden">Overlay off</option></select></label>
         <label class="row check"><input id="sDetailsPinned" type="checkbox" /> Keep game details visible when overlay is hidden</label>
         <label class="row check"><input type="checkbox" id="sDisableModels" /> Use flat covers</label>
@@ -269,7 +269,7 @@
         <label class="row"><span>Ambient mode</span><select id="sAmbient"><option value="0">Off</option><option value="1">After 1 minute idle</option><option value="2">After 2 minutes idle</option><option value="5">After 5 minutes idle</option><option value="10">After 10 minutes idle</option></select></label>
         <label class="row"><span>Background</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
         <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first</option><option value="original">Original downloaded cover</option></select></label>
-        <label class="row"><span>Artwork folder</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
+        <label class="row"><span>Artwork folder</span><input id="sMedia" placeholder="e.g. Media" /><button data-browse="sMedia">Browse…</button></label>
         <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes</label>
         <label class="row check"><input type="checkbox" id="sWear" /> Show wear on cases and labels</label>
         <label class="row check"><input type="checkbox" id="sHide" /> Minimise PyroCade while a game is running</label>

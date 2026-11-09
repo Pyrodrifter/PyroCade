@@ -34,8 +34,8 @@ app.whenReady().then(async()=>{
       const ps=controller('DualSense Wireless Controller',1);window.testPads=[xbox,ps];await press(ps,15);
       assert(document.querySelector('#btnPlay img').alt==='cross','Second active pad / PlayStation detection');
       const ns=controller('Nintendo Switch Pro Controller',2);window.testPads=[ns];await press(ns,15);
-      assert(document.querySelector('#btnPlay img').alt==='B','Nintendo south label');
-      assert(document.querySelector('#cvBack img').alt==='A','Nintendo east label');
+      assert(document.querySelector('#btnPlay img').alt==='A','Nintendo Play is A (east)');
+      assert(document.querySelector('#cvBack img').alt==='B','Nintendo Back is B (south)');
       // Override preview, then persist through the ordinary Save flow (mock API).
       showView('settings'); const selector=document.querySelector('#sPrompts');
       selector.value='playstation';selector.dispatchEvent(new Event('change'));
@@ -47,7 +47,7 @@ app.whenReady().then(async()=>{
       await openCase();await new Promise(r=>setTimeout(r,750));
       await press(ns,3);assert(!CV.open,'North did not toggle case closed');
       await press(ns,3);assert(CV.open,'North did not toggle case open');
-      await press(ns,1);assert(!caseShown(),'East did not go back');
+      await press(ns,0);assert(!caseShown(),'South (B) did not go back');
       window.testPads=[];await frame();
       assert(document.querySelector('#btnPlay img').alt==='Enter','Disconnect did not reset prompts');
       window.testPads=[xbox];await press(xbox,15);

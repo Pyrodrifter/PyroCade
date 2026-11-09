@@ -202,6 +202,10 @@ async function boot() {
   eShopStyle=S.config.eShopStyle==='original'?'original':'enhanced';
   promptPreference = validPromptPreference(S.config.promptFamily);
   applyMotion(S.config.motion || 'auto');
+  const platformId = typeof navigator !== 'undefined' ? (navigator.userAgentData?.platform || navigator.platform || '') : '';
+  const platformUa = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+  const motionOs = /mac/i.test(platformId) || /mac/i.test(platformUa) ? 'macOS' : /win/i.test(platformId) || /win/i.test(platformUa) ? 'Windows' : /linux/i.test(platformId) || /linux/i.test(platformUa) ? 'Linux' : null;
+  if (motionOs) $('#sMotion').querySelector('option[value="auto"]').textContent = `Follow ${motionOs} preference`;
   applyPerformance();
   applyCaseLook();
   renderPrompts();
@@ -1620,7 +1624,8 @@ $('#sEshop').addEventListener('change',e=>{
   layout();if(S.list.length)showInfo(true);
 });
 
-// Standard Gamepad positions: south=play, east=back, west=manual, north=case.
+// Standard Gamepad positions: south=play, east=back, west=manual, north=case,
+// except Nintendo where A (east) is confirm and B (south) is back.
 const pad = { held: {}, next: {}, index: null, name: '' };
 function pollPad(now) {
   const pads = [...(navigator.getGamepads?.() || [])].filter(Boolean);
@@ -1636,8 +1641,9 @@ function pollPad(now) {
   if (gp && active(gp)) usePromptInput(Prompts.detect(gp.id));
   if (gp) {
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, b = i => gp.buttons[i]?.pressed;
+    const nintendo = Prompts.detect(gp.id) === 'nintendo';
     const st = { left: b(14) || ax < -.5, right: b(15) || ax > .5, up: b(12) || ay < -.6, down: b(13) || ay > .6,sysprev:b(4),sysnext:b(5),
-      play: b(0), back: b(1), manual: b(2), case: b(3), pgup: b(6), pgdn: b(7),systems:b(9) };
+      play: nintendo ? b(1) : b(0), back: nintendo ? b(0) : b(1), manual: b(2), case: b(3), pgup: b(6), pgdn: b(7),systems:b(9) };
     for (const [k, v] of Object.entries(st)) {
       const repeat = ['left', 'right'].includes(k)||(['up','down'].includes(k)&&(LibraryUI.pickerOpen()||Appearance.panelOpen()||Appearance.browsesVertically()));
       if (v && !woke && (!pad.held[k] || (repeat && now > pad.next[k]))) { input(k); pad.next[k] = now + (pad.held[k] ? 90 : 380); }

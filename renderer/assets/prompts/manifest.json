@@ -626,13 +626,13 @@
     {
       "family": "nintendo",
       "id": "west",
-      "label": "Y",
+      "label": "X",
       "file": "nintendo/west.svg"
     },
     {
       "family": "nintendo",
       "id": "north",
-      "label": "X",
+      "label": "Y",
       "file": "nintendo/north.svg"
     },
     {

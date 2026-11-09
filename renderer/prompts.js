@@ -19,11 +19,12 @@ const Prompts = (() => {
   }
   function library(family,layout='carousel') {
     const keyboard = family === 'keyboard';
+    const playFace = family === 'nintendo' ? 'east' : 'south';
     const groups = keyboard ? [
       ['keyboard',['left','right'],'Browse'],['keyboard',['up','down'],'System'],['keyboard',['enter'],'Play'],
       ['keyboard',['space'],'Open case'],['keyboard',['m'],'Manual'],['keyboard',['i'],'Details'],['keyboard',['o'],'UI mode'],['keyboard',['pageup','pagedown'],'Jump 10'],['keyboard',['f11'],'Fullscreen']
     ] : [
-      [family,['left-stick-horizontal'],'Browse'],[family,['lb','rb'],'System'],[family,['south'],'Play'],
+      [family,['left-stick-horizontal'],'Browse'],[family,['lb','rb'],'System'],[family,[playFace],'Play'],
       [family,['north'],'Open case'],[family,['west'],'Manual'],[family,['lt','rt'],'Jump 10']
     ];
     if(['vertical','swatches'].includes(layout)){
@@ -34,12 +35,14 @@ const Prompts = (() => {
   }
   function caseHints(family) {
     const keyboard = family === 'keyboard';
+    const playFace = family === 'nintendo' ? 'east' : 'south';
+    const backFace = family === 'nintendo' ? 'south' : 'east';
     const groups = keyboard ? [
       ['mouse',['drag-left'],'Rotate'],['mouse',['scroll'],'Zoom'],['keyboard',['enter'],'Play'],
       ['keyboard',['m'],'Manual'],['keyboard',['escape'],'Back']
     ] : [
-      [family,['left-stick-horizontal'],'Rotate'],[family,['lt','rt'],'Zoom'],[family,['south'],'Play'],
-      [family,['north'],'Open / close'],[family,['west'],'Manual'],[family,['east'],'Back']
+      [family,['left-stick-horizontal'],'Rotate'],[family,['lt','rt'],'Zoom'],[family,[playFace],'Play'],
+      [family,['north'],'Open / close'],[family,['west'],'Manual'],[family,[backFace],'Back']
     ];
     return groups.map(g=>hint(...g)).join('');
   }

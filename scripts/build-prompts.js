@@ -57,7 +57,7 @@ function symbol(name, color) {
 const families = {
   xbox: {name:'Xbox', face:['A','B','X','Y'], colors:['#8fe09a','#ff8d93','#80bcff','#ffe082'], shoulders:['LB','RB','LT','RT'], menus:['View','Menu','Guide','Share']},
   playstation: {name:'PlayStation', face:['cross','circle','square','triangle'], colors:['#91bfff','#ff929b','#f0a5de','#8fe0cc'], shoulders:['L1','R1','L2','R2'], menus:['Share','Options','PS','Touch']},
-  nintendo: {name:'Nintendo', face:['B','A','Y','X'], colors:[ink,ink,ink,ink], shoulders:['L','R','ZL','ZR'], menus:['−','+','Home','Capture']},
+  nintendo: {name:'Nintendo', face:['B','A','X','Y'], colors:[ink,ink,ink,ink], shoulders:['L','R','ZL','ZR'], menus:['−','+','Home','Capture']},
   generic: {name:'Generic gamepad', face:['1','2','3','4'], colors:[ink,ink,ink,ink], shoulders:['L1','R1','L2','R2'], menus:['Select','Start','Home','Share']},
 };
 const manifest = {version:1, canvas:64, style:'PyroCade flat graphite', families:{}, assets:[]};
