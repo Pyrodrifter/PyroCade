@@ -49,6 +49,10 @@ pub fn default_config() -> Value {
         "customEmulators": [],
         "extraGames": [],
         "favorites": [],
+        "hiddenGames": [],
+        "gameDetails": {},
+        "gameEmulators": {},
+        "gameOrders": {},
         "recentlyPlayed": [],
         "sortKey": "title",
         "sortAsc": true,
@@ -98,6 +102,30 @@ pub fn merge_config(saved: Value) -> Result<Value, String> {
     // Preserve library state fields from saved config.
     if !merged.get("favorites").is_some_and(Value::is_array) {
         merged["favorites"] = saved.get("favorites").cloned().unwrap_or_else(|| json!([]));
+    }
+    if !merged.get("hiddenGames").is_some_and(Value::is_array) {
+        merged["hiddenGames"] = saved
+            .get("hiddenGames")
+            .cloned()
+            .unwrap_or_else(|| json!([]));
+    }
+    if !merged.get("gameDetails").is_some_and(Value::is_object) {
+        merged["gameDetails"] = saved
+            .get("gameDetails")
+            .cloned()
+            .unwrap_or_else(|| json!({}));
+    }
+    if !merged.get("gameEmulators").is_some_and(Value::is_object) {
+        merged["gameEmulators"] = saved
+            .get("gameEmulators")
+            .cloned()
+            .unwrap_or_else(|| json!({}));
+    }
+    if !merged.get("gameOrders").is_some_and(Value::is_object) {
+        merged["gameOrders"] = saved
+            .get("gameOrders")
+            .cloned()
+            .unwrap_or_else(|| json!({}));
     }
     if !merged.get("recentlyPlayed").is_some_and(Value::is_array) {
         merged["recentlyPlayed"] = saved
@@ -166,6 +194,22 @@ pub fn config_for_save(incoming: Value, current: &Value) -> Result<Value, String
         .get("favorites")
         .cloned()
         .unwrap_or_else(|| json!([]));
+    next["hiddenGames"] = current
+        .get("hiddenGames")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    next["gameDetails"] = current
+        .get("gameDetails")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    next["gameEmulators"] = current
+        .get("gameEmulators")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    next["gameOrders"] = current
+        .get("gameOrders")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
     next["recentlyPlayed"] = current
         .get("recentlyPlayed")
         .cloned()
@@ -255,6 +299,26 @@ mod tests {
         assert_eq!(config["systems"][0]["romDir"], "");
         assert_eq!(config["uiSound"]["volume"], 0.25);
         assert_eq!(config["extraGames"], json!([]));
+        assert_eq!(config["hiddenGames"], json!([]));
+        assert_eq!(config["gameDetails"], json!({}));
+        assert_eq!(config["gameEmulators"], json!({}));
+        assert_eq!(config["gameOrders"], json!({}));
+    }
+
+    #[test]
+    fn merge_preserves_collection_state() {
+        let saved = json!({
+            "systems": [],
+            "hiddenGames": ["ps1:zelda"],
+            "gameDetails": {"ps1:zelda": {"title": "Custom", "version": "1.01", "mediaType": "disc"}},
+            "gameEmulators": {"ps1:zelda": "duckstation"},
+            "gameOrders": {"ps1": ["ps1:zelda", "ps1:crc"]}
+        });
+        let merged = merge_config(saved).unwrap();
+        assert_eq!(merged["hiddenGames"], json!(["ps1:zelda"]));
+        assert_eq!(merged["gameDetails"]["ps1:zelda"]["title"], "Custom");
+        assert_eq!(merged["gameEmulators"]["ps1:zelda"], "duckstation");
+        assert_eq!(merged["gameOrders"]["ps1"], json!(["ps1:zelda", "ps1:crc"]));
     }
 
     #[test]
@@ -296,5 +360,24 @@ mod tests {
         .unwrap();
         assert_eq!(next["emulators"]["one"]["exe"], "/safe/path");
         assert_eq!(next["customEmulators"][0]["id"], "local");
+    }
+
+    #[test]
+    fn renderer_settings_cannot_overwrite_collection_state() {
+        let current = json!({
+            "hiddenGames": ["ps1:zelda"],
+            "gameDetails": {"ps1:zelda": {"title": "Custom"}},
+            "gameEmulators": {"ps1:zelda": "duckstation"},
+            "gameOrders": {"ps1": ["ps1:zelda"]}
+        });
+        let next = config_for_save(
+            json!({"systems":[], "hiddenGames": [], "gameDetails": {}, "gameEmulators": {}, "gameOrders": {}}),
+            &current,
+        )
+        .unwrap();
+        assert_eq!(next["hiddenGames"], json!(["ps1:zelda"]));
+        assert_eq!(next["gameDetails"]["ps1:zelda"]["title"], "Custom");
+        assert_eq!(next["gameEmulators"]["ps1:zelda"], "duckstation");
+        assert_eq!(next["gameOrders"]["ps1"], json!(["ps1:zelda"]));
     }
 }

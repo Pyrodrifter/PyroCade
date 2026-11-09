@@ -128,11 +128,25 @@ async function run() {
       assert(typeof api.scan === 'function', 'Tauri bridge does not expose scan');
       assert(typeof startLibrary === 'function', 'Renderer does not expose startLibrary');
       assert(typeof applyLibrary === 'function', 'Renderer does not expose applyLibrary');
+      // M03 collection administration behind the bridge.
+      for (const method of ['setHidden','setSystemGamesHidden','setMetadata','setGameEmulator','saveGameOrder','addGame','removeGame','gameList']) {
+        assert(typeof api[method] === 'function', 'Tauri bridge does not expose ' + method);
+      }
+      for (const id of ['renameGame','gameDetailsEditor','emuChoice','gameMenu','hiddenGames','addSystemForm','addGameForm','btnFavorite','btnHide','btnEmulator','btnEditDetails']) {
+        assert(document.getElementById(id), 'Renderer is missing #' + id + ' (M03 collection UI)');
+      }
+      assert(typeof toggleGameFavorite === 'function', 'Renderer does not expose toggleGameFavorite');
+      assert(typeof toggleHidden === 'function', 'Renderer does not expose toggleHidden');
+      assert(typeof editGameDetails === 'function', 'Renderer does not expose editGameDetails');
+      assert(typeof openEmuChoice === 'function', 'Renderer does not expose openEmuChoice');
+      assert(typeof renderHiddenGames === 'function', 'Renderer does not expose renderHiddenGames');
       const cached = await api.cachedLibrary();
       assert(cached === null || Array.isArray(cached), 'cachedLibrary did not return a library or null');
       const unchanged = await api.scan(false, {onlyIfChanged: true});
       assert(unchanged === null || Array.isArray(unchanged), 'scan onlyIfChanged did not return null or a library');
-      return {gamepadApi:'available', transform:'preserve-3d', canvas:'painted', audio:'AudioContext created', libraryCache:'cachedLibrary and scan onlyIfChanged exposed'};
+      const extra = await api.gameList();
+      assert(Array.isArray(extra), 'gameList did not return the user-added games array');
+      return {gamepadApi:'available', transform:'preserve-3d', canvas:'painted', audio:'AudioContext created', libraryCache:'cachedLibrary and scan onlyIfChanged exposed', collection:'M03 bridge and dialogs exposed'};
     })().then(complete).catch(error => complete({error:error.message || String(error), stack:error.stack}));
   `;
   const result = await request('POST', `/session/${sessionId}/execute/async`, { script, args: [] });

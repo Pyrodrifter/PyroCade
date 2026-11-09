@@ -8,7 +8,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const CASES = { dvd: [230, 323, 24], gc: [226, 318, 24], jewel: [250, 222, 17], bluray: [230, 289, 20], umd: [178, 300, 22], ds: [213, 233, 22],
   switch: [184, 296, 18], cartbox: [238, 221, 58], bigbox: [320, 228, 62], nesbox: [232, 318, 58] };
 
-const S = { config: null, games: [], list: [], sel: 0, system: 'all', query: '', demo: false, emus: [], latest: {}, progress: {} };
+const S = { orders: {}, config: null, games: [], list: [], sel: 0, system: 'all', query: '', demo: false, emus: [], latest: {}, progress: {}, pendingGame: null };
 let eShopStyle='enhanced';
 
 const DEMO = [
@@ -28,6 +28,13 @@ const DEMO = [
 
 const sysOf = id => S.config.systems.find(s => s.id === id) || { id, name: id, caseType: 'dvd', media: 'disc', color: '#333' };
 const toast = (m, ms = 3200) => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), ms); };
+
+// A hidden system (Settings → Show) leaves every shelf, including All games.
+const systemHidden = id => !!S.config?.systems.find(s => s.id === id)?.hidden;
+function manualGameSort(system) {
+  const ranks = new Map((S.orders[system] || []).map((id, index) => [id, index]));
+  return (a, b) => (ranks.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (ranks.get(b.id) ?? Number.MAX_SAFE_INTEGER) || byTitle(a, b);
+}
 
 function physicalSystem(game) {
   const sys=sysOf(game.system);
@@ -187,6 +194,7 @@ const DetailsResize = (() => {
 // ---------- boot ----------
 async function boot() {
   S.config = await api.getConfig();
+  S.orders = S.config.gameOrders || {};
   LibraryUI.init({getState:()=>S,select:setSystem});
   AudioUI.init(S.config.uiSound);
   Ambient.init({initial:S.config.ambient,canRun:()=>libraryActive()&&!caseShown()&&!LibraryUI.pickerOpen()&&!Appearance.panelOpen()&&!document.activeElement?.matches?.('input,select,textarea'),advance:()=>select(S.sel+1>=S.list.length?0:S.sel+1)});
@@ -256,6 +264,7 @@ function applyLibrary(games) {
   $('#demoBanner').classList.toggle('hidden', !S.demo);
   renderChips();
   setSystem(S.system);
+  renderHiddenGames();
 }
 
 // ---------- system chips ----------
@@ -265,14 +274,16 @@ function renderChips() {
 function setSystem(id, edge = null) {
   consoleNavigation = null;
   const previousSystem=S.system;
-  S.system = S.games.some(g => g.system === id) || S.config?.systems.some(s => s.id === id && s.romDir) ? id : 'all';
+  S.system = !systemHidden(id) && (S.games.some(g => g.system === id && !g.hidden) || S.config?.systems.some(s => s.id === id && s.romDir)) ? id : 'all';
   if(previousSystem!==S.system)AudioUI.play('system');
   const keep = S.list[S.sel];
-  const pending = S.pendingGame && S.games.find(g => g.id === S.pendingGame);
+  const pending = S.pendingGame && S.games.find(g => g.id === S.pendingGame && !g.hidden);
   if (S.games.length) S.pendingGame = null;
   const q = S.query.trim().toLowerCase();
-  // S.list follows S.games order (Rust title-sorted scan); demo games keep authored DEMO order.
-  S.list = S.games.filter(g => (S.system === 'all' || g.system === S.system) && (!q || g.title.toLowerCase().includes(q)));
+  // S.list follows S.games order (Rust-sorted scan); demo games keep authored DEMO order.
+  // Hidden games and hidden systems leave every shelf.
+  S.list = S.games.filter(g => !g.hidden && !systemHidden(g.system) && (S.system === 'all' || g.system === S.system) && (!q || g.title.toLowerCase().includes(q)));
+  if (S.config?.sortKey === 'custom' && S.system !== 'all') S.list.sort(manualGameSort(S.system));
   LibraryUI.select();
   $('#carousel').innerHTML = ''; items.clear();revealNode=null;
   const k = pending ? S.list.indexOf(pending) : keep ? S.list.indexOf(keep) : -1;
@@ -281,6 +292,12 @@ function setSystem(id, edge = null) {
   $('#empty').textContent = q ? `No games match “${S.query}”.` : (() => { const s = S.config.systems.find(x => x.id === S.system);
       return s?.romDir ? `No games found in ${s.romDir.split('|').map(d => d.trim()).filter(Boolean).join(' or ')}` : 'No games for this system yet.'; })();
   $('#empty').classList.toggle('hidden', S.list.length > 0);
+  if (!S.list.length && !q && S.system !== 'all') {
+    const b = el('button', 'empty-hide', `Hide ${esc(viewName(S.system))}`); b.type = 'button';
+    b.title = 'Show it again in Settings'; b.onclick = () => hideSystem(S.system);
+    const box = el('div', 'empty-box'); box.append(el('span', '', esc($('#empty').textContent)), b);
+    $('#empty').replaceChildren(box);
+  }
   layout(); showInfo();
 }
 function cycleSystem(dir) {
@@ -302,6 +319,201 @@ function toggleGameDetails() {
   } else Appearance.apply({infoBar:'hidden'});
 }
 $('#btnToggleDetails').onclick = toggleGameDetails;
+
+// ---------- collection administration (M03) ----------
+function isFavorite(g) { return !!g && (S.config?.favorites || []).includes(g.id); }
+function updateFavButton() {
+  const g = S.list[S.sel]; const b = $('#btnFavorite'); if (!b) return;
+  const fav = isFavorite(g);
+  b.setAttribute('aria-pressed', String(fav));
+  b.textContent = (fav ? '★' : '☆') + ' Favourite';
+  b.title = fav ? 'Remove from Favourites (F)' : 'Add to Favourites (F)';
+}
+async function toggleGameFavorite(g = S.list[S.sel]) {
+  if (!g) return;
+  if (g.demo) return toast('Favourites work with your own games. Add your ROM folders in Settings.');
+  const want = !isFavorite(g);
+  try { await api.toggleFavorite(g.id); } catch (e) { return toast(e.message); }
+  S.config.favorites = S.config.favorites || [];
+  if (want) { if (!S.config.favorites.includes(g.id)) S.config.favorites.push(g.id); }
+  else S.config.favorites = S.config.favorites.filter(id => id !== g.id);
+  AudioUI.play(want ? 'confirm' : 'back');
+  toast(want ? `${g.title} added to Favourites.` : `${g.title} removed from Favourites.`);
+  renderChips(); LibraryUI.select(); updateFavButton();
+}
+function updateHideButton() {
+  const g = S.list[S.sel]; const b = $('#btnHide'); if (!b) return;
+  const hidden = !!g?.hidden;
+  b.setAttribute('aria-pressed', String(hidden));
+  b.textContent = hidden ? '⊙ Unhide' : '⊘ Hide';
+  b.title = hidden ? 'Show this game in the library again (Delete)' : 'Hide this game from the library (Delete). Your ROM folder is not touched.';
+}
+async function toggleHidden(g = S.list[S.sel]) {
+  if (!g) return;
+  if (g.demo) return toast('Hiding works with your own games. Add your ROM folders in Settings.');
+  const want = !g.hidden;
+  try { Object.assign(g, await api.setHidden({ gameId: g.id, hidden: want })); } catch (e) { return toast(e.message); }
+  AudioUI.play(want ? 'back' : 'confirm');
+  toast(want ? `${g.title} hidden. Settings → Hidden games brings it back.` : `${g.title} is back in the library.`, 4500);
+  renderChips(); setSystem(S.system); renderHiddenGames();
+}
+let renaming = null;
+function openRename(g = S.list[S.sel]) {
+  if (!g) return;
+  if (g.demo) return toast('Renaming works with your own games. Add your ROM folders in Settings.');
+  renaming = g;
+  $('#renameGameFile').textContent = g.scannedTitle && g.scannedTitle !== g.title ? `File name: ${g.scannedTitle}` : g.base || '';
+  const input = $('#renameInput');
+  input.value = g.title; input.placeholder = g.scannedTitle || g.title;
+  $('#renameReset').disabled = !g.customTitle;
+  AudioUI.play('open');
+  $('#renameGame').showModal();
+  input.focus(); input.select();
+}
+async function applyRename(wanted) {
+  const g = renaming; if (!g) return;
+  $('#renameGame').close();
+  const clean = String(wanted || '').replace(/\s+/g, ' ').trim();
+  const title = clean === (g.scannedTitle || '') ? '' : clean;
+  if (title === (g.customTitle ? g.title : '')) return;
+  let result;
+  try { result = await api.setMetadata({ gameId: g.id, title }); } catch (e) { return toast(e.message); }
+  Object.assign(g, result);
+  S.games.sort(byTitle);
+  AudioUI.play('confirm');
+  toast(result.customTitle ? `Renamed to ${result.title}.` : `${result.title} uses its file name again.`);
+  renderChips(); setSystem(S.system); renderHiddenGames();
+}
+$('#closeRename').onclick = () => $('#renameGame').close();
+$('#renameReset').onclick = () => applyRename('');
+$('#renameForm').addEventListener('submit', e => { e.preventDefault(); applyRename($('#renameInput').value); });
+$('#renameGame').addEventListener('close', () => { renaming = null; });
+const renameOpen = () => false;
+let editingGameId = null;
+function editGameDetails(game = S.list[S.sel]) {
+  if (!game || game.demo) return toast('Add your own games to edit details.');
+  editingGameId = game.id;
+  $('#editGameTitle').value = game.title;
+  $('#editGameVersion').value = game.version || '';
+  $('#editGameMediaType').value = game.mediaType || '';
+  $('#gameDetailsError').textContent = '';
+  $('#gameDetailsSave').disabled = false;
+  $('#gameDetailsEditor').showModal();
+  $('#editGameTitle').focus();
+}
+$('#btnEditDetails').onclick = () => editGameDetails();
+$('#gameDetailsCancel').onclick = () => $('#gameDetailsEditor').close();
+$('#gameDetailsForm').onsubmit = async event => {
+  event.preventDefault();
+  const game = S.games.find(g => g.id === editingGameId);
+  if (!game) return;
+  $('#gameDetailsSave').disabled = true;
+  try {
+    Object.assign(game, await api.setMetadata({ gameId: game.id, title: $('#editGameTitle').value, version: $('#editGameVersion').value, mediaType: $('#editGameMediaType').value }));
+    $('#gameDetailsEditor').close();
+    S.games.sort(byTitle);
+    setSystem(S.system); renderHiddenGames();
+    toast('Game details saved.');
+  } catch (e) { $('#gameDetailsError').textContent = e.message; }
+  finally { $('#gameDetailsSave').disabled = false; }
+};
+$('#gameDetailsEditor').addEventListener('close', () => { editingGameId = null; $('#carousel').focus({preventScroll:true}); });
+function emuLabel(g) {
+  const sys = S.config.systems.find(s => s.id === g.system);
+  const name = id => id === '__direct' ? 'Run the file itself' : S.emus?.find(e => e.id === id)?.name || id;
+  return { own: g.emulator ? name(g.emulator) : null, system: sys?.direct ? 'Run the file itself' : sys?.emulator ? name(sys.emulator) : 'None set', sys };
+}
+async function openEmuChoice(g = S.list[S.sel]) {
+  if (!g) return;
+  if (!S.emus) try { S.emus = await api.emuList(); } catch (e) { return toast(e.message); }
+  const { system, sys } = emuLabel(g);
+  $('#emuChoiceGame').textContent = g.title;
+  const list = $('#emuChoiceList'); list.innerHTML = '';
+  const add = (id, title, note) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'emu-choice-option';
+    b.setAttribute('aria-pressed', String((g.emulator || '') === id));
+    b.innerHTML = `<span>${esc(title)}</span>${note ? `<small>${esc(note)}</small>` : ''}`;
+    b.onclick = () => chooseEmulator(g, id);
+    list.append(b);
+  };
+  add('', `Same as ${sys?.name || 'the system'}`, system);
+  const fits = e => (e.systems || []).includes(g.system);
+  for (const e of [...S.emus.filter(fits), ...S.emus.filter(e => !fits(e) && (e.custom || e.exe || e.id === g.emulator))]) add(e.id, e.name, e.exe ? '' : 'not installed');
+  add('__direct', 'Run the file itself', 'no emulator');
+  AudioUI.play('open');
+  $('#emuChoice').showModal();
+  (list.querySelector('[aria-pressed=true]') || list.firstChild)?.focus();
+}
+async function chooseEmulator(g, id) {
+  try { Object.assign(g, await api.setGameEmulator({ gameId: g.id, emulator: id || null })); }
+  catch (e) { return toast(e.message); }
+  $('#emuChoice').close();
+  updateEmuButton();
+  const { own, system } = emuLabel(g);
+  toast(own ? `${g.title} now starts with ${own}.` : `${g.title} uses the system's emulator again (${system}).`);
+}
+function updateEmuButton() {
+  const g = S.list[S.sel]; const b = $('#btnEmulator'); if (!b || !g) return;
+  const { own } = emuLabel(g);
+  b.textContent = own ? `Emulator: ${own}` : 'Emulator';
+  b.classList.toggle('has-own', !!own);
+}
+$('#closeEmuChoice').onclick = () => $('#emuChoice').close();
+function renderHiddenGames() {
+  const box = $('#hiddenGamesList'); if (!box) return;
+  box.replaceChildren();
+  const games = S.games.filter(g => g.hidden);
+  const summary = $('#hiddenGames summary'); if (summary) summary.textContent = 'Hidden games (' + games.length + ')';
+  if (!games.length) { box.append(el('p', '', 'No hidden games. Hide a game with the Hide button or Delete key.')); return; }
+  for (const game of games) {
+    const row = el('li');
+    const name = el('span'); name.textContent = game.title + ' · ' + sysOf(game.system).name;
+    name.title = game.romPath || '';
+    const button = el('button', '', 'Restore'); button.type = 'button';
+    button.onclick = async () => {
+      button.disabled = true;
+      try { Object.assign(game, await api.setHidden({ gameId: game.id, hidden: false })); refreshHiddenGames(); }
+      catch (e) { button.disabled = false; toast(e.message); }
+    };
+    row.append(name, button); box.append(row);
+  }
+}
+function refreshHiddenGames() { renderChips(); setSystem(S.system); renderHiddenGames(); }
+async function hideSystem(id) {
+  const c = structuredClone(S.config); const sys = c.systems.find(s => s.id === id);
+  if (!sys) return;
+  sys.hidden = true;
+  S.config = await api.setConfig(c);
+  S.orders = S.config.gameOrders || {};
+  renderChips(); renderSettings(); setSystem('all');
+  toast(`${sys.name} hidden. Show it again in Settings.`);
+}
+let gameDrag = null, suppressGameClickUntil = 0;
+function clearGameDrag() {
+  gameDrag?.ghost?.remove(); gameDrag = null;
+  for (const node of document.querySelectorAll('.drop-before,.drop-after,.game-dragging')) node.classList.remove('drop-before', 'drop-after', 'game-dragging');
+}
+async function dropGame(sourceId, targetId, system, after) {
+  if (sourceId === targetId) return;
+  const games = S.games.filter(g => g.system === system && !g.demo).sort(S.config.sortKey === 'custom' ? manualGameSort(system) : byTitle);
+  const order = games.map(g => g.id);
+  const oldOrder = S.orders[system]; const oldSort = S.config.sortKey;
+  const index = order.indexOf(sourceId); if (index < 0 || !order.includes(targetId)) return;
+  order.splice(index, 1); order.splice(order.indexOf(targetId) + (after ? 1 : 0), 0, sourceId);
+  S.orders[system] = order; S.config.sortKey = 'custom';
+  const keep = new Map([...items.values()].map(node => [node.dataset.id, node]));
+  S.list.sort(manualGameSort(system)); items.clear();
+  for (let i = 0; i < S.list.length; i++) { const node = keep.get(S.list[i].id); if (node) { node.id = 'shelf-game-' + i; items.set(i, node); } }
+  S.sel = Math.max(0, S.list.findIndex(g => g.id === sourceId)); layout(); showInfo();
+  try {
+    await api.saveGameOrder({ system, gameIds: order });
+    S.config = await api.updateLibraryPrefs({ sortKey: 'custom' });
+    S.orders = S.config.gameOrders || S.orders;
+    toast('Game order saved.');
+  } catch (error) {
+    S.orders[system] = oldOrder; S.config.sortKey = oldSort; setSystem(system); toast(error.message, 5000);
+  }
+}
 // Browsing never stops at the end of the shelf. On a system's shelf, going past the last game
 // carries on into the next system that has games; All games is one list already, so it wraps round.
 const viewName = id => id === 'all' ? 'All games' : sysOf(id).name;
@@ -316,11 +528,14 @@ function getConsoleNavigation() {
     for (const id of ids) shelves.set(id, { games: [], sorted: false });
     const query = S.query.trim().toLowerCase();
     for (const game of S.games) {
+      if (game.hidden || systemHidden(game.system)) continue;
       const shelf = shelves.get(game.system);
       if (shelf && (!query || game.title.toLowerCase().includes(query))) shelf.games.push(game);
     }
     // Demo shelves keep authored DEMO order; title-sort only real libraries.
-    if (!S.demo) for (const shelf of shelves.values()) shelf.games.sort(byTitle);
+    if (!S.demo) {
+      for (const [id, shelf] of shelves) shelf.games.sort(S.config?.sortKey === 'custom' ? manualGameSort(id) : byTitle);
+    }
   }
   consoleNavigation = { ids: ids.filter(id => shelves.get(id)?.games.length), shelves };
   return consoleNavigation;
@@ -436,11 +651,93 @@ function makeItem(i) {
   it.id = `shelf-game-${i}`;
   it.setAttribute('role','option'); it.setAttribute('aria-label',`${game.title}, ${sysOf(game.system).name}`);
   fillItem(it, game);
-  it.onclick = () => { if (S.list[S.sel] === game) openCase(); else select(S.list.indexOf(game)); };
+  it.oncontextmenu = event => {
+    event.preventDefault();
+    if (game.demo) return toast('Add your own games to manage library entries.');
+    select(S.list.indexOf(game));
+    openGameMenu(game, event.clientX, event.clientY);
+  };
+  it.draggable = !game.demo && S.system !== 'all';
+  it.ondragstart = event => {
+    if (!it.draggable) return event.preventDefault();
+    gameDrag = { id: game.id, system: game.system };
+    event.dataTransfer.setData('text/plain', game.id); event.dataTransfer.effectAllowed = 'move';
+    const front = art(game).front;
+    const ghost = el('div', 'cover-drag-preview'); ghost.style.backgroundImage = 'url("' + front + '")';
+    document.body.append(ghost); gameDrag.ghost = ghost; event.dataTransfer.setDragImage?.(ghost, 52, 72);
+    setTimeout(() => ghost.remove(), 0);
+    it.classList.add('game-dragging'); suppressGameClickUntil = performance.now() + 600;
+  };
+  it.ondragover = event => {
+    if (!gameDrag || gameDrag.system !== game.system || gameDrag.id === game.id) return;
+    event.preventDefault(); event.dataTransfer.dropEffect = 'move';
+    const after = event.clientX > it.getBoundingClientRect().x + it.getBoundingClientRect().width / 2;
+    for (const node of document.querySelectorAll('.drop-before,.drop-after')) node.classList.remove('drop-before', 'drop-after');
+    it.classList.add(after ? 'drop-after' : 'drop-before');
+  };
+  it.ondrop = async event => {
+    if (!gameDrag || gameDrag.system !== game.system) return;
+    event.preventDefault(); event.stopPropagation();
+    const source = gameDrag.id, after = it.classList.contains('drop-after');
+    clearGameDrag(); suppressGameClickUntil = performance.now() + 400;
+    await dropGame(source, game.id, game.system, after);
+  };
+  it.ondragend = () => { clearGameDrag(); suppressGameClickUntil = performance.now() + 400; };
+  it.onclick = () => {
+    if (performance.now() < suppressGameClickUntil) return;
+    if (S.list[S.sel] === game) openCase(); else select(S.list.indexOf(game));
+  };
   $('#carousel').append(it);
   ensureArt(game);
   return it;
 }
+
+// ---------- right-click game menu (renderer, like Electron's context menu) ----------
+function closeGameMenu() { const m = $('#gameMenu'); if (!m.hidden) { m.hidden = true; m.replaceChildren(); } }
+const gameMenuOpen = () => !$('#gameMenu').hidden;
+function openGameMenu(g, x, y) {
+  const m = $('#gameMenu'); m.replaceChildren();
+  const add = (icon, label, fn, disabled = false) => {
+    const b = el('button', 'game-menu-item', icon ? `<span aria-hidden="true">${icon}</span> ${esc(label)}` : esc(label));
+    b.type = 'button'; b.disabled = disabled;
+    b.onclick = () => { closeGameMenu(); fn(); };
+    m.append(b); return b;
+  };
+  add('▶', 'Play', () => play(g));
+  add('⟲', 'Open case', () => openCase());
+  add('▤', 'Manual', () => manual(g));
+  add(isFavorite(g) ? '★' : '☆', isFavorite(g) ? 'Unfavourite' : 'Favourite', () => toggleGameFavorite(g));
+  add('✎', 'Rename…', () => openRename(g));
+  add('✎', 'Edit details…', () => editGameDetails(g));
+  add(g.hidden ? '⊙' : '⊘', g.hidden ? 'Unhide' : 'Hide from the library', () => toggleHidden(g));
+  add('⚙', 'Emulator…', () => openEmuChoice(g));
+  add('🖼', 'Artwork', async () => {
+    showView('artwork');
+    try {
+      const result = await api.artImport({ gameId: g.id, kind: 'front' });
+      if (result) { updateArtwork(result); toast('Cover artwork updated.'); }
+    } catch (e) { toast(e.message); }
+  });
+  m.hidden = false;
+  const rect = m.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(x, innerWidth - rect.width - 8)) + 'px';
+  m.style.top = Math.max(8, Math.min(y, innerHeight - rect.height - 8)) + 'px';
+  m.querySelector('button:not(:disabled)')?.focus();
+}
+document.addEventListener('click', e => { if (!e.target.closest('#gameMenu')) closeGameMenu(); });
+document.addEventListener('keydown', e => {
+  if (!gameMenuOpen()) return;
+  const opts = [...document.querySelectorAll('#gameMenu button')].filter(b => !b.disabled);
+  const i = opts.indexOf(document.activeElement);
+  if (e.key === 'Escape') { closeGameMenu(); e.preventDefault(); }
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const n = e.key === 'ArrowDown' ? Math.min(opts.length - 1, i + 1) : Math.max(0, i - 1);
+    opts[n]?.focus();
+  }
+}, true);
+window.addEventListener('resize', closeGameMenu);
+window.addEventListener('blur', closeGameMenu);
 
 // Measure real covers once, then rebuild the box at the right shape.
 function measure(game) {
@@ -698,7 +995,7 @@ async function showInfo(quiet) {
   $('#gSystem').textContent = a.sys.name;
   $('#gTitle').textContent = g.title;
   const ext = !g.romPath ? null : /[\\/]exefs[\\/]main$/i.test(g.romPath) ? 'FOLDER DUMP' : g.romPath.split('.').pop().toUpperCase();
-  $('#gMeta').innerHTML = [g.info.year, g.info.developer, g.info.genre, g.info.players && `${g.info.players} player${g.info.players === '1' ? '' : 's'}`, regionOf(g), ext]
+  $('#gMeta').innerHTML = [g.info.year, g.info.developer, g.info.genre, g.version && `Version ${g.version}`, g.info.players && `${g.info.players} player${g.info.players === '1' ? '' : 's'}`, regionOf(g), ext]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
   if (quiet) {
     const shot = $('#gShot');
@@ -711,6 +1008,7 @@ async function showInfo(quiet) {
   $('#gDesc').textContent = g.info.description || '';
   $('#gDesc').classList.toggle('hidden',!g.info.description);
   $('#btnManual').disabled = !g.media.manual;
+  updateEmuButton(); updateFavButton(); updateHideButton();
   const shot = $('#gShot');
   shot.innerHTML = ''; shot.style.backgroundImage = g.media.screenshot || g.media.title ? `url("${g.media.screenshot || g.media.title}")` : '';
   if (g.media.video) { const v = el('video'); Object.assign(v, { src: g.media.video, muted: true, autoplay: true, loop: true }); shot.append(v); }
@@ -992,22 +1290,72 @@ function renderSettings() {
   const body = $('#sysTable tbody'); body.innerHTML = '';
   // Always offer "None" and keep an unknown/removed emulator id as-is, so saving never
   // silently assigns the first emulator in the list.
-  const emuOpts = sel => {
-    const opt = (id, name) => `<option value="${esc(id)}" ${id === (sel || '') ? 'selected' : ''}>${esc(name)}</option>`;
+  const emuOpts = (sel, direct) => {
+    const opt = (id, name) => `<option value="${esc(id)}" ${id === (direct ? '__direct' : sel || '') ? 'selected' : ''}>${esc(name)}</option>`;
     const known = S.emus.some(e => e.id === sel);
-    return opt('', 'None') + (sel && !known ? opt(sel, `${sel} (not found)`) : '') + S.emus.map(e => opt(e.id, e.name)).join('');
+    return opt('', 'None') + opt('__direct', 'Run the file itself') + (sel && !known && !direct ? opt(sel, `${sel} (not found)`) : '') + S.emus.map(e => opt(e.id, e.name)).join('');
   };
   c.systems.forEach((s, i) => {
-    const tr = el('tr', '', `
-      <td class="name"><i style="background:${s.color}"></i>${esc(s.name)}</td>
+    const tr = el('tr', s.hidden ? 'sys-hidden' : '', `
+      <td class="show"><input type="checkbox" data-k="show" ${s.hidden ? '' : 'checked'} aria-label="Show ${esc(s.name)} in the library"/></td>
+      <td class="name"><i style="background:${s.color}"></i>${esc(s.name)}${s.custom ? ` <button class="sys-remove" data-remove-system="${esc(s.id)}" title="Remove this system">Remove</button>` : ''}</td>
       <td><input data-k="romDir" value="${esc(s.romDir)}" placeholder="Not set" id="rom${i}"/></td>
       <td><button data-browse="rom${i}">Browse…</button> <button data-browse="rom${i}" data-add="1" title="Add another ROM folder">+ Add</button></td>
-      <td><select data-k="emulator">${emuOpts(s.emulator)}</select></td>
+      <td><select data-k="emulator">${emuOpts(s.emulator, s.direct)}</select></td>
       <td><input data-k="extensions" value="${esc(s.extensions.join(' '))}"/></td>
       <td><input data-k="args" value="${esc(s.args || '')}" placeholder="emulator default"/></td>`);
     tr.dataset.i = i; body.append(tr);
   });
+  renderAddedGames();
 }
+async function renderAddedGames() {
+  let list = [];
+  try { list = await api.gameList(); } catch { list = []; }
+  const box = $('#addedGames'); if (!box) return;
+  box.classList.toggle('hidden', !list.length);
+  box.querySelector('summary').textContent = `Games you added (${list.length})`;
+  const sysName = id => S.config.systems.find(s => s.id === id)?.name || id;
+  box.querySelector('ul').replaceChildren(...list.map(x => {
+    const li = el('li', x.missing ? 'missing' : '', `<span><b>${esc(x.title)}</b> · ${esc(sysName(x.system))}<small>${esc(x.path)}${x.missing ? ' (file not found)' : ''}</small></span>`);
+    const b = el('button', '', 'Remove'); b.type = 'button';
+    b.onclick = async () => { await api.removeGame(x.id); await loadLibrary(); renderAddedGames(); toast(`${x.title} removed from your library.`); };
+    li.append(b); return li;
+  }));
+}
+const toggleForm = (form, show) => { $$('.add-form').forEach(f => f.classList.add('hidden')); if (show) { form.classList.remove('hidden'); form.querySelector('input,select')?.focus(); } };
+$('#btnAddSystem').onclick = () => toggleForm($('#addSystemForm'), $('#addSystemForm').classList.contains('hidden'));
+$('#btnAddGame').onclick = () => {
+  const form = $('#addGameForm'), pick = form.elements.system;
+  pick.replaceChildren(...S.config.systems.map(s => { const o = el('option', '', esc(s.name)); o.value = s.id; return o; }));
+  pick.value = S.config.systems.some(s => s.id === S.system) ? S.system : 'pc';
+  toggleForm(form, form.classList.contains('hidden'));
+};
+$$('.add-form [data-cancel]').forEach(b => { b.onclick = () => toggleForm(null, false); });
+$('#addSystemForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const f = new FormData(ev.target), name = String(f.get('name')).trim();
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'system';
+  let id = 'custom-' + slug, n = 2; while (S.config.systems.some(s => s.id === id)) id = `custom-${slug}-${n++}`;
+  const caseType = String(f.get('caseType')), media = ['dvd', 'jewel', 'bluray', 'umd'].includes(caseType) ? 'disc' : 'cart';
+  const extensions = String(f.get('extensions')).split(/[\s,]+/).filter(Boolean).map(x => (x.startsWith('.') ? x : '.' + x).toLowerCase());
+  const c = structuredClone(S.config);
+  c.systems.push({ id, name, caseType, media, color: String(f.get('color')), extensions: extensions.length ? extensions : ['.zip'], emulator: '', romDir: '', custom: true });
+  S.config = await api.setConfig(c);
+  S.orders = S.config.gameOrders || {};
+  ev.target.reset(); toggleForm(null, false); renderSettings(); LibraryUI.render?.();
+  toast(`${name} added. Set its ROM folder and emulator, then Save & rescan.`, 5000);
+};
+$('#addGameForm').onsubmit = async ev => {
+  ev.preventDefault();
+  const f = new FormData(ev.target);
+  try {
+    const entry = await api.addGame({ system: f.get('system'), title: f.get('title') });
+    if (!entry) return;
+    ev.target.reset(); toggleForm(null, false);
+    await loadLibrary(); renderAddedGames();
+    toast(`${entry.title} added to your library.`);
+  } catch (e) { toast(e.message, 5000); }
+};
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-browse]');
   if (b) {
@@ -1016,6 +1364,14 @@ document.addEventListener('click', async e => {
       const input = $('#' + b.dataset.browse), cur = input.value.trim();
       input.value = b.dataset.add && cur ? `${cur} | ${p}` : p;
     }
+  }
+  const r = e.target.closest('[data-remove-system]');
+  if (r) {
+    const sys = S.config.systems.find(s => s.id === r.dataset.removeSystem);
+    if (!sys || !confirm(`Remove ${sys.name}? Your game files and artwork stay where they are.`)) return;
+    const c = structuredClone(S.config); c.systems = c.systems.filter(s => s.id !== sys.id);
+    S.config = await api.setConfig(c); S.orders = S.config.gameOrders || {}; renderSettings(); await loadLibrary();
+    return;
   }
   const g = e.target.closest('[data-goto]');
   if (g) { e.preventDefault(); showView(g.dataset.goto); }
@@ -1036,13 +1392,16 @@ $('#btnSave').onclick = async () => {
   $$('#sysTable tbody tr').forEach(tr => {
     const s = c.systems[tr.dataset.i];
     tr.querySelectorAll('[data-k]').forEach(inp => {
+      if (inp.dataset.k === 'show') { s.hidden = !inp.checked; return; }
       const v = inp.value.trim();
       if (inp.dataset.k === 'extensions') s.extensions = v.split(/[\s,]+/).filter(Boolean).map(x => (x.startsWith('.') ? x : '.' + x).toLowerCase());
+      else if (inp.dataset.k === 'emulator') { s.direct = v === '__direct'; s.emulator = s.direct ? '' : v; }
       else if (inp.dataset.k === 'args') { if (v) s.args = v; else delete s.args; }
       else s[inp.dataset.k] = v;
     });
   });
   S.config = await api.setConfig(c);
+  S.orders = S.config.gameOrders || {};
   applyCaseLook();
   await loadLibrary();
   toast(S.demo ? 'Saved — no games found yet in those folders.' : `Saved — ${S.games.length} games loaded.`);
@@ -1065,6 +1424,9 @@ $('#btnPlay').onclick = () => play();
 $('#btnCase').onclick = openCase;
 $('#btnManual').onclick = () => manual();
 $('#btnArtwork').onclick = () => {showView('artwork');ArtworkUI.open('game');};
+$('#btnFavorite').onclick = () => toggleGameFavorite();
+$('#btnHide').onclick = () => toggleHidden();
+$('#btnEmulator').onclick = () => openEmuChoice();
 $('#cvPlay').onclick = () => play(CV.game);
 $('#cvBack').onclick = closeCase;
 $('#cvToggle').onclick = () => setOpen(!CV.open);
@@ -1115,7 +1477,7 @@ function input(action) {
   if(action==='sysprev'||action==='sysnext'){cycleSystem(action==='sysprev'?-1:1);return;}
   if(['up','down'].includes(action)&&Appearance.browsesVertically()){select(S.sel+(action==='up'?-1:1));return;}
   ({ left: () => navigateGame(-1), right: () => navigateGame(1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
-     play: () => play(), case: openCase, manual: () => manual(), pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
+     play: () => play(), case: openCase, manual: () => manual(), favorite: () => toggleGameFavorite(), hide: () => toggleHidden(), pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
 }
 // Search: start typing anywhere in the library to filter.
 let searchT;
@@ -1163,7 +1525,7 @@ document.addEventListener('keydown', e => {
     if (!(pointerFocus && libraryActive() && !caseShown() && !e.target.closest('dialog'))) return;
     e.target.blur();
   }
-  const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'play', ' ': 'case', Escape: 'back', m: 'manual', M: 'manual', PageUp: 'pgup', PageDown: 'pgdn' };
+  const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'play', ' ': 'case', Escape: 'back', m: 'manual', M: 'manual', f: 'favorite', F: 'favorite', Delete: 'hide', PageUp: 'pgup', PageDown: 'pgdn' };
   if (map[e.key]) { e.preventDefault(); input(caseShown() && e.key === ' ' ? 'back' : map[e.key]); }
 });
 

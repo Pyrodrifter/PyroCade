@@ -2217,6 +2217,13 @@ mod tests {
                 "file:///old.png".to_owned(),
             )]),
             shell: None,
+            hidden: false,
+            scanned_title: None,
+            custom_title: false,
+            version: None,
+            media_type: None,
+            emulator: None,
+            added: None,
         };
         let games = Arc::new(RwLock::new(vec![game]));
         update_game_media(

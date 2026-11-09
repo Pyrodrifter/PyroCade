@@ -67,6 +67,10 @@
           <button id="btnCase">⟲ Open case</button>
           <button id="btnManual">▤ Manual</button>
           <button id="btnArtwork">Artwork</button>
+          <button id="btnEmulator" title="Choose the emulator for this game">Emulator</button>
+          <button id="btnFavorite" aria-pressed="false" title="Add to Favourites (F)">☆ Favourite</button>
+          <button id="btnHide" aria-pressed="false" title="Hide this game from the library (Delete). Your ROM folder is not touched.">⊘ Hide</button>
+          <button id="btnEditDetails" title="Edit title, version and media type">Edit details…</button>
         </div>
       </div>
       <div id="gShot" class="shot"></div>
@@ -90,6 +94,51 @@
     <label class="row check"><input id="appearanceDetailsPinned" type="checkbox" /> Keep game details visible when overlay is hidden</label>
     <div class="appearance-label">Background scene</div><div id="backgroundOptions" class="theme-options"></div>
   </dialog>
+
+  <dialog id="renameGame" aria-labelledby="renameTitle">
+    <div class="system-picker-heading"><div><h2 id="renameTitle">Rename game</h2></div><button id="closeRename" aria-label="Close rename dialog">×</button></div>
+    <form id="renameForm">
+      <p class="sub">The game file keeps its name; only PyroCade's title changes.</p>
+      <p id="renameGameFile" class="sub"></p>
+      <label>Title <input id="renameInput" maxlength="120" /></label>
+      <div class="actions">
+        <button class="primary" type="submit">Save</button>
+        <button type="button" id="renameReset">Use the file name</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="gameDetailsEditor" aria-labelledby="detailsTitle">
+    <div class="system-picker-heading"><div><h2 id="detailsTitle">Edit game details</h2></div><button id="gameDetailsCancel" aria-label="Close details editor">×</button></div>
+    <form id="gameDetailsForm">
+      <label>Title <input id="editGameTitle" maxlength="200" required /></label>
+      <label>Version <input id="editGameVersion" maxlength="80" placeholder="Optional, e.g. 1.01" /></label>
+      <label>Media type
+        <select id="editGameMediaType">
+          <option value="">Same as system</option>
+          <option value="disc">Disc (DVD case)</option>
+          <option value="switch">Switch cartridge</option>
+          <option value="switch2">Switch 2 cartridge</option>
+          <option value="gba">Game Boy Advance cartridge</option>
+          <option value="n64">Nintendo 64 cartridge</option>
+          <option value="nds">Nintendo DS cartridge</option>
+        </select>
+      </label>
+      <p id="gameDetailsError" class="art-error" role="alert"></p>
+      <div class="actions">
+        <button class="primary" id="gameDetailsSave" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="emuChoice" aria-labelledby="emuChoiceTitle">
+    <div class="system-picker-heading"><div><h2 id="emuChoiceTitle">Emulator for this game</h2></div><button id="closeEmuChoice" aria-label="Close emulator choice">×</button></div>
+    <p id="emuChoiceGame" class="emu-choice-game"></p>
+    <div id="emuChoiceList" class="emu-choice-list"></div>
+    <p class="emu-choice-note">Add a fork or any other emulator in the Emulators tab, then choose it here.</p>
+  </dialog>
+
+  <div id="gameMenu" hidden role="menu" aria-label="Game actions"></div>
 
   <!-- CASE VIEWER -->
   <div id="caseView" class="hidden">
@@ -210,8 +259,30 @@
       </section>
     </div>
     <h2 class="settings-section-title">Systems and games</h2>
+    <div class="sys-tools">
+      <button id="btnAddSystem" type="button">+ Add system…</button>
+      <button id="btnAddGame" type="button">+ Add game…</button>
+      <span class="sub">PC games: point <b>PC Games</b> at a folder of shortcuts or game programs, or add them one by one with <b>Add game</b>.</span>
+    </div>
+    <form id="addSystemForm" class="panel add-form hidden">
+      <input name="name" placeholder="System name (e.g. Neo Geo)" required maxlength="40" />
+      <label>Colour <input name="color" type="color" value="#7c5cff" /></label>
+      <select name="caseType" aria-label="Case style">
+        <optgroup label="Disc"><option value="dvd">DVD case</option><option value="jewel">CD jewel case</option><option value="bluray">Blu-ray case</option><option value="umd">UMD case</option></optgroup>
+        <optgroup label="Cartridge"><option value="cartbox">Small cartridge box</option><option value="bigbox">Big cartridge box</option><option value="nesbox">Tall cartridge box</option><option value="ds">Card case</option></optgroup>
+      </select>
+      <input name="extensions" placeholder="File types (e.g. .neo .zip)" />
+      <button class="primary" type="submit">Add system</button><button type="button" data-cancel>Cancel</button>
+    </form>
+    <form id="addGameForm" class="panel add-form hidden">
+      <select name="system" aria-label="System"></select>
+      <input name="title" placeholder="Name (optional, guessed from the file)" maxlength="120" />
+      <button class="primary" type="submit">Choose file…</button><button type="button" data-cancel>Cancel</button>
+    </form>
+    <details id="addedGames" class="panel help hidden"><summary></summary><ul class="added-list"></ul></details>
+    <details id="hiddenGames" class="panel help"><summary>Hidden games (0)</summary><ul id="hiddenGamesList" class="hidden-list"></ul></details>
     <table id="sysTable" class="panel">
-      <thead><tr><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>
+      <thead><tr><th title="Show this system in the library">Show</th><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>
       <tbody></tbody>
     </table>
     <details class="panel help">

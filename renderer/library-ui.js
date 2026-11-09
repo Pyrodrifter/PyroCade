@@ -69,8 +69,8 @@ const LibraryUI=(()=>{
     b.append(mark,copy);return b;
   }
   function render(){
-    const s=context.getState(),counts={};for(const g of s.games)counts[g.system]=(counts[g.system]||0)+1;
-    entries=[{id:'all',name:'All games',count:s.games.length,color:'#ffad65'},...s.config.systems.filter(sys=>counts[sys.id]||sys.romDir).map(sys=>({...sys,count:counts[sys.id]||0}))];
+    const s=context.getState(),counts={};for(const g of s.games){if(g.hidden)continue;counts[g.system]=(counts[g.system]||0)+1;}
+    entries=[{id:'all',name:'All games',count:Object.values(counts).reduce((a,b)=>a+b,0),color:'#ffad65'},...s.config.systems.filter(sys=>!sys.hidden&&(counts[sys.id]||sys.romDir)).map(sys=>({...sys,count:counts[sys.id]||0}))];
     // Update library state from config.
     favoriteSet=new Set(s.config?.favorites||[]);
     recentlyPlayed=s.config?.recentlyPlayed||[];
@@ -93,7 +93,7 @@ const LibraryUI=(()=>{
     if(favBtn){favBtn.classList.toggle('active',favOnly);favBtn.setAttribute('aria-pressed',String(favOnly));}
     if(recBtn){recBtn.classList.toggle('active',showRec);recBtn.setAttribute('aria-pressed',String(showRec));}
     if(sortBtn){
-      const labels={title:'Title',system:'System',favorites:'Favorites',recent:'Recent'};
+      const labels={title:'Title',system:'System',favorites:'Favorites',recent:'Recent',custom:'Custom'};
       sortBtn.textContent=labels[sortKey]||'Title';
     }
   }
@@ -178,7 +178,7 @@ const LibraryUI=(()=>{
     };
     const sortBtn=$('#sortButton');
     if(sortBtn){
-      const modes=['title','system','favorites','recent'];
+      const modes=['title','system','favorites','recent','custom'];
       let idx=modes.indexOf(sortKey);
       sortBtn.onclick=async()=>{
         idx=(idx+1)%modes.length;

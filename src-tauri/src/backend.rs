@@ -26,7 +26,7 @@ pub struct AppState {
     warning: Mutex<Option<String>>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Game {
     pub id: String,
@@ -38,6 +38,20 @@ pub struct Game {
     pub media: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shell: Option<String>,
+    #[serde(default)]
+    pub hidden: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scanned_title: Option<String>,
+    #[serde(default)]
+    pub custom_title: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emulator: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub added: Option<String>,
 }
 
 #[derive(Clone)]
@@ -48,6 +62,8 @@ struct RomFile {
     root_index: usize,
     size: Option<u64>,
     is_dump: bool,
+    added: Option<String>,
+    title_override: Option<String>,
 }
 
 struct MediaIndex {
@@ -338,7 +354,7 @@ fn write_library_cache(
     changed
 }
 
-/// Apply favorites filtering, recently played injection, sorting, and ordering.
+/// Apply collection state: favorites, hidden, renames, per-game details/emulator, orders.
 fn apply_library_state(games: &mut Vec<Game>, config: &Value) {
     let favorites: Vec<String> = config
         .get("favorites")
@@ -350,6 +366,87 @@ fn apply_library_state(games: &mut Vec<Game>, config: &Value) {
                 .collect()
         })
         .unwrap_or_default();
+
+    let hidden_games: std::collections::HashSet<String> = config
+        .get("hiddenGames")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let game_details = config
+        .get("gameDetails")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let game_emulators = config
+        .get("gameEmulators")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let game_orders = config
+        .get("gameOrders")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+
+    // Annotate each scanned game with its collection state before sorting/filtering.
+    for game in games.iter_mut() {
+        if game.scanned_title.is_none() {
+            game.scanned_title = Some(game.title.clone());
+        }
+        let scanned = game
+            .scanned_title
+            .clone()
+            .unwrap_or_else(|| game.title.clone());
+        game.hidden = hidden_games.contains(&game.id);
+        if let Some(details) = game_details.get(&game.id).and_then(Value::as_object) {
+            let custom_title = details
+                .get("title")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .filter(|s| *s != scanned);
+            if let Some(title) = custom_title {
+                game.title = title.to_owned();
+                game.custom_title = true;
+            } else {
+                game.title = scanned.clone();
+                game.custom_title = false;
+            }
+            game.version = details
+                .get("version")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned);
+            game.media_type = details
+                .get("mediaType")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned);
+        } else {
+            game.title = scanned.clone();
+            game.custom_title = false;
+            game.version = None;
+            game.media_type = None;
+        }
+        if let Some(emulator) = game_emulators.get(&game.id).and_then(Value::as_str) {
+            let emulator = emulator.trim();
+            game.emulator = if emulator.is_empty() {
+                None
+            } else {
+                Some(emulator.to_owned())
+            };
+        } else {
+            game.emulator = None;
+        }
+    }
 
     let recently_played: Vec<Value> = config
         .get("recentlyPlayed")
@@ -412,6 +509,13 @@ fn apply_library_state(games: &mut Vec<Game>, config: &Value) {
                     info: Value::Object(serde_json::Map::new()),
                     media: HashMap::new(),
                     shell: None,
+                    hidden: false,
+                    scanned_title: None,
+                    custom_title: false,
+                    version: None,
+                    media_type: None,
+                    emulator: None,
+                    added: None,
                 })
             })
             .collect();
@@ -476,9 +580,33 @@ fn apply_library_state(games: &mut Vec<Game>, config: &Value) {
                     .unwrap_or(0);
                 tb.cmp(&ta) // most recent first
             }
+            "custom" => {
+                let rank = |game: &Game| {
+                    game_orders
+                        .get(&game.system)
+                        .and_then(Value::as_array)
+                        .and_then(|ids| ids.iter().position(|id| id.as_str() == Some(&game.id)))
+                        .unwrap_or(usize::MAX)
+                };
+                let a_rank = rank(a);
+                let b_rank = rank(b);
+                if a.system != b.system {
+                    a.system.cmp(&b.system)
+                } else if a_rank != b_rank {
+                    a_rank.cmp(&b_rank)
+                } else {
+                    a.title.to_lowercase().cmp(&b.title.to_lowercase())
+                }
+            }
             _ => a.title.to_lowercase().cmp(&b.title.to_lowercase()),
         };
-        if sort_asc { cmp } else { cmp.reverse() }
+        if sort_key == "custom" {
+            cmp
+        } else if sort_asc {
+            cmp
+        } else {
+            cmp.reverse()
+        }
     });
 }
 
@@ -601,6 +729,534 @@ pub fn get_recently_played(state: State<'_, AppState>, _limit: usize) -> Vec<Val
         .unwrap_or_default()
 }
 
+// Hiding writes to the collection state; the ROM folder is never renamed, moved or deleted.
+#[tauri::command]
+pub fn set_game_hidden(
+    state: State<'_, AppState>,
+    game_id: String,
+    hidden: bool,
+) -> Result<Game, String> {
+    {
+        let games = state.games.read().map_err(|e| e.to_string())?;
+        if !games.iter().any(|g| g.id == game_id) {
+            return Err("Select a game in your library first.".to_owned());
+        }
+    }
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let mut hidden_games: Vec<String> = config
+        .get_mut("hiddenGames")
+        .and_then(Value::as_array_mut)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    if hidden {
+        if !hidden_games.contains(&game_id) {
+            hidden_games.push(game_id.clone());
+        }
+    } else {
+        hidden_games.retain(|id| id != &game_id);
+    }
+    *config.get_mut("hiddenGames").unwrap() =
+        Value::Array(hidden_games.into_iter().map(Value::String).collect());
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    let mut games = state.games.write().map_err(|e| e.to_string())?;
+    let game = games
+        .iter_mut()
+        .find(|g| g.id == game_id)
+        .ok_or_else(|| "Select a game in your library first.".to_owned())?;
+    game.hidden = hidden;
+    Ok(game.clone())
+}
+
+#[tauri::command]
+pub fn set_system_games_hidden(
+    state: State<'_, AppState>,
+    system: String,
+    hidden: bool,
+) -> Result<Vec<Game>, String> {
+    let config_snapshot = state.config();
+    if !config_snapshot
+        .get("systems")
+        .and_then(Value::as_array)
+        .is_some_and(|systems| {
+            systems
+                .iter()
+                .any(|s| s.get("id").and_then(Value::as_str) == Some(system.as_str()))
+        })
+    {
+        return Err("Unknown system.".to_owned());
+    }
+    let system_games: Vec<String> = {
+        let games = state.games.read().map_err(|e| e.to_string())?;
+        games
+            .iter()
+            .filter(|g| g.system == system)
+            .map(|g| g.id.clone())
+            .collect()
+    };
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let mut hidden_games: Vec<String> = config
+        .get_mut("hiddenGames")
+        .and_then(Value::as_array_mut)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    for game_id in &system_games {
+        if hidden {
+            if !hidden_games.contains(game_id) {
+                hidden_games.push(game_id.clone());
+            }
+        } else {
+            hidden_games.retain(|id| id != game_id);
+        }
+    }
+    *config.get_mut("hiddenGames").unwrap() =
+        Value::Array(hidden_games.into_iter().map(Value::String).collect());
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    let mut games = state.games.write().map_err(|e| e.to_string())?;
+    let mut updated = Vec::new();
+    for game in games.iter_mut() {
+        if game.system == system {
+            game.hidden = hidden;
+            updated.push(game.clone());
+        }
+    }
+    Ok(updated)
+}
+
+// The details editor (M03) is the only writer of title/version/mediaType overrides.
+#[tauri::command]
+pub fn set_game_metadata(state: State<'_, AppState>, opts: Value) -> Result<Game, String> {
+    let game_id = opts
+        .get("gameId")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    if game_id.is_empty() {
+        return Err("Select a game in your library first.".to_owned());
+    }
+    {
+        let games = state.games.read().map_err(|e| e.to_string())?;
+        if !games.iter().any(|g| g.id == game_id) {
+            return Err("Select a game in your library first.".to_owned());
+        }
+    }
+    let has_title = opts.get("title").and_then(Value::as_str).is_some();
+    let title_raw = opts
+        .get("title")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    let has_version = opts.get("version").and_then(Value::as_str).is_some();
+    let version_raw = opts
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    let has_media = opts.get("mediaType").and_then(Value::as_str).is_some();
+    let media_raw = opts
+        .get("mediaType")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    if has_title {
+        let trimmed = title_raw.split_whitespace().collect::<Vec<_>>().join(" ");
+        if !trimmed.is_empty() && trimmed.len() > 200 {
+            return Err("Enter a title of up to 200 characters.".to_owned());
+        }
+    }
+    if has_version && version_raw.trim().len() > 80 {
+        return Err("Enter a version of up to 80 characters.".to_owned());
+    }
+    if has_media
+        && !["", "disc", "switch", "switch2", "gba", "n64", "nds"].contains(&media_raw.trim())
+    {
+        return Err("Choose a supported media type.".to_owned());
+    }
+
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let details_map = config
+        .get_mut("gameDetails")
+        .and_then(Value::as_object_mut)
+        .ok_or("Invalid game details")?
+        .entry(game_id.clone())
+        .or_insert_with(|| json!({}));
+    let details_obj = details_map.as_object_mut().ok_or("Invalid game details")?;
+    let scanned_title = {
+        let games = state.games.read().map_err(|e| e.to_string())?;
+        games
+            .iter()
+            .find(|g| g.id == game_id)
+            .and_then(|g| g.scanned_title.clone())
+            .unwrap_or_default()
+    };
+    if has_title {
+        let trimmed = title_raw.split_whitespace().collect::<Vec<_>>().join(" ");
+        if trimmed.is_empty() || trimmed == scanned_title {
+            details_obj.remove("title");
+        } else {
+            details_obj.insert("title".to_owned(), Value::String(trimmed));
+        }
+    }
+    if has_version {
+        let trimmed = version_raw.trim().to_owned();
+        if trimmed.is_empty() {
+            details_obj.remove("version");
+        } else {
+            details_obj.insert("version".to_owned(), Value::String(trimmed));
+        }
+    }
+    if has_media {
+        let trimmed = media_raw.trim().to_owned();
+        if trimmed.is_empty() {
+            details_obj.remove("mediaType");
+        } else {
+            details_obj.insert("mediaType".to_owned(), Value::String(trimmed));
+        }
+    }
+    if details_obj.is_empty() {
+        if let Some(map) = config.get_mut("gameDetails").and_then(Value::as_object_mut) {
+            map.remove(&game_id);
+        }
+    }
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    let mut games = state.games.write().map_err(|e| e.to_string())?;
+    let game = games
+        .iter_mut()
+        .find(|g| g.id == game_id)
+        .ok_or_else(|| "Select a game in your library first.".to_owned())?;
+    let scanned = game
+        .scanned_title
+        .clone()
+        .unwrap_or_else(|| game.title.clone());
+    let custom = config_clone
+        .get("gameDetails")
+        .and_then(|v| v.get(&game_id))
+        .and_then(|v| v.get("title"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != scanned);
+    if let Some(title) = custom {
+        game.title = title.to_owned();
+        game.custom_title = true;
+    } else {
+        game.title = scanned.clone();
+        game.custom_title = false;
+    }
+    game.version = config_clone
+        .get("gameDetails")
+        .and_then(|v| v.get(&game_id))
+        .and_then(|v| v.get("version"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned);
+    game.media_type = config_clone
+        .get("gameDetails")
+        .and_then(|v| v.get(&game_id))
+        .and_then(|v| v.get("mediaType"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned);
+    Ok(game.clone())
+}
+
+#[tauri::command]
+pub fn set_game_emulator(state: State<'_, AppState>, opts: Value) -> Result<Game, String> {
+    let game_id = opts
+        .get("gameId")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    if game_id.is_empty() {
+        return Err("Select a game in your library first.".to_owned());
+    }
+    let emulator_raw = opts
+        .get("emulator")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("")
+        .to_owned();
+    {
+        let games = state.games.read().map_err(|e| e.to_string())?;
+        if !games.iter().any(|g| g.id == game_id) {
+            return Err("Select a game in your library first.".to_owned());
+        }
+    }
+    if !emulator_raw.is_empty() && emulator_raw != "__direct" {
+        let config_snapshot = state.config();
+        if crate::emulators::find_definition(&emulator_raw, &config_snapshot).is_none() {
+            return Err("That emulator is no longer set up.".to_owned());
+        }
+    }
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let map = config
+        .get_mut("gameEmulators")
+        .and_then(Value::as_object_mut)
+        .ok_or("Invalid emulator settings")?;
+    if emulator_raw.is_empty() {
+        map.remove(&game_id);
+    } else {
+        map.insert(game_id.clone(), Value::String(emulator_raw.clone()));
+    }
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    let mut games = state.games.write().map_err(|e| e.to_string())?;
+    let game = games
+        .iter_mut()
+        .find(|g| g.id == game_id)
+        .ok_or_else(|| "Select a game in your library first.".to_owned())?;
+    game.emulator = if emulator_raw.is_empty() {
+        None
+    } else {
+        Some(emulator_raw)
+    };
+    Ok(game.clone())
+}
+
+#[tauri::command]
+pub fn save_game_order(state: State<'_, AppState>, opts: Value) -> Result<Vec<String>, String> {
+    let system = opts
+        .get("system")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    if system.is_empty() {
+        return Err("Choose a console to reorder.".to_owned());
+    }
+    let game_ids: Vec<String> = opts
+        .get("gameIds")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    let config_snapshot = state.config();
+    if !config_snapshot
+        .get("systems")
+        .and_then(Value::as_array)
+        .is_some_and(|systems| {
+            systems
+                .iter()
+                .any(|s| s.get("id").and_then(Value::as_str) == Some(system.as_str()))
+        })
+    {
+        return Err("Choose a console to reorder.".to_owned());
+    }
+    let actual: Vec<String> = {
+        let games = state.games.read().map_err(|e| e.to_string())?;
+        games
+            .iter()
+            .filter(|g| g.system == system)
+            .map(|g| g.id.clone())
+            .collect()
+    };
+    let valid: HashSet<&str> = actual.iter().map(String::as_str).collect();
+    let mut seen = HashSet::new();
+    for id in &game_ids {
+        if !valid.contains(id.as_str()) || !seen.insert(id.as_str()) {
+            return Err(
+                "The game order does not match this console. Rescan and try again.".to_owned(),
+            );
+        }
+    }
+    let mut order = game_ids.clone();
+    for id in &actual {
+        if !order.contains(id) {
+            order.push(id.clone());
+        }
+    }
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let map = config
+        .get_mut("gameOrders")
+        .and_then(Value::as_object_mut)
+        .ok_or("Invalid game orders")?;
+    map.insert(
+        system.clone(),
+        Value::Array(order.iter().map(|id| Value::String(id.clone())).collect()),
+    );
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    Ok(order)
+}
+
+#[tauri::command]
+pub fn list_extra_games(state: State<'_, AppState>) -> Vec<Value> {
+    let config = state.config();
+    config
+        .get("extraGames")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|entry| {
+            let path = entry.get("path").and_then(Value::as_str).unwrap_or("");
+            let missing =
+                !path.is_empty() && !is_content_uri(path) && !std::path::Path::new(path).exists();
+            json!({
+                "id": entry.get("id").and_then(Value::as_str).unwrap_or(""),
+                "system": entry.get("system").and_then(Value::as_str).unwrap_or(""),
+                "path": path,
+                "title": entry.get("title").and_then(Value::as_str).unwrap_or(""),
+                "missing": missing,
+            })
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn remove_game(state: State<'_, AppState>, id: String) -> Result<bool, String> {
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    if let Some(extra) = config.get_mut("extraGames").and_then(Value::as_array_mut) {
+        extra.retain(|x| x.get("id").and_then(Value::as_str) != Some(&id));
+    }
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    Ok(true)
+}
+
+/// Adds one game file to a system without a ROM folder. Opens the native
+/// file picker, so it must be `async` like other dialog commands.
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn add_game(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    opts: Value,
+) -> Result<Option<Value>, String> {
+    let system = opts
+        .get("system")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    if system.is_empty() {
+        return Err("Choose a system first.".to_owned());
+    }
+    let config_snapshot = state.config();
+    let sys = config_snapshot
+        .get("systems")
+        .and_then(Value::as_array)
+        .and_then(|systems| {
+            systems
+                .iter()
+                .find(|s| s.get("id").and_then(Value::as_str) == Some(system.as_str()))
+                .cloned()
+        })
+        .ok_or_else(|| "Choose a system first.".to_owned())?;
+    let sys_name = sys
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(&system)
+        .to_owned();
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_title(format!("Add a game to {sys_name}"))
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    let path_string = path.to_string_lossy().to_owned();
+    let mut config = state.config.write().map_err(|e| e.to_string())?;
+    let extra = config
+        .get_mut("extraGames")
+        .and_then(Value::as_array_mut)
+        .ok_or("Invalid settings")?;
+    if extra.iter().any(|x| {
+        x.get("system").and_then(Value::as_str) == Some(system.as_str())
+            && x.get("path")
+                .and_then(Value::as_str)
+                .is_some_and(|p| Path::new(p) == path.as_path())
+    }) {
+        return Err("That game is already in your library.".to_owned());
+    }
+    let file_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_owned();
+    let guess = {
+        let stem_name = Path::new(&file_name)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&file_name)
+            .to_owned();
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if (ext == "exe" || ext == "app")
+            && path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|s| s.to_str())
+                .is_some_and(|s| s.len() > 2)
+        {
+            path.parent()
+                .and_then(|p| p.file_name())
+                .and_then(|s| s.to_str())
+                .unwrap_or(&stem_name)
+                .to_owned()
+        } else {
+            display_title(&stem_name)
+        }
+    };
+    let title_over = opts
+        .get("title")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.chars().take(120).collect::<String>());
+    let title = title_over.unwrap_or(guess);
+    let entry = json!({
+        "id": uuid::Uuid::new_v4().to_string()[..8].to_owned(),
+        "system": system,
+        "path": path_string,
+        "title": title,
+    });
+    extra.push(entry.clone());
+    let config_clone = config.clone();
+    drop(config);
+    save_config(&state.config_path, &config_clone)?;
+    Ok(Some(entry))
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn add_game(
+    _app: AppHandle,
+    _state: State<'_, AppState>,
+    _opts: Value,
+) -> Result<Option<Value>, String> {
+    Err(
+        "Adding a single file on Android needs a document grant; use a ROM folder instead."
+            .to_owned(),
+    )
+}
+
 fn wait_for_child(
     child: std::process::Child,
     window: Option<tauri::WebviewWindow>,
@@ -629,6 +1285,79 @@ pub(crate) fn android_launch_target(package: &str, rom_uri: &str) -> Result<Stri
         return Err("This game has no ROM location yet.".to_owned());
     }
     Ok(rom_uri.to_owned())
+}
+
+#[cfg(not(target_os = "android"))]
+fn launch_direct(
+    app: &AppHandle,
+    _state: &AppState,
+    config: &Value,
+    game: &Game,
+) -> Result<bool, String> {
+    let file = Path::new(&game.rom_path);
+    if !file.exists() {
+        let name = file
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&game.rom_path);
+        return Err(format!("{} is missing. Rescan in Settings.", name));
+    }
+    #[cfg(unix)]
+    let is_app = file.extension().and_then(|s| s.to_str()) == Some("app");
+    #[cfg(not(unix))]
+    let is_app = false;
+    #[cfg(unix)]
+    let is_program = is_app
+        || fs::metadata(file)
+            .map(|m| {
+                use std::os::unix::fs::PermissionsExt;
+                m.permissions().mode() & 0o111 != 0
+            })
+            .unwrap_or(false);
+    #[cfg(not(unix))]
+    let is_program = file.extension().and_then(|s| s.to_str()) == Some("exe");
+    if !is_program {
+        app.opener()
+            .open_path(&game.rom_path, None::<&str>)
+            .map_err(|e| format!("Couldn't open: {e}"))?;
+        return Ok(true);
+    }
+    let executable = file.to_path_buf();
+    let app_bundle = cfg!(target_os = "macos")
+        .then(|| {
+            executable
+                .ancestors()
+                .find(|p| p.extension().and_then(|ext| ext.to_str()) == Some("app"))
+        })
+        .flatten();
+    let cwd = app_bundle
+        .and_then(Path::parent)
+        .or_else(|| executable.parent())
+        .unwrap_or_else(|| Path::new("."));
+    let mut command = if let Some(bundle) = app_bundle {
+        let mut command = Command::new("open");
+        command.args(["--wait-apps", "-a"]).arg(bundle);
+        command
+    } else {
+        Command::new(&executable)
+    };
+    command
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child = command.spawn().map_err(|e| format!("Launch failed: {e}"))?;
+    let window = config
+        .get("hideWhilePlaying")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        .then(|| app.get_webview_window("main"))
+        .flatten();
+    if let Some(window) = window.as_ref() {
+        let _ = window.minimize();
+    }
+    wait_for_child(child, window);
+    Ok(true)
 }
 
 #[cfg(target_os = "android")]
@@ -663,19 +1392,44 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
         .flatten()
         .find(|s| s.get("id").and_then(Value::as_str) == Some(&game.system))
         .ok_or_else(|| "Unknown system".to_owned())?;
-    let emulator_id = system
-        .get("emulator")
+    let own_emulator = config
+        .get("gameEmulators")
+        .and_then(|v| v.get(&game.id))
         .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| {
-            format!(
-                "No emulator is set for {}. Choose one in Settings.",
-                system
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or(&game.system)
-            )
-        })?;
+        .map(str::trim)
+        .unwrap_or("");
+    let system_direct = system
+        .get("direct")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let is_direct = own_emulator == "__direct" || (own_emulator.is_empty() && system_direct);
+    if is_direct {
+        #[cfg(target_os = "android")]
+        {
+            return Err("Direct launch is not available on Android.".to_owned());
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            return launch_direct(&app, &state, &config, &game);
+        }
+    }
+    let emulator_id = if !own_emulator.is_empty() {
+        own_emulator
+    } else {
+        system
+            .get("emulator")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                format!(
+                    "No emulator is set for {}. Choose one in Settings.",
+                    system
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or(&game.system)
+                )
+            })?
+    };
     let base = crate::emulators::find_definition(emulator_id, &config)
         .ok_or_else(|| "Unknown emulator".to_owned())?;
     let definition = crate::emulators::selected_definition(&base, &config, emulator_id);
@@ -705,11 +1459,18 @@ pub fn launch_game(app: AppHandle, state: State<'_, AppState>, id: String) -> Re
                 )
             })?;
     #[cfg(not(target_os = "android"))]
-    let template = system
-        .get("args")
-        .and_then(Value::as_str)
-        .or_else(|| definition.get("args").and_then(Value::as_str))
-        .unwrap_or("{rom}");
+    let template = if emulator_id == system.get("emulator").and_then(Value::as_str).unwrap_or("") {
+        system
+            .get("args")
+            .and_then(Value::as_str)
+            .or_else(|| definition.get("args").and_then(Value::as_str))
+            .unwrap_or("{rom}")
+    } else {
+        definition
+            .get("args")
+            .and_then(Value::as_str)
+            .unwrap_or("{rom}")
+    };
     #[cfg(not(target_os = "android"))]
     let args: Vec<String> = split_args(template)
         .into_iter()
@@ -806,7 +1567,21 @@ fn scan(
                 .filter_map(|r| r.as_path().cloned())
                 .filter(|p| p.is_dir())
                 .collect();
-        if dirs.is_empty() {
+        let extra_entries: Vec<Value> = config
+            .get("extraGames")
+            .and_then(Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter(|x| x.get("system").and_then(Value::as_str) == Some(id))
+                    .filter(|x| {
+                        let path = x.get("path").and_then(Value::as_str).unwrap_or("");
+                        !path.is_empty() && (is_content_uri(path) || Path::new(path).exists())
+                    })
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        if dirs.is_empty() && extra_entries.is_empty() {
             continue;
         }
         let mut files = Vec::new();
@@ -821,6 +1596,47 @@ fn scan(
                 &extensions,
                 &mut files,
             );
+        }
+        for entry in &extra_entries {
+            let entry_id = entry
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned();
+            let entry_path = entry
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned();
+            let entry_title = entry
+                .get("title")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned);
+            let file_name = Path::new(&entry_path)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_owned();
+            if file_name.is_empty() {
+                continue;
+            }
+            let file_path = PathBuf::from(&entry_path);
+            let parent = file_path
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."));
+            files.push(RomFile {
+                name: file_name,
+                path: file_path,
+                root: parent,
+                root_index: 0,
+                size: None,
+                is_dump: false,
+                added: Some(entry_id),
+                title_override: entry_title,
+            });
         }
         let playlists: HashSet<String> = files
             .iter()
@@ -884,13 +1700,20 @@ fn scan(
             } else {
                 format!("{}:{}", file.root_index, relative)
             };
-            let title = metadata
-                .get("title")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-                .unwrap_or_else(|| display_title(&base));
+            let game_id = if let Some(added) = file.added.clone() {
+                format!("{id}:added:{added}")
+            } else {
+                format!("{id}:{suffix}")
+            };
+            let title = file.title_override.clone().unwrap_or_else(|| {
+                metadata
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| display_title(&base))
+            });
             Game {
-                id: format!("{id}:{suffix}"),
+                id: game_id,
                 system: id.to_owned(),
                 rom_path: file.path.to_string_lossy().to_string(),
                 base,
@@ -898,6 +1721,13 @@ fn scan(
                 info: Value::Object(metadata),
                 media,
                 shell,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: file.added.clone(),
             }
         });
         games.extend(system_games);
@@ -957,6 +1787,8 @@ fn walk_roms(
                     root_index,
                     size: Some(9_000_000_000),
                     is_dump: true,
+                    added: None,
+                    title_override: None,
                 });
                 return;
             }
@@ -978,6 +1810,8 @@ fn walk_roms(
                     path: path.clone(),
                     root: root.to_path_buf(),
                     root_index,
+                    added: None,
+                    title_override: None,
                 });
             } else if depth < 4 && !skip_dir(&entry.name) {
                 walk_roms(listings, root, path, root_index, depth + 1, extensions, out);
@@ -990,6 +1824,8 @@ fn walk_roms(
                 path: path.clone(),
                 root: root.to_path_buf(),
                 root_index,
+                added: None,
+                title_override: None,
             });
         }
     }
@@ -1018,9 +1854,28 @@ fn skip_dir(name: &str) -> bool {
     )
 }
 
+fn switch_title_id(name: &str) -> Option<(String, u32)> {
+    static TITLE_ID: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = TITLE_ID.get_or_init(|| regex::Regex::new(r"\[(?i)([0-9a-f]{16})\]").unwrap());
+    let caps = re.captures(name)?;
+    let id = u64::from_str_radix(caps.get(1)?.as_str(), 16).ok()?;
+    let base = format!("{:016x}", id & !0x1fff_u64);
+    Some((base, (id & 0x1fff_u64) as u32))
+}
+
+fn switch_group_key(name: &str) -> Option<String> {
+    switch_title_id(name).map(|(base, _)| base)
+}
+
 fn copy_score(file: &RomFile) -> i64 {
+    if file.added.is_some() {
+        return i64::MAX;
+    }
     let name = file.name.to_lowercase();
     let mut score: i64 = 0;
+    if let Some((_, part)) = switch_title_id(&file.name) {
+        score += if part == 0 { 8 } else { -8 };
+    }
     if name.contains("(u)")
         || name.contains("(usa")
         || name.contains("(us)")
@@ -1096,11 +1951,16 @@ fn select_best_roms(
             .and_then(|s| s.to_str())
             .unwrap_or(&file.name)
             .to_owned();
-        let normalized = loose_key(&base);
-        let key = if normalized.is_empty() {
-            base.to_lowercase()
+        // Switch updates/DLC group by title ID base instead of file name.
+        let key = if let Some(group) = switch_group_key(&file.name) {
+            format!("switch:{group}")
         } else {
-            normalized
+            let normalized = loose_key(&base);
+            if normalized.is_empty() {
+                base.to_lowercase()
+            } else {
+                normalized
+            }
         };
         groups.entry(key).or_default().push(file);
     }
@@ -1771,6 +2631,8 @@ mod library_tests {
             root_index: 0,
             size: None,
             is_dump: false,
+            added: None,
+            title_override: None,
         }
     }
 
@@ -1805,6 +2667,13 @@ mod library_tests {
                 ("manual".to_owned(), "/media/manual.pdf".to_owned()),
             ]),
             shell: Some("#a1b2c3".to_owned()),
+            hidden: false,
+            scanned_title: Some("Game".to_owned()),
+            custom_title: false,
+            version: None,
+            media_type: None,
+            emulator: None,
+            added: None,
         };
 
         let payload = serde_json::to_value(game).unwrap();
@@ -1815,6 +2684,9 @@ mod library_tests {
         assert_eq!(payload["media"]["front"], "file:///media/front.png");
         assert_eq!(payload["media"]["manual"], "/media/manual.pdf");
         assert_eq!(payload["shell"], "#a1b2c3");
+        assert_eq!(payload["hidden"], false);
+        assert_eq!(payload["scannedTitle"], "Game");
+        assert_eq!(payload["customTitle"], false);
     }
 
     #[test]
@@ -1855,6 +2727,144 @@ mod library_tests {
             display_title("Legend of Zelda, The - Ocarina (USA)"),
             "The Legend of Zelda - Ocarina"
         );
+    }
+
+    #[test]
+    fn switch_updates_and_dlc_group_with_their_base_game() {
+        let selected = select(vec![
+            rom_file("Game [0100abcd12340000][v0].nsp"),
+            rom_file("Game [0100abcd12340800][v0].nsp"),
+            rom_file("Game [0100abcd12341000][v0].nsp"),
+        ]);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(
+            selected.values().next().unwrap().name,
+            "Game [0100abcd12340000][v0].nsp"
+        );
+        assert_eq!(
+            switch_group_key("Game [0100ABCD12340800][v0].nsp"),
+            Some("0100abcd12340000".to_owned())
+        );
+        assert_eq!(switch_group_key("Game.nsp"), None);
+    }
+
+    #[test]
+    fn apply_library_state_carries_hidden_renames_and_emulator_overrides() {
+        let config = json!({
+            "favorites": [],
+            "hiddenGames": ["snes:secret"],
+            "gameDetails": {"snes:zelda": {"title": "Custom Zelda", "version": "1.01", "mediaType": "disc"}},
+            "gameEmulators": {"snes:zelda": "snes9x"},
+            "gameOrders": {},
+            "recentlyPlayed": [],
+            "showFavoritesOnly": false,
+            "showRecentlyPlayed": false,
+            "sortKey": "title",
+            "sortAsc": true
+        });
+        let mut games = vec![
+            Game {
+                id: "snes:zelda".to_owned(),
+                system: "snes".to_owned(),
+                rom_path: String::new(),
+                base: "zelda".to_owned(),
+                title: "Zelda".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+                shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
+            },
+            Game {
+                id: "snes:secret".to_owned(),
+                system: "snes".to_owned(),
+                rom_path: String::new(),
+                base: "secret".to_owned(),
+                title: "Secret".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+                shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
+            },
+        ];
+        super::apply_library_state(&mut games, &config);
+        let zelda = games.iter().find(|g| g.id == "snes:zelda").unwrap();
+        assert_eq!(zelda.title, "Custom Zelda");
+        assert_eq!(zelda.scanned_title.as_deref(), Some("Zelda"));
+        assert!(zelda.custom_title);
+        assert_eq!(zelda.version.as_deref(), Some("1.01"));
+        assert_eq!(zelda.media_type.as_deref(), Some("disc"));
+        assert_eq!(zelda.emulator.as_deref(), Some("snes9x"));
+        assert!(!zelda.hidden);
+        let secret = games.iter().find(|g| g.id == "snes:secret").unwrap();
+        assert!(secret.hidden);
+        assert_eq!(secret.title, "Secret");
+    }
+
+    #[test]
+    fn apply_library_state_honours_custom_order_per_system() {
+        let config = json!({
+            "favorites": [],
+            "hiddenGames": [],
+            "gameDetails": {},
+            "gameEmulators": {},
+            "gameOrders": {"snes": ["snes:b", "snes:a"]},
+            "recentlyPlayed": [],
+            "showFavoritesOnly": false,
+            "showRecentlyPlayed": false,
+            "sortKey": "custom",
+            "sortAsc": true
+        });
+        let mut games = vec![
+            Game {
+                id: "snes:a".to_owned(),
+                system: "snes".to_owned(),
+                rom_path: String::new(),
+                base: "a".to_owned(),
+                title: "Apple".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+                shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
+            },
+            Game {
+                id: "snes:b".to_owned(),
+                system: "snes".to_owned(),
+                rom_path: String::new(),
+                base: "b".to_owned(),
+                title: "Zebra".to_owned(),
+                info: Value::Null,
+                media: HashMap::new(),
+                shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
+            },
+        ];
+        super::apply_library_state(&mut games, &config);
+        assert_eq!(games[0].id, "snes:b");
+        assert_eq!(games[1].id, "snes:a");
     }
 
     #[test]
@@ -1950,6 +2960,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "nes:mario".to_owned(),
@@ -1960,6 +2977,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "ps1:finalfantasy".to_owned(),
@@ -1970,6 +2994,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
         ];
         super::apply_library_state(&mut games, &config);
@@ -1999,6 +3030,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "snes:zelda".to_owned(),
@@ -2009,6 +3047,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "ps1:ff".to_owned(),
@@ -2019,6 +3064,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
         ];
         super::apply_library_state(&mut games, &config);
@@ -2048,6 +3100,13 @@ mod library_tests {
             info: Value::Null,
             media: HashMap::new(),
             shell: None,
+            hidden: false,
+            scanned_title: None,
+            custom_title: false,
+            version: None,
+            media_type: None,
+            emulator: None,
+            added: None,
         }];
         super::apply_library_state(&mut games, &config);
         // Crash Bandicoot should be injected (not in original library).
@@ -2068,6 +3127,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "b".to_owned(),
@@ -2078,6 +3144,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "c".to_owned(),
@@ -2088,6 +3161,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
         ];
         let config_asc = json!({"favorites":[],"showFavoritesOnly":false,"showRecentlyPlayed":false,"recentlyPlayed":[],"recentlyPlayedLimit":20,"sortKey":"title","sortAsc":true});
@@ -2105,6 +3185,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "b".to_owned(),
@@ -2115,6 +3202,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
             Game {
                 id: "c".to_owned(),
@@ -2125,6 +3219,13 @@ mod library_tests {
                 info: Value::Null,
                 media: HashMap::new(),
                 shell: None,
+                hidden: false,
+                scanned_title: None,
+                custom_title: false,
+                version: None,
+                media_type: None,
+                emulator: None,
+                added: None,
             },
         ];
         super::apply_library_state(&mut games2, &config_desc);
@@ -2142,6 +3243,8 @@ mod library_tests {
                 root_index: 0,
                 size: None,
                 is_dump: false,
+                added: None,
+                title_override: None,
             },
             RomFile {
                 name: "Game (USA) (Disc 2).chd".to_owned(),
@@ -2150,6 +3253,8 @@ mod library_tests {
                 root_index: 1,
                 size: None,
                 is_dump: false,
+                added: None,
+                title_override: None,
             },
         ];
         let best = select(files);
@@ -2165,6 +3270,8 @@ mod library_tests {
                 root_index: 0,
                 size: None,
                 is_dump: false,
+                added: None,
+                title_override: None,
             },
             RomFile {
                 name: "Game (USA) (Disc 2).chd".to_owned(),
@@ -2173,6 +3280,8 @@ mod library_tests {
                 root_index: 1,
                 size: None,
                 is_dump: false,
+                added: None,
+                title_override: None,
             },
         ];
         let best2 = select(files2);
@@ -2228,6 +3337,13 @@ mod library_tests {
             info: Value::Null,
             media: HashMap::new(),
             shell: Some("#123abc".to_owned()),
+            hidden: false,
+            scanned_title: None,
+            custom_title: false,
+            version: None,
+            media_type: None,
+            emulator: None,
+            added: None,
         }];
         let raw = serde_json::to_string(&games).unwrap();
         let sizes = HashMap::from([("/roms/game.sfc".to_owned(), 42)]);

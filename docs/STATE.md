@@ -6,9 +6,9 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 ## Next action
 
-The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is now complete (D09 closed below).
+The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), and **M03 — Collection administration and per-game controls** are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
 
-**Next action:** Start **P10 / M03 — Collection administration and per-game controls** from `docs/slices/NEXT.md`.
+**Next action:** Start **P11 / M04 — Artwork and manual workflows** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -144,6 +144,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the new preload is a dev-only Electron fixture, not the predecessor.
   - Seed PASS: P9 row prices 18 files at 64,165 tokens, seed 64,158 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 166,813/225,000 tokens (74%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
 
+- **P10 / M03 — Collection administration and per-game controls.** Added backend-owned collection state behind the Tauri bridge: `hiddenGames`, `gameDetails` (title/version/mediaType overrides with `scannedTitle`/`customTitle`), `gameEmulators` (per-game emulator or `__direct`), and `gameOrders` (drag order), all migration-safe via `merge_config`/`config_for_save` so renderer `set_config` cannot overwrite them. New commands `set_game_hidden`, `set_system_games_hidden`, `set_game_metadata`, `set_game_emulator`, `save_game_order`, `add_game` (async file picker), `remove_game`, and `list_extra_games`; `scan` now injects `extraGames` and groups Switch updates/DLC by title ID (base clears low 13 bits, base scores +8). `launch_game` honours per-game emulator overrides and both system/per-game direct launch (program spawn vs `opener` for shortcuts). Renderer: per-game **Favourite/Hide/Emulator/Edit details** buttons, right-click menu, rename/details/emulator dialogs, **Settings → Hidden games** list with **Restore**, per-system **Show** checkbox and **Remove** for custom systems, **+ Add system/game** forms with *Games you added*, **Run the file itself** in the emulator pickers, hidden/system-hidden filtering on every shelf, and drag-to-reorder under the Custom sort. Recomp (Windows-only) and Leia SR excluded; Electron `release.yml`/`checks.yml` not restored.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (47 passed, 5 new), `cargo check --manifest-path src-tauri/Cargo.toml` (existing dead-code warnings), `node --check renderer/app.js`, `node --check renderer/tauri-bridge.js`, `node --check renderer/library-ui.js`, `node --check scripts/check-library-ui.cjs`, and `node --check scripts/readme-preload.cjs`. `node scripts/check-library-ui.cjs` could not run on this host (`spawn tauri-driver ENOENT`, no Linux ARM64 release binary on macOS); its new M03 bridge/dialog assertions are syntax-checked but unexecuted. No visual inspection was performed.
+  - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
+  - Seed PASS: P10 row prices 11 files at 101,903 tokens, seed 101,898 tokens under the 225,000 work budget. Post-commit guard to be recorded after the commit. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -155,7 +160,7 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [COMPLETE] Committed as `7c04a03`.
 - **P8 / D08 — In-app feedback reporting.** [COMPLETE] Committed as `97ed95c`.
 - **P9 / D09 — Demo capture, docs, and delta audit close-out.** [COMPLETE] Committed as D09 (see entry above; 2026-11-06..08 delta queue closed).
-- **P10 / M03 — Collection administration and per-game controls.** [PENDING] Depends on D09. Absorbs the details editor, hidden list, drag order and Recomp menus added in `64a5ba6`.
+- **P10 / M03 — Collection administration and per-game controls.** [COMPLETE] Committed (see entry above; details editor, hidden list, and drag order absorbed from `64a5ba6` where they fit Tauri; Recomp excluded as Windows-only).
 - **P11 / M04 — Artwork and manual workflows.** [PENDING] Depends on M03. Cover providers are D07; this keeps LaunchBox/ScreenScraper comparison and manual discovery/download/viewing.
 - **P12 / M05 — Platform-aware launch and emulator behaviour.** [PENDING] Depends on M03.
 - **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05; D09 already closes the renderer checks and docs it covers.

@@ -15,7 +15,7 @@ const catalog = JSON.parse(fs.readFileSync(path.join(root, 'emulators.json'), 'u
 const config = {systems, emulators:{}, customEmulators:[], hideWhilePlaying:true, launchAnimation:true,
   mediaRoot:'', checkUpdates:true, promptFamily:'auto', motion:'auto', eShopStyle:'enhanced',
   libraryTheme:'ember', libraryLayout:'carousel', uiSound:{enabled:false, volume:.25}, ambient:{idleMinutes:60, background:'ribbon'},
-  extraGames:[], favorites:[], recentlyPlayed:[], sortKey:'title', sortAsc:true,
+  extraGames:[], favorites:[], hiddenGames:[], gameDetails:{}, gameEmulators:{}, gameOrders:{}, recentlyPlayed:[], sortKey:'title', sortAsc:true,
   showFavoritesOnly:false, showRecentlyPlayed:false, recentlyPlayedLimit:20};
 const installed = new Set(['duckstation', 'pcsx2', 'mgba']);
 const emus = catalog.map(e => ({id:e.id, name:e.name, systems:e.systems, repo:e.source?.repo ?? e.repo, officialRepo:e.source?.repo ?? e.repo, managed:true,
@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('api', {
   getConfig:async()=>config, setConfig:async c=>Object.assign(config, c), scan:async()=>[], cachedLibrary:async()=>null,
   toggleFavorite:async()=>[], recordPlay:async()=>true, updateLibraryPrefs:async()=>true,
   getFavorites:async()=>[], getRecentlyPlayed:async()=>[],
+  setHidden:async()=>({hidden:false}), setSystemGamesHidden:async()=>[], setMetadata:async()=>({}), setGameEmulator:async()=>({}), saveGameOrder:async()=>[],
+  addGame:async()=>null, removeGame:async()=>true, gameList:async()=>[],
   emuList:async()=>emus, emuCheck:async()=>({upToDate:true}), emuInstall:async()=>true, emuUninstall:async()=>true,
   emuOpenFolder:async()=>true, emuPickExe:async()=>null, emuAddCustom:async()=>true,
   fetchArt:async()=>null, artStart:async()=>false, artCancel:async()=>true, artOpenFolder:async()=>true, artImport:async()=>({}),
