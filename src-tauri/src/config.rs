@@ -9,7 +9,7 @@ const SYSTEMS: &str = r###"[
   {"id":"ps4","name":"PlayStation 4","caseType":"bluray","media":"disc","color":"#1a4fb5","extensions":[".pkg"],"emulator":"shadps4"},
   {"id":"psp","name":"PSP","caseType":"umd","media":"disc","color":"#111111","extensions":[".iso",".cso",".chd"],"emulator":"ppsspp","libretro":"Sony - PlayStation Portable"},
   {"id":"switch","name":"Nintendo Switch","caseType":"switch","media":"cart","color":"#e60012","extensions":[".nsp",".xci",".nsz"],"emulator":"","artworkProvider":"gametdb-switch"},
-  {"id":"switch2","name":"Nintendo Switch 2","caseType":"switch","media":"cart","color":"#d0021b","extensions":[".nsp",".xci",".nsz",".xcz"],"emulator":"","artworkProvider":"gametdb-switch"},
+  {"id":"switch2","name":"Nintendo Switch 2","caseType":"switch","media":"cart","color":"#d0021b","extensions":[".nsp",".xci",".nsz",".xcz",".nup"],"emulator":"","artworkProvider":"gametdb-switch"},
   {"id":"wiiu","name":"Wii U","caseType":"dvd","media":"disc","color":"#1a9ad6","extensions":[".wua",".wud",".wux",".rpx"],"emulator":"cemu","libretro":"Nintendo - Wii U"},
   {"id":"wii","name":"Wii","caseType":"dvd","media":"disc","color":"#e9eef2","extensions":[".rvz",".wbfs",".iso"],"emulator":"","libretro":"Nintendo - Wii"},
   {"id":"gc","name":"GameCube","caseType":"gc","media":"disc","color":"#5a4a9c","extensions":[".rvz",".iso",".gcm",".ciso"],"emulator":"","libretro":"Nintendo - GameCube"},
@@ -25,6 +25,7 @@ const SYSTEMS: &str = r###"[
   {"id":"genesis","name":"Sega Genesis","caseType":"dvd","media":"cart","color":"#1b1b1b","extensions":[".md",".gen",".smd",".zip"],"emulator":"","libretro":"Sega - Mega Drive - Genesis"},
   {"id":"xbox","name":"Xbox","caseType":"dvd","media":"disc","color":"#1c8a2e","extensions":[".iso",".xiso"],"emulator":"xemu","libretro":"Microsoft - Xbox"},
   {"id":"x360","name":"Xbox 360","caseType":"dvd","media":"disc","color":"#7cbb00","extensions":[".iso",".xex",".zar"],"emulator":"","libretro":"Microsoft - Xbox 360"},
+  {"id":"pc","name":"PC Games","caseType":"dvd","media":"disc","color":"#3b82f6","extensions":[".lnk",".url",".exe"],"emulator":"","direct":true},
   {"id":"a2600","name":"Atari 2600","caseType":"nesbox","media":"cart","color":"#a0522d","extensions":[".a26",".zip"],"emulator":"","libretro":"Atari - 2600"},
   {"id":"arcade","name":"Arcade","caseType":"bigbox","media":"cart","color":"#d4a017","extensions":[".zip"],"emulator":"","libretro":"MAME"}
 ]"###;
@@ -58,7 +59,8 @@ pub fn default_config() -> Value {
         "sortAsc": true,
         "showFavoritesOnly": false,
         "showRecentlyPlayed": false,
-        "recentlyPlayedLimit": 20
+        "recentlyPlayedLimit": 20,
+        "migrations": []
     })
 }
 
@@ -169,6 +171,47 @@ pub fn merge_config(saved: Value) -> Result<Value, String> {
             .cloned()
             .unwrap_or_else(|| json!(20));
     }
+    if !merged.get("migrations").is_some_and(Value::is_array) {
+        merged["migrations"] = saved
+            .get("migrations")
+            .cloned()
+            .unwrap_or_else(|| json!([]));
+    }
+    // One-time file-type migration; a type the user removes afterwards stays removed.
+    let mut done: Vec<String> = merged["migrations"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    if !done.contains(&"ext-switch2-nup".to_owned()) {
+        if let Some(switch2) = merged["systems"].as_array_mut().and_then(|s| {
+            s.iter_mut()
+                .find(|s| s.get("id").and_then(Value::as_str) == Some("switch2"))
+        }) {
+            let extensions = switch2
+                .as_object_mut()
+                .map(|o| o.entry("extensions").or_insert_with(|| json!([])).clone())
+                .unwrap_or_else(|| json!([]));
+            let needs_nup = !extensions
+                .as_array()
+                .is_some_and(|e| e.iter().any(|v| v == ".nup"));
+            if needs_nup {
+                if let Some(object) = switch2.as_object_mut() {
+                    if let Some(e) = object.get_mut("extensions").and_then(Value::as_array_mut) {
+                        e.push(json!(".nup"));
+                    } else {
+                        object.insert("extensions".to_owned(), json!([".nup"]));
+                    }
+                }
+            }
+        }
+        done.push("ext-switch2-nup".to_owned());
+        merged["migrations"] = json!(done);
+    }
     Ok(merged)
 }
 
@@ -234,6 +277,10 @@ pub fn config_for_save(incoming: Value, current: &Value) -> Result<Value, String
         .get("recentlyPlayedLimit")
         .cloned()
         .unwrap_or_else(|| json!(20));
+    next["migrations"] = current
+        .get("migrations")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
     Ok(next)
 }
 
@@ -295,7 +342,7 @@ mod tests {
     #[test]
     fn defaults_include_the_current_system_catalog() {
         let config = default_config();
-        assert_eq!(config["systems"].as_array().unwrap().len(), 24);
+        assert_eq!(config["systems"].as_array().unwrap().len(), 25);
         assert_eq!(config["systems"][0]["romDir"], "");
         assert_eq!(config["uiSound"]["volume"], 0.25);
         assert_eq!(config["extraGames"], json!([]));
@@ -303,6 +350,27 @@ mod tests {
         assert_eq!(config["gameDetails"], json!({}));
         assert_eq!(config["gameEmulators"], json!({}));
         assert_eq!(config["gameOrders"], json!({}));
+        let pc = config["systems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == "pc")
+            .expect("pc system");
+        assert_eq!(pc["direct"], true);
+        assert_eq!(pc["extensions"], json!([".lnk", ".url", ".exe"]));
+        let switch2 = config["systems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == "switch2")
+            .expect("switch2 system");
+        assert!(
+            switch2["extensions"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(".nup"))
+        );
+        assert_eq!(config["migrations"], json!([]));
     }
 
     #[test]
@@ -333,8 +401,15 @@ mod tests {
         assert_eq!(merged["mediaRoot"], "/media/art");
         assert_eq!(merged["systems"][0]["romDir"], "/roms/ps1");
         assert_eq!(merged["systems"][0]["name"], "My PlayStation");
-        assert_eq!(merged["systems"].as_array().unwrap().len(), 24);
+        assert_eq!(merged["systems"].as_array().unwrap().len(), 25);
         assert_eq!(merged["customEmulators"][0]["id"], "custom-one");
+        assert!(
+            merged["systems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|s| s["id"] == "pc")
+        );
     }
 
     #[test]
@@ -350,16 +425,59 @@ mod tests {
     }
 
     #[test]
+    fn merge_migrates_switch2_nup_once() {
+        let saved = json!({
+            "systems": [
+                {"id":"switch2","romDir":"/roms","extensions":[".nsp",".xci",".nsz",".xcz"]}
+            ]
+        });
+        let merged = merge_config(saved).unwrap();
+        let switch2 = merged["systems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == "switch2")
+            .unwrap();
+        assert!(
+            switch2["extensions"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(".nup"))
+        );
+        assert!(
+            merged["migrations"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("ext-switch2-nup"))
+        );
+        // A user-removed type stays removed once the migration has run.
+        let saved2 = json!({
+            "systems": [
+                {"id":"switch2","romDir":"/roms","extensions":[".nsp"]}
+            ],
+            "migrations": ["ext-switch2-nup"]
+        });
+        let merged2 = merge_config(saved2).unwrap();
+        let switch2b = merged2["systems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == "switch2")
+            .unwrap();
+        assert_eq!(switch2b["extensions"], json!([".nsp"]));
+    }
+
+    #[test]
     fn renderer_settings_cannot_overwrite_backend_owned_emulator_state() {
-        let current =
-            json!({"emulators":{"one":{"exe":"/safe/path"}},"customEmulators":[{"id":"local"}]});
+        let current = json!({"emulators":{"one":{"exe":"/safe/path"}},"customEmulators":[{"id":"local"}],"migrations":["ext-switch2-nup"]});
         let next = config_for_save(
-            json!({"systems":[],"emulators":{},"customEmulators":[]}),
+            json!({"systems":[],"emulators":{},"customEmulators":[],"migrations":[]}),
             &current,
         )
         .unwrap();
         assert_eq!(next["emulators"]["one"]["exe"], "/safe/path");
         assert_eq!(next["customEmulators"][0]["id"], "local");
+        assert_eq!(next["migrations"], json!(["ext-switch2-nup"]));
     }
 
     #[test]

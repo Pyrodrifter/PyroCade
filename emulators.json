@@ -111,7 +111,7 @@
             "repo": "RPCS3/rpcs3-binaries-win",
             "prerelease": false
           },
-          "asset": "_win64\\.7z$",
+          "asset": "_win64(_msvc)?\\.7z$",
           "exe": "^rpcs3\\.exe$"
         }
       },

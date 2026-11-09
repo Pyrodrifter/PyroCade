@@ -1101,6 +1101,22 @@ mod tests {
     }
 
     #[test]
+    fn rpcs3_windows_asset_matches_the_msvc_variant() {
+        let catalog: Vec<Value> = serde_json::from_str(CATALOG).unwrap();
+        let rpcs3 = catalog
+            .iter()
+            .find(|entry| entry.get("id").and_then(Value::as_str) == Some("rpcs3"))
+            .unwrap();
+        let pattern = rpcs3
+            .pointer("/platforms/windows/x86_64/asset")
+            .and_then(Value::as_str)
+            .unwrap();
+        let matcher = regex::Regex::new(&format!("(?i){pattern}")).unwrap();
+        assert!(matcher.is_match("rpcs3-v0.0.35_win64.7z"));
+        assert!(matcher.is_match("rpcs3-v0.0.35_win64_msvc.7z"));
+    }
+
+    #[test]
     fn zip_archives_with_parent_paths_are_rejected() {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../localTmp")

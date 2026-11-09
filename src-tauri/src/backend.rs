@@ -1749,6 +1749,16 @@ fn scan(
             continue;
         }
         let mut files = Vec::new();
+        // Direct systems scan only the top folder, because game folders hold helper binaries.
+        let start_depth = if system
+            .get("direct")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            4
+        } else {
+            0
+        };
         for (root_index, root) in dirs.iter().enumerate() {
             allow_tree(app, root);
             walk_roms(
@@ -1756,7 +1766,7 @@ fn scan(
                 root,
                 root,
                 root_index,
-                0,
+                start_depth,
                 &extensions,
                 &mut files,
             );
@@ -3110,6 +3120,43 @@ mod library_tests {
             out.iter().find(|f| f.name == "Game One.app").unwrap().size,
             Some(0)
         );
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    // Direct systems start at depth 4: the same walk contract as scan uses.
+    #[test]
+    fn direct_depth_skips_nested_helper_binaries() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../localTmp")
+            .join(format!("pyrocade-direct-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(root.join("Game One")).unwrap();
+        fs::write(root.join("Game One/play.exe"), [0u8; 7]).unwrap();
+        fs::write(root.join("Top.exe"), [0u8; 7]).unwrap();
+        let extensions: HashSet<String> = [".exe"].iter().map(|s| s.to_string()).collect();
+        let mut shallow = Vec::new();
+        walk_roms(
+            &ScanListings::default(),
+            &root,
+            &root,
+            0,
+            4,
+            &extensions,
+            &mut shallow,
+        );
+        let names: Vec<_> = shallow.iter().map(|f| f.name.as_str()).collect();
+        assert!(names.contains(&"Top.exe"));
+        assert!(!names.contains(&"play.exe"));
+        let mut deep = Vec::new();
+        walk_roms(
+            &ScanListings::default(),
+            &root,
+            &root,
+            0,
+            0,
+            &extensions,
+            &mut deep,
+        );
+        assert!(deep.iter().any(|f| f.name == "play.exe"));
         fs::remove_dir_all(&root).unwrap();
     }
 
