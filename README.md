@@ -20,7 +20,7 @@ A glass-styled emulator front end with a 3D library, animated physical media, si
 
 The Android app requires Android 7.0 (API 24) or newer. Settings and managed data use app-private storage, and PyroCade does not request broad external-storage access. ROM-folder selection uses Android's Storage Access Framework; linked Android emulator apps can be launched with the selected ROM URI. Android emulator packages are separate apps, not the desktop executables managed by the macOS/Linux downloader. See [platform validation](docs/SUPPORT.md) for tested-device details and remaining validation limits.
 
-Download desktop builds and the signed Android APK from the [latest release](https://github.com/Pyrodrifter/PyroCade/releases/latest).
+Download signed macOS and Android builds, plus the other platform artifacts, from the [latest release](https://github.com/kaicherry/PyroCade/releases/latest).
 
 ## Run from source
 

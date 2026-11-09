@@ -99,8 +99,8 @@ const LibraryUI=(()=>{
   }
   function select(){
     const s=context.getState();
-    for(const b of $('#systems').querySelectorAll('button')){const active=b.dataset.id===s.system;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));b.tabIndex=active?0:-1}
-    const active=$('#systems button.active');active?.scrollIntoView({inline:'center',block:'nearest',behavior:smooth()});
+    for(const b of $('#systems').querySelectorAll(':scope > button')){const active=b.dataset.id===s.system;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));b.tabIndex=active?0:-1}
+    const active=$('#systems > button.active');active?.scrollIntoView({inline:'center',block:'nearest',behavior:smooth()});
     $('#clearSearch').classList.toggle('hidden',!$('#search').value);$('.search-shortcut').classList.toggle('hidden',!!$('#search').value);
     const name=entries.find(e=>e.id===s.system)?.name||'All games';
     $('#searchSummary').textContent=s.query?`${s.list.length.toLocaleString()} matches in ${name}`:`${s.list.length.toLocaleString()} games · ${name}`;
@@ -124,7 +124,7 @@ const LibraryUI=(()=>{
     $('#systemSearch').value='';renderPicker();$('#systemPicker').showModal();$('#btnSystemPicker').setAttribute('aria-expanded','true');$('#systemSearch').focus();
   }
   function movePicker(direction){
-    const cards=[...$('#systemPickerGrid').querySelectorAll('button')];if(!cards.length)return;
+    const cards=[...$('#systemPickerGrid').querySelectorAll(':scope > button')];if(!cards.length)return;
     if(document.activeElement.id==='systemPickerAppearance'){cards[Math.max(0,cards.length-1)].focus();return;}
     const columns=getComputedStyle($('#systemPickerGrid')).gridTemplateColumns.split(' ').length;
     const i=cards.indexOf(document.activeElement),step=direction==='left'?-1:direction==='right'?1:direction==='up'?-columns:columns;
@@ -158,7 +158,7 @@ const LibraryUI=(()=>{
     $('#systems').addEventListener('wheel',e=>{if(e.ctrlKey||$('#systems').scrollWidth<=$('#systems').clientWidth)return;e.preventDefault();$('#systems').scrollLeft+=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY},{passive:false});
     $('#systems').addEventListener('keydown',e=>{
       if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key))return;
-      e.preventDefault();e.stopPropagation();const buttons=[...$('#systems').querySelectorAll('button')],i=buttons.indexOf(document.activeElement);
+      e.preventDefault();e.stopPropagation();const buttons=[...$('#systems').querySelectorAll(':scope > button')],i=buttons.indexOf(document.activeElement);
       const n=e.key==='Home'?0:e.key==='End'?buttons.length-1:Math.max(0,Math.min(buttons.length-1,i+(['ArrowLeft','ArrowUp'].includes(e.key)?-1:1)));
       buttons[n]?.focus();if(buttons[n])context.select(buttons[n].dataset.id);
     });

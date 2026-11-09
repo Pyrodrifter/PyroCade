@@ -305,7 +305,7 @@ function setSystem(id, edge = null) {
   layout(); showInfo();
 }
 function cycleSystem(dir) {
-  const ids = $$('#systems button').map(b => b.dataset.id);
+  const ids = $$('#systems > button').map(b => b.dataset.id);
   const i = (ids.indexOf(S.system) + dir + ids.length) % ids.length;
   setSystem(ids[i]);
 }
@@ -526,7 +526,7 @@ const byTitle = (a, b) => compareNames(a.title, b.title);
 let consoleNavigation = null;
 function getConsoleNavigation() {
   if (consoleNavigation) return consoleNavigation;
-  const ids = $$('#systems button').map(button => button.dataset.id).filter(id => id !== 'all');
+  const ids = $$('#systems > button').map(button => button.dataset.id).filter(id => id !== 'all');
   const shelves = new Map();
   if (ids.includes(S.system)) {
     for (const id of ids) shelves.set(id, { games: [], sorted: false });
