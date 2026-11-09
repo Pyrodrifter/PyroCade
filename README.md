@@ -2,11 +2,11 @@
 
 ![PyroCade — Your collection. A little more alive.](renderer/assets/brand/pyrocade-banner.png)
 
-A glass-styled emulator front end with a 3D library, animated physical media, four browsing layouts and a built-in emulator downloader and updater.
+A glass-styled emulator front end with a 3D library, animated physical media, six browsing layouts and a built-in emulator downloader and updater.
 
 [![Watch the PyroCade demo](docs/media/pyrocade-demo.jpg)](docs/media/pyrocade-demo.mp4)
 
-**[Watch the 35-second demo](docs/media/pyrocade-demo.mp4)** · [Appearance & sound](#library-appearance-and-sound) · [Controller support](#button-prompts)
+**[Watch the 35-second demo](docs/media/pyrocade-demo.mp4)** · [Appearance & sound](#library-appearance-and-sound) · [Controller support](#button-prompts) · [Screenshots](#screenshots)
 
 ## Supported platforms
 
@@ -42,8 +42,8 @@ The flame and play-button mark, glass app icon, wordmark and banner are in `rend
 
 ## Use
 - **Settings**: set a ROM folder for each system, pick its emulator, then click *Save & rescan*.
-- **Emulators**: *Install* downloads the latest Windows build from the project's official GitHub releases into `data/emulators/<id>`. *Check all for updates* compares your copy with the newest release, and updates are copied over the old files so emulator settings survive. *Use existing .exe…* links an emulator you already have. *Add your own emulator* covers anything not in the list (Eden, Dolphin, RetroArch…).
-- **Library**: ← → to browse, ↑ ↓ to switch system in Carousel/Flipbook, Enter to play, Space to open the case, M for the manual. Vertical stack uses ↑ ↓ to browse; Colour cards uses the arrow keys as a grid. Controllers work too (A play, B back, Y case, X manual, LB/RB system).
+- **Emulators**: *Install* downloads the latest managed build for your operating system and CPU architecture into `data/emulators/<id>`. *Check all for updates* compares your copy with the newest release, and updates are copied over the old files so emulator settings survive. *Use existing .exe…* links an emulator you already have. *Add your own emulator* covers anything not in the list (Eden, Dolphin, RetroArch…).
+- **Library**: ← → to browse, ↑ ↓ to switch system in Carousel/Flipbook, Enter to play, Space to open the case, M for the manual. Vertical stack uses ↑ ↓ to browse; Media carousel uses the arrow keys to browse discs and cartridges directly. Controllers work too (A play, B back, Y case, X manual, LB/RB system). Press **F** to favourite a game, use the filter buttons for Favourites / Recently played, and cycle sort modes from the shelf.
 
 ## Library appearance and sound
 
@@ -51,11 +51,23 @@ The compact 36px systems rail uses translucent glass, console icons, short label
 
 Open **View & theme** in the header for live changes that save automatically:
 
-- **Carousel**, **Vertical stack**, **Flipbook** and **Colour cards** offer different browsing layouts. Every view keeps Play, Open case, Manual and Artwork controls. Colour cards take their background colours from the game art.
+- **Carousel**, **Vertical stack**, **Flipbook**, **Bookshelf**, **Page turn** and **Media carousel** offer different browsing layouts. Every view keeps Play, Open case, Manual and Artwork controls. Media carousel shows each game's disc or cartridge instead of its case; Page turn swings cases across a spine like a book.
 - **Ember**, **Glacier**, **Violet**, **Mint** and **Rose** change the accents, highlights and ambient lighting.
 - **Interface sound** controls synthesized scroll ticks, system-change tones, confirmations, case opening/closing and launch/error cues. Sound starts at 25%; mute, adjust the slider or use Test to preview. Cues are short, throttled and generated locally without downloaded audio or background music.
 
 Keyboard and controller navigation follow the chosen layout. In the system browser, the controller's west face button opens appearance controls; use the D-pad/stick to choose layouts/themes or adjust volume. All visual motion still follows **Settings → Interface motion**. Run `npm run ui:check` to verify navigation, layouts, themes, saved settings, minimum-window sizing and offline-rendered sound.
+
+## Screenshots
+
+| Carousel | Bookshelf |
+| --- | --- |
+| ![Carousel layout with a selected game case](docs/media/screen-carousel.jpg) | ![Bookshelf layout with pulled-out case and details hidden](docs/media/screen-bookshelf.jpg) |
+| **Page turn** | **Media carousel** |
+| ![Page turn layout open like a book](docs/media/screen-page-turn.jpg) | ![Media carousel with discs/cartridges](docs/media/screen-media.jpg) |
+| **Open the case** | **Emulators** |
+| ![Open case with physical media](docs/media/screen-case.jpg) | ![Emulator catalog with install, link and update controls](docs/media/screen-emulators.jpg) |
+
+Screenshots are illustrative of the six layouts and are copied from the upstream showcase; they are not re-captured from the Tauri build on this host. Recreate them with `npm run docs:screens` where the demo capture harness can run, then review against the Tauri WebView.
 
 ## Button prompts
 The frontend includes **283 matching prompts** for Xbox, PlayStation, Nintendo, generic gamepads, keyboard and mouse. Hints and action buttons automatically follow the last input used. Choose a fixed family in **Settings → Button prompts**, then **Save & rescan** to keep it. Face-button actions use physical positions: Nintendo B plays and A goes back. Triggers jump ten games in the library and zoom in the case viewer; the top face button opens/closes the case lid.
@@ -71,7 +83,7 @@ Boxes use system packaging profiles: clear jewel cases and hinges, coloured plas
 
 Raised bevels and layered rim highlights give the shells more depth while leaving cover files intact. Jewel cases, plastic and cardboard have different surface finishes. Move the pointer across the selected box for a soft moving highlight; reduced motion keeps it static. The shelf adds a faint cover reflection and a contact shadow. Open plastic cases include booklet clips and closure latches.
 
-Use the on-screen arrows, mouse wheel, keyboard or controller to browse. Fast scrolling cancels old reveal animations. The shelf resizes around the title, description and screenshot so game details and button prompts remain visible. **Settings → Interface motion** follows Windows by default; choose **Reduced** for instant previews without idle movement, or **Full** for animated media and light. Save & rescan keeps the preference.
+Use the on-screen arrows, mouse wheel, keyboard or controller to browse. Fast scrolling cancels old reveal animations. The shelf resizes around the title, description and screenshot so game details and button prompts remain visible. **Settings → Interface motion** follows Windows by default; choose **Reduced** for instant previews without idle movement, or **Full** for animated media and light. Save & rescan keeps the preference. PyroCade opens on the library it found last time and rescans your folders in the background, redrawing the shelf only if something changed.
 
 Run `npm run carousel:check` for the isolated interaction and layout check. It verifies disc/cartridge reveal, box depth, rapid selection, case open/close cancellation, keyboard focus, empty search, reduced motion and the minimum 1100 × 650 window. Captures are saved under `output/`.
 
@@ -82,7 +94,7 @@ Use the **Artwork** tab for explicit downloads. Choose **Selected game**, **One 
 
 **Refresh matches and retry missing artwork** retrieves fresh source lists and retries previous misses. Existing art is never replaced. Custom artwork in your configured artwork folder or ROM folders takes priority over the download cache. Covers no longer prevent missing screenshots from downloading. Title screens are stored in `data/media/<system>/titlescreens` and shown when no gameplay screenshot is available. **Open artwork folder** opens the download cache.
 
-The built-in sources require no account or API key. The public [Libretro thumbnail archive](https://docs.libretro.com/guides/roms-playlists-thumbnails/) provides covers, gameplay screenshots and title screens for supported retro systems. **Nintendo Switch uses [GameTDB](https://www.gametdb.com/Switch/downloads)** for box covers, back covers and cartridge labels. Choose Nintendo Switch in Artwork, select the available image types, and click Download artwork. Switch screenshots and title screens are disabled because GameTDB does not supply them. Product names are matched after removing filename tags and version numbers; available US, English and Japanese artwork is tried in that order. JPEG covers are normalized to PNG through Electron's image decoder.
+The built-in sources require no account or API key. The public [Libretro thumbnail archive](https://docs.libretro.com/guides/roms-playlists-thumbnails/) provides covers, gameplay screenshots and title screens for supported retro systems. **Nintendo Switch uses [GameTDB](https://www.gametdb.com/Switch/downloads)** for box covers, back covers and cartridge labels. Choose Nintendo Switch in Artwork, select the available image types, and click Download artwork. Switch screenshots and title screens are disabled because GameTDB does not supply them. Product names are matched after removing filename tags and version numbers; available US, English and Japanese artwork is tried in that order. For a front cover when Libretro and GameTDB have no match, PyroCade also asks the [Super Mario Wiki](https://www.mariowiki.com/) (Mario-series games) and the [Internet Archive](https://archive.org/details/softwareboxart) box scans as a last resort, front covers only, never replacing an existing cover. JPEG covers are normalized to PNG.
 
 For any game without a match, open its **Artwork** button and use **Use your own image → Choose image…**. Choose the artwork type, then pick a PNG, JPG or WebP file. The selected type is explicitly replaced and the library updates immediately. This also works for Switch 2 and systems without a downloader source. Images are copied into a per-game artwork folder, so they survive rescanning and restarting; downloads continue to preserve them. Spines, manuals, videos and other images not provided by the selected source can still be supplied through artwork folders.
 
@@ -95,6 +107,12 @@ Run `npm run artwork:check` to verify the download service and the integrated UI
 ## Emulator catalog
 
 Managed emulator downloads are selected by operating system and CPU architecture. The release catalog currently provides macOS and Linux ARM64 packages; Android builds do not offer desktop executables as Android emulator apps. Custom executable linking and process launching are native-path operations and are not a substitute for installing and launching an Android emulator application.
+
+## Report a problem or send feedback
+
+Open **Settings → Feedback → Report a problem or suggest a change**. Choose a problem report or a suggestion, add a summary and description, and use **Continue on GitHub** to review and submit it in your browser. A GitHub account is required, and reports are public. You can attach screenshots on GitHub before submitting.
+
+The form shows the PyroCade version, OS/release/arch, Tauri version and installation that will be included; uncheck the option to leave them out. Logs, local paths, credentials and your game library are not attached automatically. **Copy report** works offline and lets you paste the report into a message or a [new issue](https://github.com/Pyrodrifter/PyroCade/issues/new/choose). You can also report directly using the repository's problem and feedback templates.
 
 ## Your data stays local
 

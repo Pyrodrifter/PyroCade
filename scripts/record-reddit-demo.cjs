@@ -1,15 +1,19 @@
-// Capture an isolated instance of the real app; never records the desktop.
-process.env.PYROCADE_RECORD='1';
+// Capture an isolated instance of the renderer; never records the desktop.
+// Tauri port (D09): the Electron app (main.js/preload.js) is not required.
+// Loads renderer/index.html offscreen through readme-preload.cjs, then runs
+// reddit-demo-timeline.js and records the same 35s demo with ffmpeg.
 const {app,BrowserWindow}=require('electron');
-const fs=require('node:fs'),path=require('node:path'),{spawn}=require('node:child_process'),{once}=require('node:events');
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{spawn}=require('node:child_process'),{once}=require('node:events');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'output/reddit-demo');fs.mkdirSync(out,{recursive:true});
+app.setPath('sessionData',path.join(os.tmpdir(),'PyroCade-reddit-' + process.pid));
 app.commandLine.appendSwitch('force-device-scale-factor','1');
-require('../main.js');
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 app.whenReady().then(async()=>{
   let encoder;
   try{
-    const win=BrowserWindow.getAllWindows()[0],web=win.webContents;win.setContentSize(1920,1080);web.setZoomFactor(1.2);web.setFrameRate(30);
+    const win=new BrowserWindow({show:false,width:1920,height:1080,webPreferences:{preload:path.join(__dirname,'readme-preload.cjs'),sandbox:false,contextIsolation:true,offscreen:true,backgroundThrottling:false}});
+    const web=win.webContents;win.setContentSize(1920,1080);web.setZoomFactor(1.2);web.setFrameRate(30);
+    await win.loadFile(path.join(root,'renderer/index.html'));
     const deadline=Date.now()+90000;
     while(Date.now()<deadline){if(await web.executeJavaScript('!!document.querySelector("#loading.hidden")&&!!S.games.length').catch(()=>false))break;await pause(200)}
     web.setZoomFactor(1.25);await pause(200);
@@ -32,7 +36,7 @@ app.whenReady().then(async()=>{
     }
     encoder.stdin.end();const [exitCode]=await finished;fs.closeSync(log);if(exitCode!==0)throw new Error('Video encoder failed: '+exitCode);
     const result=await recording;fs.writeFileSync(path.join(out,'ui-audio.webm'),Buffer.from(result.audio,'base64'));
-    fs.writeFileSync(path.join(out,'capture-info.json'),JSON.stringify({frames,paintCount,elapsedMs:result.elapsed,resolution:[width,height],fps:30,scenes:['Carousel and cartridge reveal','Open and rotate a Switch 2 case','Vertical stack / Glacier','Flipbook / Violet','Colour cards / Mint','Themes and sound controls','Feedback end card']},null,2));
+    fs.writeFileSync(path.join(out,'capture-info.json'),JSON.stringify({frames,paintCount,elapsedMs:result.elapsed,resolution:[width,height],fps:30,scenes:['Carousel and cartridge reveal','Open and rotate a Switch 2 case','Vertical stack / Glacier','Flipbook / Violet','Media carousel / Mint','Themes and sound controls','Feedback end card']},null,2));
     console.log(`Captured ${frames} frames and UI audio. Encoding upload file…`);
     const final=path.join(root,'output/PyroCade-Reddit-Demo.mp4');
     const mux=spawn('ffmpeg',['-hide_banner','-loglevel','warning','-y','-i',video,'-i',path.join(out,'ui-audio.webm'),'-map','0:v:0','-map','1:a:0','-c:v','copy','-c:a','aac','-b:a','128k','-af','aresample=async=1:first_pts=0,apad,volume=2.4,afade=t=in:st=0:d=0.15,afade=t=out:st=34.3:d=0.7','-t','35','-movflags','+faststart','-metadata','title=PyroCade — emulator frontend showcase',final],{windowsHide:true,stdio:'ignore'});

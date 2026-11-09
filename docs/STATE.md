@@ -6,9 +6,9 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 ## Next action
 
-The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
+The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is now complete (D09 closed below).
 
-**Next action:** Start **P9 / D09 — Demo capture, docs, and delta audit close-out** from `docs/slices/NEXT.md`.
+**Next action:** Start **P10 / M03 — Collection administration and per-game controls** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -139,6 +139,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the new clipboard plugin is a regular crates.io dependency, not the predecessor.
   - Seed PASS: P8 row prices 19 files at 123,482 tokens, seed 123,474 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 140,171/225,000 tokens (62%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
 
+- **P9 / D09 — Demo capture, docs, and delta audit close-out.** Ported `scripts/reddit-demo-timeline.js` to the Media carousel (swatches→media, `select(4)`, Media carousel caption, Appearance caption) and created `scripts/full-demo-timeline.js` verbatim from main (renderer-only, harness-independent). Adapted capture harnesses to the Tauri host: `scripts/capture-readme.cjs` and `scripts/record-reddit-demo.cjs` now load `renderer/index.html` offscreen through a new `scripts/readme-preload.cjs` fixture (systems from `src-tauri/src/config.rs`, catalog from `emulators.json`, full Tauri `window.api` surface) instead of the deleted Electron app `main.js`/`preload.js`; `record-reddit-demo.cjs` also updates its capture-info scene to `Media carousel / Mint`. Copied the nine upstream screenshots (`docs/media/screen-*.jpg`, 205k/228k/180k/155k/68k/67k/98k/140k/21k bytes) from `0310657` as illustrative layout assets. Updated `README.md` (six layouts, Favourites/Recently/sort, Media carousel/Page turn, MarioWiki/Archive fallback, fast-library note, screenshot table, Feedback section), created `CHANGELOG.md` from main with a Tauri fork note, and recorded exclusions (Leia SR presenter, Windows `start.bat`, Electron/Capacitor release path, stray root file `1`) and still-unported `minimal.css`/`physical-models.css` in `docs/SUPPORT.md` and here. Electron is dev-only tooling for capture; no Electron release path or `checks.yml` was restored.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (42 passed), `cargo check --manifest-path src-tauri/Cargo.toml` (existing dead-code warnings), `node --check` on both timelines + both harnesses + `readme-preload.cjs`, `node scripts/check-feedback.cjs` passed, `node scripts/check-artwork.cjs` passed, and `npm start` built `target/debug/pyrocade` without startup error. `node scripts/check-feedback-ui.cjs`, `node scripts/check-artwork-ui.cjs` and the capture harnesses could not run on this host (no Electron runtime/display, no `tauri-driver`, no local artwork for fixture games); recorded, not claimed. No visual inspection was performed.
+  - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the new preload is a dev-only Electron fixture, not the predecessor.
+  - Seed PASS: P9 row prices 18 files at 64,165 tokens, seed 64,158 tokens under the 225,000 work budget. Post-commit guard: WITHIN (see Commit step); session cost within $0.70 ceiling. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -149,7 +154,7 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P6 / D06 — Library cache and parallel Rust scan.** [COMPLETE] Committed as `2fa1983`.
 - **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [COMPLETE] Committed as `7c04a03`.
 - **P8 / D08 — In-app feedback reporting.** [COMPLETE] Committed as `97ed95c`.
-- **P9 / D09 — Demo capture, docs, and delta audit close-out.** [PENDING] Depends on D08.
+- **P9 / D09 — Demo capture, docs, and delta audit close-out.** [COMPLETE] Committed as D09 (see entry above; 2026-11-06..08 delta queue closed).
 - **P10 / M03 — Collection administration and per-game controls.** [PENDING] Depends on D09. Absorbs the details editor, hidden list, drag order and Recomp menus added in `64a5ba6`.
 - **P11 / M04 — Artwork and manual workflows.** [PENDING] Depends on M03. Cover providers are D07; this keeps LaunchBox/ScreenScraper comparison and manual discovery/download/viewing.
 - **P12 / M05 — Platform-aware launch and emulator behaviour.** [PENDING] Depends on M03.

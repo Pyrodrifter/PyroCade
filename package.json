@@ -25,7 +25,8 @@
     "eshop:check": "electron scripts/check-eshop.cjs",
     "brand:build": "electron scripts/build-brand.cjs",
     "brand:check": "electron scripts/check-brand.cjs",
-    "demo:record": "electron scripts/record-reddit-demo.cjs"
+    "demo:record": "electron scripts/record-reddit-demo.cjs",
+    "docs:screens": "electron scripts/capture-readme.cjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
