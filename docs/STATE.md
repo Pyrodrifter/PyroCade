@@ -6,9 +6,9 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 ## Next action
 
-The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), **M03 — Collection administration and per-game controls** (`f94d879`), **M04a — Compatible artwork providers** (`a7ef170`), and **M04b — Manual artwork workflows** are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
+The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), **M03 — Collection administration and per-game controls** (`f94d879`), **M04a — Compatible artwork providers** (`a7ef170`), **M04b — Manual artwork workflows**, **M05a — Platform-aware launch behavior** (`7781cd3`), and **M05b — Emulator metadata and custom game configuration** (`fd5b467`) are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
 
-**Next action:** Start **P12b / M05b — Emulator metadata and custom game configuration** from `docs/slices/NEXT.md`.
+**Next action:** Start **P13 / M06 — Remaining parity checks, release docs and target validation** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -164,6 +164,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the diff touches only `renderer/app.js` and `src-tauri/src/backend.rs` and the deleted Electron files remain absent.
   - Seed PASS: P12a row prices 8 files at 107,666 tokens, seed 107,664 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 87,170/225,000 tokens (39%); session cost $0/$0.70. Do-Not count remains 4; #2 and #4 apply, no new fault was added, and no numbers were withdrawn (the withdrawn 227,654-token M05 row remains the reason for the M05a/M05b split).
 
+- **P12b / M05b — Emulator metadata and custom game configuration.** Source committed as `fd5b467` (`Port emulator metadata and custom PC game configuration (P12b / M05b)`). System defaults now match main where Tauri was missing it: the `pc` PC Games direct system (`.lnk`/`.url`/`.exe`, `direct: true`) that the renderer and artwork maps already assumed, and Switch 2 `.nup` plus its one-time `ext-switch2-nup` migration (`migrations` tracking) so existing configs gain the type once while a user-removed type stays removed. Catalog: RPCS3 Windows asset widened to `_win64(_msvc)?` for the `_msvc` variant main ships; xemu keeps Tauri's stricter positive version patterns, which already exclude debug assets and compile under the runtime regex engine (main's lookahead is unsupported there). Recomp stays excluded as Windows-only per the plan. Direct systems scan only the top folder so helper binaries do not flood the shelf. OS/CPU selection, Android package launch, safe install/extraction, the no-x86-on-ARM64 invariant, and child reaping are unchanged.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (60 passed, 3 new: one-time `.nup` migration, direct-depth scan, RPCS3 `_msvc` asset), `cargo check --manifest-path src-tauri/Cargo.toml` (2 pre-existing warnings: `merge_object` dead code, unused `storage` methods). `npm start` and on-device runtime were not exercised; no visual inspection was performed.
+  - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the diff touches only `emulators.json`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, and `src-tauri/src/emulators.rs`.
+  - Seed PASS: P12b row prices 8 files at 54,150 tokens, seed 54,147 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 124,084/225,000 tokens (55%); session cost $0/$0.70. Do-Not count remains 4; #3 and #4 apply, no new fault was added, and no numbers were withdrawn (the withdrawn 227,654-token M05 row and 225,000-token work budget remain the reason for the M05a/M05b split).
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -179,7 +184,7 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P11a / M04a — Compatible artwork providers.** [COMPLETE] Committed as `a7ef170` (front-cover fallbacks through the Rust artwork service only; manual workflows stay in M04b).
 - **P11b / M04b — Manual artwork workflows.** [COMPLETE] (manual discovery/download/viewing against the M04a provider contract; filesystem-path payload preserved).
 - **P12a / M05a — Platform-aware launch behavior.** [COMPLETE] Committed as `7781cd3`.
-- **P12b / M05b — Emulator metadata and custom game configuration.** [PENDING] Depends on M03.
+- **P12b / M05b — Emulator metadata and custom game configuration.** [COMPLETE] Committed as `fd5b467`.
 - **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05; D09 already closes the renderer checks and docs it covers.
 
 Task scope, planner estimates, exclusions and the renderer divergence are recorded in `.babysteps/tauri-migration.plan.md`. The approved delta task definitions are in `.babysteps/main-delta.tasks.json`; the earlier M03-M06 definitions remain in `.babysteps/main-to-tauri.tasks.json`.

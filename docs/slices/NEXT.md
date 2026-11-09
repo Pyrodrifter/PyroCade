@@ -1,54 +1,70 @@
 ---
-slice: P12b
+slice: P13
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: 7781cd3
+seededFrom: fd5b467
 reads:
   - docs/STATE.md
   - .babysteps/tauri-migration.plan.md
   - docs/donot.md
   - .operator/specs/desktop-runtime.md
   - .babysteps/main-to-tauri.tasks.json
-  - emulators.json
-  - src-tauri/src/emulators.rs
-  - src-tauri/src/config.rs
-allowanceTokens: 50000
+  - scripts/check-library-ui.cjs
+  - scripts/check-carousel.cjs
+  - scripts/check-artwork.cjs
+  - scripts/check-artwork-ui.cjs
+  - .github/workflows/release.yml
+  - README.md
+  - docs/SUPPORT.md
+  - src-tauri/Cargo.toml
+  - src-tauri/tauri.conf.json
+allowanceTokens: 95019
 ---
 
-**P12b / M05b — Emulator metadata and custom game configuration.** M05a
-closed platform-aware launch behavior (`7781cd3`): launch logging and the
-Linux Steam/gamescope handling are settled. The original P12/M05 row
-priced 227,654 tokens, over the 225,000 work budget, so M05 was re-cut
-into M05a (launch) and M05b (emulator metadata, this slice).
+**P13 / M06 — Remaining parity checks, release docs and target validation.**
+M05b closed emulator metadata and PC config (`fd5b467`): `pc` direct
+system, Switch 2 `.nup` migration, and the RPCS3 `_msvc` variant are
+settled. M05a (`7781cd3`) settled platform launch behavior.
 
 ## Action
 
-Port updated emulator/system metadata and custom/PC game configuration
-where not already covered by Tauri. Keep OS/CPU selection, Android package
-launch, safe install/extraction, and the no-x86-on-ARM64 invariant intact.
+Add/update checks for the ported behavior, run Rust and renderer gates,
+validate macOS/Linux ARM64 and Android-specific constraints, and update
+Tauri-facing README/release documentation. Do not copy main's Electron
+packaging, Windows launcher, or Capacitor Android project into the Tauri
+release path.
 
-## Scope and exclusions
+## Settled
 
-- Emulator/system metadata differs: compare main's `emulators.json` catalog
-  and `main.js` system defaults against Rust defaults; port only what is
-  missing, keeping target-aware managed builds.
-- Do-Not #3 (unsafe ZIP) and #4 (SAF URIs) apply to emulator install and
-  config paths. Entries #1 and #2 do not apply unless touched.
+- M05b: `pc` system with `direct: true`, `.nup` default and one-time
+  migration, RPCS3 `_msvc` asset, direct-folder scan. Recomp excluded.
+- M05a: launch logging, Steam LD sanitization, gamescope/X11 handling.
+- D09 already closed its renderer checks and docs; re-verify, do not
+  re-port.
+
+## Withdrawn numbers
+
+227,654 tokens (the original M05 row) and the 225,000-token work budget
+remain the reason M05 split into M05a/M05b; M06 is priced at 95,019.
 
 ## Code to touch
 
-`emulators.json`, `src-tauri/src/emulators.rs`, `src-tauri/src/config.rs`.
+`scripts/check-library-ui.cjs`, `scripts/check-carousel.cjs`,
+`scripts/check-artwork.cjs`, `scripts/check-artwork-ui.cjs`,
+`.github/workflows/release.yml`, `README.md`, `docs/SUPPORT.md`,
+`src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` — checks, workflow,
+and docs only unless a check uncovers a defect.
 
 ## Read these first
 
 - `.operator/specs/desktop-runtime.md`
-- `.babysteps/main-to-tauri.tasks.json` (M05b row)
-- `emulators.json`, `src-tauri/src/emulators.rs`, `src-tauri/src/config.rs`
+- `.babysteps/main-to-tauri.tasks.json` (M06 row)
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. Entry #3 (unsafe ZIP) and entry #4 (Android SAF
-URIs) apply. Entries #1 and #2 do not apply unless touched.
+Total Do-Not count: 4. Entry #1 (manual paths stay filesystem paths) and
+entry #4 (Android SAF URIs) apply to checks and docs. Entries #2 and #3
+apply only if launch/extraction paths are touched.
 
 ## Gate
 
@@ -58,7 +74,7 @@ URIs) apply. Entries #1 and #2 do not apply unless touched.
 
 ## When this seed closes
 
-Close M05b when emulator metadata and custom/PC game configuration are
-current with OS/CPU, Android, safe-install and no-x86-on-ARM64 invariants
-intact, and the verification is recorded in `docs/STATE.md` with seed P13
-(M06 — remaining parity checks, release docs and target validation).
+Close M06 when checks cover the ported behavior, Rust and renderer gates
+pass, macOS/Linux ARM64 and Android constraints are validated against the
+desktop-runtime spec, and README/release docs describe the Tauri
+artifacts and update routes without the Electron/Capacitor path.
