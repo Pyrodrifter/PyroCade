@@ -107,6 +107,13 @@ async function run() {
       assert(context.getImageData(${canvasOrigin}, ${canvasOrigin}, ${canvasSampleExtent}, ${canvasSampleExtent}).data[${canvasOrigin}] > ${canvasOrigin}, 'Canvas did not render a pixel');
 
       assert(typeof AudioUI !== 'undefined' && typeof AudioUI.play === 'function', 'Renderer audio service is unavailable');
+      assert(Appearance.layouts['page-turn'] && Appearance.layouts.media, 'Page turn and Media carousel layouts are unavailable');
+      assert(!Appearance.layouts.spinner && !Appearance.layouts.swatches, 'Retired layouts remain in the picker');
+      Appearance.apply({layout:'spinner'}, false);
+      assert(Appearance.mode() === 'page-turn', 'Saved spinner layout did not migrate to page-turn');
+      Appearance.apply({layout:'swatches'}, false);
+      assert(Appearance.mode() === 'media', 'Saved swatches layout did not migrate to media');
+      Appearance.apply({layout:'carousel'}, false);
       let audioContextCreated = false;
       const NativeAudioContext = window.AudioContext;
       window.AudioContext = class extends NativeAudioContext {

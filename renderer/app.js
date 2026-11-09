@@ -284,8 +284,9 @@ let revealTimer, revealNode, revealId = null, announceTimer;
 // miniDiscScale is eight-twelfths, because a GameCube mini disc is 8 cm across a 12 cm disc.
 // A full-size media diameter would hide the size difference this model represents.
 const miniDiscScale=8/12;
+const hasShell = sys => sys.media === 'cart' || !!Cartridges.profiles[sys.id]?.shell;
 function createMedia(game, a) {
-  const cart = a.sys.media === 'cart' || !!Cartridges.profiles[a.sys.id]?.shell;
+  const cart = hasShell(a.sys);
   const mini = !cart && a.sys.id === 'gc';
   const media = el('div', `physical-media ${cart ? 'cartridge-model cartridge-' + a.sys.id : 'disc-model disc-' + a.sys.id + (mini ? ' disc-mini' : '')}`);
   media.setAttribute('aria-hidden','true');
@@ -327,6 +328,10 @@ function revealSelection(delay = 720) {
   const selected = revealNode = items.get(S.sel);
   const reveal = () => {
     if (S.list[S.sel]?.id !== game.id || !selected?.isConnected) return;
+    if (modelsEnabled() && Appearance.mode()==='bookshelf' && !hasShell(sysOf(game.system))) {
+      const sway = selected.querySelector('.sway');
+      if (!sway.querySelector('.disc-model')) sway.prepend(createMedia(game, art(game)));
+    }
     selected.classList.add('media-revealed');
   };
   if ($('#carousel').classList.contains('shelf-transfer') || shelfTransition) return;
@@ -353,11 +358,14 @@ function fillItem(it, game) {
   it.style.setProperty('--w',a.W+'px'); it.style.setProperty('--h',a.H+'px'); it.style.setProperty('--d',a.D+'px');
   const sway = el('div', 'sway');
   if(!modelsEnabled()){sway.append(box);it.replaceChildren(sway);return;}
-  sway.append(createMedia(game,a),box);
+  const mode = Appearance.mode();
+  if (mode !== 'bookshelf' || (it.classList.contains('media-revealed') && !hasShell(a.sys))) {
+    sway.append(createMedia(game, a));
+  }
+  sway.append(box);
   const reflection=el('div','ground-reflection');reflection.setAttribute('aria-hidden','true');reflection.append(EshopCovers.face(game,a,'reflection-cover'));sway.append(reflection);
   const sh = el('div', 'shadow'); sh.style.top = a.H + 'px';
   it.replaceChildren(sway, sh);
-  if(Appearance.mode()==='swatches')it.append(Appearance.card(game,a));
 }
 
 function makeItem(i) {
@@ -439,8 +447,22 @@ function layout() {
   const stage = $('#stage');
   const scaleLimit = document.documentElement.dataset.infoBar === 'hidden' ? 1.32 : 1.16;
   const scale = Math.max(.35,Math.min(scaleLimit,(stage.clientHeight - 66) / 350, (innerWidth - 240) / 900));
-  const view=modelsEnabled()?Appearance.geometry(stage,S.sel,S.list.length):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
-  for (const [i, e] of items) if (i < lo - (modelsEnabled()?2:0) || i > hi + (modelsEnabled()?2:0)) { e.remove(); items.delete(i); }
+  const selected = S.list[S.sel];
+  const bookshelfDisc = Appearance.mode()==='bookshelf' && !!selected && !hasShell(sysOf(selected.system));
+  const view=modelsEnabled()?Appearance.geometry(S.sel,bookshelfDisc):{lo:S.sel-3,hi:S.sel+3},lo=view.lo,hi=view.hi;
+  if(view.discPeek!=null)stage.style.setProperty('--bookshelf-disc-peek',view.discPeek+'px');
+  const retained = modelsEnabled() ? 2 : 0;
+  for (const [i, e] of items) {
+    if (i < lo - retained || i > hi + retained) {
+      e.remove();
+      items.delete(i);
+    } else if (i < lo || i > hi) {
+      e.classList.add('far');
+      e.classList.remove('sel');
+      e.setAttribute('aria-hidden', 'true');
+      e.setAttribute('aria-selected', 'false');
+    }
+  }
   for (let i = Math.max(0, lo); i <= Math.min(S.list.length - 1, hi); i++) {
     let e = items.get(i);
     const fresh = !e;
@@ -448,8 +470,6 @@ function layout() {
     const d = i - S.sel, a = Math.abs(d);
     const itemScale = scale * Number(e.dataset.displayScale || 1);
     const placement=modelsEnabled()?Appearance.position(i,S.sel,scale,itemScale,stage,view,caseSize):{transform:`translate(${d*270*scale}px,0px) scale(${itemScale*(d===0?1:.7)})`,hidden:a>2},t=placement.transform;
-    e.style.setProperty('--rack-shade',placement.shade||0);
-    if(placement.width){e.style.width=placement.width+'px';e.style.height=placement.height+'px'}else{e.style.removeProperty('width');e.style.removeProperty('height')}
     if (fresh) { e.style.transition = 'none'; e.style.transform = t + ' translateY(40px)'; e.offsetWidth; e.style.transition = ''; }
     e.style.transform = t;
     e.style.zIndex = 100 - a;
@@ -1009,7 +1029,7 @@ $('#stage').addEventListener('pointerleave',()=>{
 let wheelAt = 0;
 $('#stage').addEventListener('wheel', e => {
   const delta = Math.abs(e.deltaX)>Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-  if (Math.abs(delta)>12 && performance.now()-wheelAt>170) { const step=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+Math.sign(delta)*step); wheelAt=performance.now(); }
+  if (Math.abs(delta)>12 && performance.now()-wheelAt>170) { select(S.sel+Math.sign(delta)); wheelAt=performance.now(); }
 }, { passive: true });
 
 const libraryActive = () => $('#view-library').classList.contains('active');
@@ -1031,7 +1051,7 @@ function input(action) {
   }
   if (!libraryActive()) return;
   if(action==='sysprev'||action==='sysnext'){cycleSystem(action==='sysprev'?-1:1);return;}
-  if(['up','down'].includes(action)&&['vertical','swatches'].includes(Appearance.mode())){const delta=Appearance.mode()==='swatches'?Appearance.geometry($('#stage'),S.sel,S.list.length).columns:1;select(S.sel+(action==='up'?-delta:delta));return;}
+  if(['up','down'].includes(action)&&Appearance.browsesVertically()){select(S.sel+(action==='up'?-1:1));return;}
   ({ left: () => navigateGame(-1), right: () => navigateGame(1), up: () => cycleSystem(-1), down: () => cycleSystem(1),
      play: () => play(), case: openCase, manual: () => manual(), pgup: () => select(S.sel - 10), pgdn: () => select(S.sel + 10) }[action] || (() => {}))();
 }
@@ -1178,7 +1198,7 @@ function pollPad(now) {
     const st = { left: b(14) || ax < -.5, right: b(15) || ax > .5, up: b(12) || ay < -.6, down: b(13) || ay > .6,sysprev:b(4),sysnext:b(5),
       play: b(0), back: b(1), manual: b(2), case: b(3), pgup: b(6), pgdn: b(7),systems:b(9) };
     for (const [k, v] of Object.entries(st)) {
-      const repeat = ['left', 'right'].includes(k)||(['up','down'].includes(k)&&(LibraryUI.pickerOpen()||Appearance.panelOpen()||['vertical','swatches'].includes(Appearance.mode())));
+      const repeat = ['left', 'right'].includes(k)||(['up','down'].includes(k)&&(LibraryUI.pickerOpen()||Appearance.panelOpen()||Appearance.browsesVertically()));
       if (v && !woke && (!pad.held[k] || (repeat && now > pad.next[k]))) { input(k); pad.next[k] = now + (pad.held[k] ? 90 : 380); }
       pad.held[k] = v;
     }
