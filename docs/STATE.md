@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P6 / D06 — Library cache and parallel Rust scan** from `docs/slices/NEXT.md`.
+**Next action:** Start **P7 / D07 — MarioWiki and Internet Archive cover fallbacks** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -124,6 +124,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js` (5 renderer files; boundary guide `.opencode/commands/babysteps-boundary.md`).
   - Seed PASS: P5 row prices 15 files at 158,778 tokens, seed 158,772 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 113,080/225,000 tokens (50%); session cost $0/$0.70. Do-Not count remains 4; #1 applies only if manual media paths touched, #4 unaffected; no new fault was added and no numbers were withdrawn.
 
+- **P6 / D06 — Library cache and parallel Rust scan.** Source committed as `2fa1983` (`Port library cache and parallel Rust scan (D06/P6)`). Shows the last scan immediately via `library-cache.json` under the app data dir (keyed by app version, mediaRoot, extraGames, and each system's id/romDir/extensions/direct; tie-break sizes kept separately), exposes `cachedLibrary` and `scan {onlyIfChanged}` through the Tauri bridge (null when unchanged), lists each folder once per scan (`ScanListings`), matches media with 16-way concurrency, stats only tied duplicate copies, checks disc `.json` side files against the listing for the shell contract, sorts titles case-insensitively, and refactors renderer `loadLibrary` into `startLibrary`/`applyLibrary` restoring selection by id. Extra supporting change: `src-tauri/src/artwork.rs` test gained the new `Game.shell` field.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (37 passed, 5 new), `cargo check --manifest-path src-tauri/Cargo.toml` (existing dead-code warnings), `node --check renderer/app.js`, `node --check renderer/tauri-bridge.js`, `node --check scripts/check-library-ui.cjs`, and `npm start` built and launched `target/debug/pyrocade` and stayed alive through a 25-second smoke window. `node scripts/check-library-ui.cjs` could not run on this host (no `tauri-driver`); recorded, not claimed. No visual inspection was performed.
+  - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
+  - Seed PASS: P6 row prices 14 files at 164,789 tokens, seed 164,783 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 126,992/225,000 tokens (56%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -131,7 +136,7 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P3 / D03 — Flat button-prompt assets and generator.** [COMPLETE] Committed as `030662e`.
 - **P4 / D04 — Page turn, media carousel, and shelf sizing.** [COMPLETE] Committed as `fd7a8c8`.
 - **P5 / D05 — Case art, physical media, and booklet proportions.** [COMPLETE] Committed as `d4778d3`.
-- **P6 / D06 — Library cache and parallel Rust scan.** [PENDING] Depends on D05.
+- **P6 / D06 — Library cache and parallel Rust scan.** [COMPLETE] Committed as `2fa1983`.
 - **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [PENDING] Depends on D06.
 - **P8 / D08 — In-app feedback reporting.** [PENDING] Depends on D07.
 - **P9 / D09 — Demo capture, docs, and delta audit close-out.** [PENDING] Depends on D08.
