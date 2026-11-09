@@ -1,80 +1,42 @@
 ---
-slice: P13
+slice: exhausted
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: fd5b467
+seededFrom: 9eb6695
 reads:
   - docs/STATE.md
-  - .babysteps/tauri-migration.plan.md
   - docs/donot.md
   - .operator/specs/desktop-runtime.md
-  - .babysteps/main-to-tauri.tasks.json
-  - scripts/check-library-ui.cjs
-  - scripts/check-carousel.cjs
-  - scripts/check-artwork.cjs
-  - scripts/check-artwork-ui.cjs
-  - .github/workflows/release.yml
-  - README.md
-  - docs/SUPPORT.md
-  - src-tauri/Cargo.toml
-  - src-tauri/tauri.conf.json
-allowanceTokens: 95019
 ---
 
-**P13 / M06 — Remaining parity checks, release docs and target validation.**
-M05b closed emulator metadata and PC config (`fd5b467`): `pc` direct
-system, Switch 2 `.nup` migration, and the RPCS3 `_msvc` variant are
-settled. M05a (`7781cd3`) settled platform launch behavior.
-
-## Action
-
-Add/update checks for the ported behavior, run Rust and renderer gates,
-validate macOS/Linux ARM64 and Android-specific constraints, and update
-Tauri-facing README/release documentation. Do not copy main's Electron
-packaging, Windows launcher, or Capacitor Android project into the Tauri
-release path.
+**Queue exhausted after P13 / M06 (`9eb6695`).** The M03–M06 parity queue
+and the D01–D09 delta queue are complete. No plan row prices a next slice,
+so this seed has no action: it exists so the next session stops here
+instead of re-reading the state file.
 
 ## Settled
 
-- M05b: `pc` system with `direct: true`, `.nup` default and one-time
-  migration, RPCS3 `_msvc` asset, direct-folder scan. Recomp excluded.
-- M05a: launch logging, Steam LD sanitization, gamescope/X11 handling.
-- D09 already closed its renderer checks and docs; re-verify, do not
-  re-port.
+- M06 closed the parity queue: checks assert M05 launch/metadata
+  behavior, release docs match the Tauri workflow, and macOS/Linux ARM64
+  plus Android constraints are validated against the desktop-runtime
+  spec. See `docs/SUPPORT.md` ("M06 close-out") and the P13 entry in
+  `docs/STATE.md`.
+
+## Next action
+
+Unknown. A new task requires a new plan row in
+`.babysteps/tauri-migration.plan.md` and a priced seed; do not re-cut
+this seed to fit a file.
 
 ## Withdrawn numbers
 
 227,654 tokens (the original M05 row) and the 225,000-token work budget
-remain the reason M05 split into M05a/M05b; M06 is priced at 95,019.
-
-## Code to touch
-
-`scripts/check-library-ui.cjs`, `scripts/check-carousel.cjs`,
-`scripts/check-artwork.cjs`, `scripts/check-artwork-ui.cjs`,
-`.github/workflows/release.yml`, `README.md`, `docs/SUPPORT.md`,
-`src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` — checks, workflow,
-and docs only unless a check uncovers a defect.
-
-## Read these first
-
-- `.operator/specs/desktop-runtime.md`
-- `.babysteps/main-to-tauri.tasks.json` (M06 row)
+remain the reason M05 split into M05a/M05b. M06 was priced at 95,019.
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. Entry #1 (manual paths stay filesystem paths) and
-entry #4 (Android SAF URIs) apply to checks and docs. Entries #2 and #3
-apply only if launch/extraction paths are touched.
+Total Do-Not count: 4. No entry applies; nothing was touched.
 
 ## Gate
 
-- `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
-- `cargo test --manifest-path src-tauri/Cargo.toml`
-- `cargo check --manifest-path src-tauri/Cargo.toml`
-
-## When this seed closes
-
-Close M06 when checks cover the ported behavior, Rust and renderer gates
-pass, macOS/Linux ARM64 and Android constraints are validated against the
-desktop-runtime spec, and README/release docs describe the Tauri
-artifacts and update routes without the Electron/Capacitor path.
+None until a plan row exists.

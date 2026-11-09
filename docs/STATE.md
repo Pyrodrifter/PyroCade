@@ -6,9 +6,9 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 ## Next action
 
-The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), **M03 — Collection administration and per-game controls** (`f94d879`), **M04a — Compatible artwork providers** (`a7ef170`), **M04b — Manual artwork workflows**, **M05a — Platform-aware launch behavior** (`7781cd3`), and **M05b — Emulator metadata and custom game configuration** (`fd5b467`) are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
+The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), **M03 — Collection administration and per-game controls** (`f94d879`), **M04a — Compatible artwork providers** (`a7ef170`), **M04b — Manual artwork workflows**, **M05a — Platform-aware launch behavior** (`7781cd3`), **M05b — Emulator metadata and custom game configuration** (`fd5b467`), and **M06 — Remaining parity checks, release docs and target validation** (`9eb6695`) are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
 
-**Next action:** Start **P13 / M06 — Remaining parity checks, release docs and target validation** from `docs/slices/NEXT.md`.
+**Next action:** The M03–M06 parity queue is exhausted — M06 was the last planned task. No next slice is seeded; a new task requires a new plan row.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -169,6 +169,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the diff touches only `emulators.json`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, and `src-tauri/src/emulators.rs`.
   - Seed PASS: P12b row prices 8 files at 54,150 tokens, seed 54,147 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 124,084/225,000 tokens (55%); session cost $0/$0.70. Do-Not count remains 4; #3 and #4 apply, no new fault was added, and no numbers were withdrawn (the withdrawn 227,654-token M05 row and 225,000-token work budget remain the reason for the M05a/M05b split).
 
+- **P13 / M06 — Remaining parity checks, release docs and target validation.** Source committed as `9eb6695` (`Add M06 parity checks and Tauri release-doc validation (P13 / M06)`). `scripts/check-artwork.cjs` gains static M05 parity assertions (launch logging, Steam LD sanitization with inherited environment, gamescope diagnostic, `play()` re-entrancy guard, PC direct system, one-time `.nup` migration, RPCS3 `_msvc` asset, direct-folder scan depth); `scripts/check-library-ui.cjs` asserts the PC direct system and Switch 2 `.nup` extension through the Tauri bridge plus the `play()` guard; `scripts/check-carousel.cjs` and `scripts/check-artwork-ui.cjs` assert the shared renderer's `play()` guard. Release workflow validate job syntax-checks the four check scripts and runs `npm run artwork:check`. Docs corrected: the Linux release job builds and packages without an install smoke test (only macOS installs and smoke-launches), the Linux AppImage filename derives its version from `src-tauri/tauri.conf.json` instead of hardcoded `0.2.1`, and the Tauri long description now says six layouts.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (60 passed), `cargo check --manifest-path src-tauri/Cargo.toml` (2 pre-existing warnings), `node --check` on all four check scripts, and `node scripts/check-artwork.cjs` passed (including the new M05 parity assertions). Electron and Tauri WebDriver checks were syntax-checked only — they need an Electron runtime/display and a built Tauri binary, neither available on this host; recorded, not claimed. macOS/Linux ARM64 and Android constraints were validated by inspection against the desktop-runtime spec; no artifact was built.
+  - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the only pre-existing `require('../artwork')` reference is unchanged.
+  - Seed PASS: P13 row prices 14 files at 60,237 tokens, seed 60,232 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 76,004/225,000 tokens (34%); session cost $0/$0.70. Do-Not count remains 4; #1 and #4 apply, no new fault was added, and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -185,6 +190,6 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P11b / M04b — Manual artwork workflows.** [COMPLETE] (manual discovery/download/viewing against the M04a provider contract; filesystem-path payload preserved).
 - **P12a / M05a — Platform-aware launch behavior.** [COMPLETE] Committed as `7781cd3`.
 - **P12b / M05b — Emulator metadata and custom game configuration.** [COMPLETE] Committed as `fd5b467`.
-- **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05; D09 already closes the renderer checks and docs it covers.
+- **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [COMPLETE] Committed as `9eb6695`. M03–M06 queue exhausted; no further slices are seeded without a new plan row.
 
 Task scope, planner estimates, exclusions and the renderer divergence are recorded in `.babysteps/tauri-migration.plan.md`. The approved delta task definitions are in `.babysteps/main-delta.tasks.json`; the earlier M03-M06 definitions remain in `.babysteps/main-to-tauri.tasks.json`.
