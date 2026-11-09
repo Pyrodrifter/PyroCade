@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and parity slices **M01 — Renderer presentation** (`b1b29ac`), **M02 — Library state and play-history** (`3e1432c`), **M03 — Collection administration and per-game controls** (`f94d879`), **M04a — Compatible artwork providers** (`a7ef170`), and **M04b — Manual artwork workflows** are committed. Their verification records remain in the completed history below. The 2026-11-06..08 delta queue D01–D09 is complete (D09 closed below).
 
-**Next action:** Start **P12a / M05a — Platform-aware launch behavior** from `docs/slices/NEXT.md`.
+**Next action:** Start **P12b / M05b — Emulator metadata and custom game configuration** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -159,6 +159,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js` or `preload.js`; `artwork.js` was edited in place for the legacy fixture (expected per code-to-touch) and no new network hosts or crates were introduced (`api.screenscraper.fr` was already in use).
   - Seed PASS: P11b row prices 9 files at 41,246 tokens, seed total 41,243 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Do-Not count remains 4; #1 and #4 apply; no new fault was added and no numbers were withdrawn.
 
+- **P12a / M05a — Platform-aware launch behavior.** Source committed as `7781cd3` (`Port platform-aware launch behavior (P12a / M05a)`). Ported only the parts of main's launch behavior Tauri was missing: Steam/SteamOS environment handling and Linux gamescope/X11 handling plus launch logging; macOS `.app` bundles, ARM64-only selection, Android intent launch, and the no-x86-on-ARM64 invariant untouched. Rust: `data/logs/pyrocade.log` gains main's start line (version, platform, arch, `XDG_CURRENT_DESKTOP`/`XDG_SESSION_TYPE`, Wayland/Display presence, Steam and AppImage state) and per-launch lines (direct/direct-opener/emulator, game id, emulator id, Steam-fix summary) with 512 KB rotation, best-effort so logging never fails a launch; Linux-only `LD_PRELOAD` clearance and `LD_LIBRARY_PATH` filtering (steam-runtime, steamrt, ubuntu12_32/64, pressure-vessel, `/steam/`) scoped to launch children only — no Chromium `--no-sandbox`/`--ozone-platform` flags and no relaunch, because WebKitGTK needs neither, and the Electron `PYROCADE_STEAM_FIX` marker is replaced by the log line; gamescope with no `DISPLAY` is logged as a diagnostic for X11 emulators without fabricating a display number. Renderer: `play()` re-entrancy guard (`launching`) so rapid presses cannot double-spawn. OS/CPU selection, safe install/extraction, Android package launch, and child reaping via `wait_for_child` unchanged; config needed no change (`hideWhilePlaying` already preserved by `merge_config`).
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (57 passed, 2 new Steam-detection/filter tests), `cargo check --manifest-path src-tauri/Cargo.toml` (2 pre-existing warnings: `merge_object` dead code, unused `storage` methods), `node --check renderer/app.js`. `npm start` and SteamOS device runtime were not exercised; no on-device verification claimed. No visual inspection was performed.
+  - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the diff touches only `renderer/app.js` and `src-tauri/src/backend.rs` and the deleted Electron files remain absent.
+  - Seed PASS: P12a row prices 8 files at 107,666 tokens, seed 107,664 tokens under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 87,170/225,000 tokens (39%); session cost $0/$0.70. Do-Not count remains 4; #2 and #4 apply, no new fault was added, and no numbers were withdrawn (the withdrawn 227,654-token M05 row remains the reason for the M05a/M05b split).
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -173,7 +178,7 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P10 / M03 — Collection administration and per-game controls.** [COMPLETE] Committed as `f94d879` (details editor, hidden list, and drag order absorbed from `64a5ba6` where they fit Tauri; Recomp excluded as Windows-only).
 - **P11a / M04a — Compatible artwork providers.** [COMPLETE] Committed as `a7ef170` (front-cover fallbacks through the Rust artwork service only; manual workflows stay in M04b).
 - **P11b / M04b — Manual artwork workflows.** [COMPLETE] (manual discovery/download/viewing against the M04a provider contract; filesystem-path payload preserved).
-- **P12a / M05a — Platform-aware launch behavior.** [PENDING] Depends on M03 (split from P12/M05: the original M05 row priced 227,654 tokens, over the 225,000 work budget).
+- **P12a / M05a — Platform-aware launch behavior.** [COMPLETE] Committed as `7781cd3`.
 - **P12b / M05b — Emulator metadata and custom game configuration.** [PENDING] Depends on M03.
 - **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05; D09 already closes the renderer checks and docs it covers.
 
