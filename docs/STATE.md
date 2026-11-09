@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P8 / D08 — In-app feedback reporting** from `docs/slices/NEXT.md`.
+**Next action:** Start **P9 / D09 — Demo capture, docs, and delta audit close-out** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -134,6 +134,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the new `md5` crate is a regular crates.io dependency, not the predecessor.
   - Seed PASS: P7 row prices 17 files at 98,725 tokens, seed 98,718 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 144,097/225,000 tokens (64%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
 
+- **P8 / D08 — In-app feedback reporting.** Source committed as `97ed95c` (`Port in-app feedback reporting (D08/P8)`). Ported the feedback dialog, `renderer/feedback.js` report composition (120/4000/2000 limits, `[Bug]`/`[Feedback]` titles, optional diagnostics section), Settings Feedback entry, `renderer/feedback-ui.js` focus handling (trigger focus restore, `cancel` guard, controller isolation), demo-order preservation (`getConsoleNavigation` skips title-sort when `S.demo`; `S.list` already follows DEMO order), plus Rust `feedback_info` (PyroCade version, OS/release/arch, Tauri version, installation), `feedback_copy` (clipboard-manager `write_text`, offline-capable) and `feedback_open` (opener with `Pyrodrifter/PyroCade/issues/` validation). Reports carry only the user's text plus the listed device details; no screenshots/files auto-attached; Electron preload IPC shape not ported. Included `.github/ISSUE_TEMPLATE/bug_report.md` and `feedback.md`, `scripts/check-feedback.cjs` and `scripts/check-feedback-ui.cjs` (Tauri-adapted: renderer-composed text/url over IPC), `scripts/check-prompts-preload.cjs` feedback bridge, and `package.json` `feedback:check`. New dependency: `tauri-plugin-clipboard-manager`.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (42 passed, 2 new), `cargo check --manifest-path src-tauri/Cargo.toml` (existing dead-code warnings), `node --check renderer/tauri-bridge.js`, `node --check renderer/feedback-ui.js`, `node --check renderer/feedback.js`, `node --check scripts/check-feedback.cjs`, `node --check scripts/check-feedback-ui.cjs`, `node scripts/check-feedback.cjs` passed, and `npm start` built `target/debug/pyrocade` (pre-existing dead-code warnings). `node scripts/check-feedback-ui.cjs` and the `npm start` dialog-open smoke could not run on this host (Electron failed to install correctly / no display); recorded, not claimed. No visual inspection was performed.
+  - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the new clipboard plugin is a regular crates.io dependency, not the predecessor.
+  - Seed PASS: P8 row prices 19 files at 123,482 tokens, seed 123,474 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 140,171/225,000 tokens (62%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -143,7 +148,7 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P5 / D05 — Case art, physical media, and booklet proportions.** [COMPLETE] Committed as `d4778d3`.
 - **P6 / D06 — Library cache and parallel Rust scan.** [COMPLETE] Committed as `2fa1983`.
 - **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [COMPLETE] Committed as `7c04a03`.
-- **P8 / D08 — In-app feedback reporting.** [PENDING] Depends on D07.
+- **P8 / D08 — In-app feedback reporting.** [COMPLETE] Committed as `97ed95c`.
 - **P9 / D09 — Demo capture, docs, and delta audit close-out.** [PENDING] Depends on D08.
 - **P10 / M03 — Collection administration and per-game controls.** [PENDING] Depends on D09. Absorbs the details editor, hidden list, drag order and Recomp menus added in `64a5ba6`.
 - **P11 / M04 — Artwork and manual workflows.** [PENDING] Depends on M03. Cover providers are D07; this keeps LaunchBox/ScreenScraper comparison and manual discovery/download/viewing.
