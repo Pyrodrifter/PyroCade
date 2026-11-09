@@ -14,25 +14,28 @@ const ArtworkUI = (()=>{
     const scope=q('#artScope').value;
     q('#artSystem').classList.toggle('hidden',scope!=='system');q('#artSystemLabel').classList.toggle('hidden',scope!=='system');
     const games=chosenGames(),systems=context.getSystems();
-    const supports=s=>s?.libretro||s?.artworkProvider==='gametdb-switch';
+    const FALLBACK=new Set(['nes','snes','n64','gc','wii','wiiu','switch','switch2','gb','gbc','gba','nds','3ds','ps1','ps2','ps3','psp','dreamcast','genesis','xbox','x360','a2600']);
+    const supports=s=>s?.libretro||s?.artworkProvider==='gametdb-switch'||FALLBACK.has(s?.id);
     const unavailable=games.filter(g=>!supports(systems.find(s=>s.id===g.system))).length;
     const switchGames=games.filter(g=>systems.find(s=>s.id===g.system)?.artworkProvider==='gametdb-switch').length;
     const libretroGames=games.filter(g=>systems.find(s=>s.id===g.system)?.libretro).length;
+    const fallbackGames=games.filter(g=>FALLBACK.has(systems.find(s=>s.id===g.system)?.id)).length;
+    const frontSupported=games.filter(g=>{const s=systems.find(s=>s.id===g.system);return s?.libretro||s?.artworkProvider==='gametdb-switch'||FALLBACK.has(s?.id)}).length;
     for(const input of document.querySelectorAll('#artTypes input')) {
-      const supported= ['front'].includes(input.value) ? switchGames+libretroGames : ['disc','back'].includes(input.value)?switchGames:libretroGames;
+      const supported= ['front'].includes(input.value) ? frontSupported : ['disc','back'].includes(input.value)?switchGames:libretroGames;
       input.disabled=!supported;
       if(!supported)input.checked=false;
       input.closest('label').classList.toggle('art-type-unavailable',!supported);
     }
-    const nextCoverage=switchGames&&!libretroGames?'switch':libretroGames&&!switchGames?'libretro':'mixed';
+    const nextCoverage=switchGames&&!libretroGames&&!fallbackGames?'switch':libretroGames&&!switchGames&&!fallbackGames?'libretro':!switchGames&&!libretroGames&&fallbackGames?'fallback':'mixed';
     if(nextCoverage!==coverage&&nextCoverage==='switch'&&!q('#artTypes input:checked'))q('#artTypes input[value=front]').checked=true;
     coverage=nextCoverage;
     const selected=context.getGames().find(g=>g.id===gameId);
     q('#artImportGame').textContent=selected&&!selected.demo?`${selected.title} · ${systems.find(s=>s.id===selected.system)?.name||selected.system}`:'Select a game in Library, then use its Artwork button.';
     q('#artImport').disabled=importPending||!selected||selected.demo;q('#artImportKind').disabled=importPending||!selected||selected.demo;
     q('#artImport').textContent=importPending?'Applying…':'Choose image…';
-    q('#artSourceLabel').textContent=switchGames&&!libretroGames?'Source · GameTDB':libretroGames&&!switchGames?'Source · Libretro thumbnails':'Sources · Libretro & GameTDB';
-    q('#artSourceDetails').textContent=switchGames&&!libretroGames?'Switch covers, back covers and cartridge labels are matched by game title using GameTDB. Screenshots and title screens are not supplied by this source.':libretroGames&&!switchGames?'Libretro matches box covers, gameplay screenshots and title screens to your game filenames. Availability varies by game.':'Libretro supplies covers, gameplay screenshots and title screens. GameTDB supplies Switch covers, back covers and cartridge labels. Availability varies by game.';
+    q('#artSourceLabel').textContent=nextCoverage==='switch'?'Source · GameTDB':nextCoverage==='libretro'?'Source · Libretro thumbnails':nextCoverage==='fallback'?'Sources · Super Mario Wiki & Internet Archive':'Sources · Libretro, GameTDB, Super Mario Wiki & Internet Archive';
+    q('#artSourceDetails').textContent=nextCoverage==='switch'?'Switch covers, back covers and cartridge labels are matched by game title using GameTDB. Screenshots and title screens are not supplied by this source. Front covers may also fall back to Super Mario Wiki and Internet Archive when GameTDB has no match. Front covers only, after the existing providers, never replacing an existing cover.':nextCoverage==='libretro'?'Libretro matches box covers, gameplay screenshots and title screens to your game filenames. Front covers may also fall back to Super Mario Wiki and Internet Archive when Libretro has no match. Front covers only, after the existing providers, never replacing an existing cover. Availability varies by game.':nextCoverage==='fallback'?'Front covers only: Super Mario Wiki matches Mario-series boxes; Internet Archive matches collectors\u2019 box scans. Both run after the existing providers and never replace an existing cover. Availability varies by game.':'Libretro supplies covers, gameplay screenshots and title screens. GameTDB supplies Switch covers, back covers and cartridge labels. Super Mario Wiki and Internet Archive are front-cover fallbacks after those providers, never replacing an existing cover. Availability varies by game.';
     q('#artScopeSummary').textContent=(scope==='game'?(selected&&!selected.demo?selected.title:'Select a game in your library first.'):`${games.length.toLocaleString()} games`)+(unavailable?` · ${unavailable.toLocaleString()} skipped: no artwork source for ${[...new Set(games.filter(g=>!supports(systems.find(s=>s.id===g.system))).map(g=>systems.find(s=>s.id===g.system)?.name||g.system))].join(', ')}. Use “Use your own image” instead.`:'');
     const busy=pending||['running','cancelling'].includes(job?.status);
     q('#artStart').disabled=busy||!games.length||!q('#artTypes input:checked')||unavailable===games.length;

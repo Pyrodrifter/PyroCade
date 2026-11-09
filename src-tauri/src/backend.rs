@@ -1191,6 +1191,7 @@ fn valid_media_extension(kind: &str, path: &Path) -> bool {
     ["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str())
 }
 
+// Manual paths stay filesystem paths for the native opener; artwork uses file URLs.
 fn media_value(kind: &str, path: &Path) -> Option<String> {
     if kind == "manual" {
         Some(path.to_string_lossy().into_owned())

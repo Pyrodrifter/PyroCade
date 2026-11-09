@@ -73,6 +73,25 @@ async function until(test){for(let i=0;i<300;i++){if(test())return;await pause(1
     assert(switchCalls.some(u=>u.includes('/label/EN/AABPA.png')),'Switch label must be available for the cartridge');
     assert(!switchCalls.some(u=>u.includes('Named_Snaps')),'Switch must not query Libretro');
     assert.equal(switchCalls.filter(u=>u.includes('switchtdb.txt')).length,1,'Switch types must share the metadata request');
+    // D07: Rust fallback contract (static check of the Tauri host; the unit tests in artwork.rs
+    // cover the matching logic without network). The legacy JS above has no fallback.
+    {
+      const rust=await fs.readFile(path.join(__dirname,'../src-tauri/src/artwork.rs'),'utf8');
+      for(const needle of [
+        'mariowiki_covers','archive_covers','fetch_mariowiki_image','fetch_internet_archive_image',
+        'slow down','410','429','503','WEB_CACHE_AGE_SECS','30 * 86400','Duration::from_secs(20)',
+        'trusted_release','without_version','region_of','fits_front','infobox_images','is_front_cover',
+        'item_name','systems_of','front_files','softwareboxart','?action=raw','Category','Nintendo DS game covers',
+      ]) assert(rust.includes(needle),`Rust fallback missing ${needle}`);
+      // Front covers only, after the existing providers: fallback gated on kind == "front".
+      assert(rust.includes('kind == "front"'),'Fallback must be gated on front covers only');
+      // Polite 1/s: two per-site gates.
+      assert((rust.match(/PoliteSite::/g)||[]).length>=2,'Polite per-site gates missing');
+      const ui=await fs.readFile(path.join(__dirname,'../renderer/artwork-ui.js'),'utf8');
+      assert(ui.includes('Super Mario Wiki'),'Artwork UI must name Super Mario Wiki');
+      assert(ui.includes('Internet Archive'),'Artwork UI must name Internet Archive');
+      assert(ui.includes('never replacing an existing cover'),'Artwork UI must state front-cover fallback policy');
+    }
     console.log('Passed: missing screenshots with cached covers, custom-art preservation, exact-region matching, independent title art, refreshed matches, invalid-image handling, path validation, shared requests, cancellation, resume, unsupported systems and progress updates.');
   } finally {
     // Only remove the unique test directory inside the OS temp directory.
