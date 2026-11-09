@@ -1,68 +1,76 @@
 ---
-slice: P3
+slice: P2
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: feature-parity-plan
+seededFrom: 20b610a
 reads:
   - docs/STATE.md
   - .babysteps/tauri-migration.plan.md
-  - .babysteps/main-to-tauri.tasks.json
-  - .operator/specs/desktop-runtime.md
   - docs/donot.md
+  - .operator/specs/desktop-runtime.md
+  - .babysteps/main-delta.tasks.json
   - renderer/app.js
-  - renderer/tauri-bridge.js
-  - src-tauri/src/backend.rs
-  - src-tauri/src/config.rs
-  - src-tauri/src/emulators.rs
-  - scripts/check-library-ui.cjs
-allowanceTokens: 130000
+  - renderer/index.html
+  - renderer/styles.css
+  - localTmp/main-ref-0310657/renderer/app.js
+  - localTmp/main-ref-0310657/renderer/index.html
+allowanceTokens: 70827
 ---
 
-**P3 / M03 — Collection administration and per-game controls.** Depends on M02. M02 is committed as `3e1432c`.
-
-Baseline: `tauri-port` at `3e1432c`; compare against `main` as needed.
-
-The 184,286-token estimate fits the 225,000-token work budget but exceeds the local host's 153,354-token usable window; use the configured model context for this slice.
+**P2 / D02 — Launcher chrome and shelf navigation behaviour.** Second slice of the
+2026-11-06..08 delta queue. Baseline `tauri-port` at `b0eec88` plus D01 (`20b610a`);
+source `main` at `0310657` (`96fd68c..0310657`). Main originals are in
+`localTmp/main-ref-0310657/`. D01 closed: `interface.css` loaded, muted palette,
+grouped Settings, shortened copy, artwork type grid.
 
 ## Action
 
-Add hide/group/rename actions, user-added systems/games, and per-game emulator selection where missing. Keep UI calls behind the Tauri bridge and preserve backend-owned emulator state and safe config migrations.
+Port LibraryChrome (O cycles the overlay shown/hidden/pinned, with details staying
+independent of the overlay), DetailsResize (the details bar's shot/title sizing), the
+shelf space reclaimed when details are hidden, the `/` focus-search shortcut, the
+console previews and keyboard navigation that main added in `64a5ba6`, and the demo
+shelf's authored order.
 
 ## Scope and exclusions
 
-- Keep the existing renderer payload and backend-owned state behavior intact; make Tauri bridge/backend changes only if necessary to honor that existing behavior contract.
-- Keep Tauri v2 as the product runtime. Do not port all of `main` or reintroduce Electron `main.js`/`preload.js`, the separate Capacitor Android project, or the Windows launcher from `main`.
-- Preserve existing desktop/Android target and release constraints. Existing docs/specs remain authoritative, especially Android support limitations and `docs/donot.md`.
-- Do not change the approved task list's scope, estimates, or priority order.
+- Keep the branch bridge and backend-owned state; no Electron IPC shape.
+- Do not port the per-game details editor, hidden-game list, drag order or Recomp
+  menus (M03 owns those).
+- Do not port Leia hooks, `#btnLeia3D`, `LeiaUI.init` or 3D snapshot code.
+- Keep Tauri v2 as the runtime; do not touch the Electron/Capacitor release path.
 
 ## Code to touch
 
-M03 renderer, bridge, and Rust state/config/emulators work, plus the library check. Keep new persistence behind the Tauri bridge and migration-safe config handling.
+`renderer/app.js`, `renderer/index.html`, `renderer/styles.css`, and the navigation
+assertions in the renderer checks if they name the old chrome behaviour.
 
 ## Read these first
 
-- `docs/STATE.md`
 - `.operator/specs/desktop-runtime.md`
 - `docs/donot.md`
-- `renderer/app.js`
-- `renderer/tauri-bridge.js`
-- `src-tauri/src/backend.rs`
-- `src-tauri/src/config.rs`
-- `src-tauri/src/emulators.rs`
-- `scripts/check-library-ui.cjs`
+- `localTmp/main-ref-0310657/renderer/app.js`, `localTmp/main-ref-0310657/renderer/index.html`
+- `renderer/app.js`, `renderer/index.html`, `renderer/styles.css`
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. Consult `docs/donot.md` before changing paths or state payloads; entry #1 applies if manual paths are touched; entry #4 applies to Android SAF handling.
+Total Do-Not count: 4. Entry #1 applies only if manual media paths are touched; this
+slice must not change them. Entry #4 governs Android SAF paths and is unaffected.
 
 ## Gate
 
 - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`
 - `cargo test --manifest-path src-tauri/Cargo.toml`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
-- `node scripts/check-carousel.cjs`
-- `node scripts/check-library-ui.cjs`
+- `node --check renderer/app.js`
+- `npm start` smoke: the library renders without a startup error.
+
+`node scripts/check-carousel.cjs` and `node scripts/check-library-ui.cjs` cannot run
+on this host (no Electron runtime; no `tauri-driver`). Record that rather than
+claiming they passed.
 
 ## When this seed closes
 
-Close M03 when hide/group/rename, user-added systems/games, and per-game emulator selection are implemented or verified present with migration-safe persistence and focused checks; record the result in `docs/STATE.md` and seed P4/M04 according to `.babysteps/tauri-migration.plan.md` and `.babysteps/main-to-tauri.tasks.json`.
+Close D02 when LibraryChrome, DetailsResize, the reclaimed shelf space, `/` search,
+console previews, keyboard navigation and the demo shelf's authored order are working
+without Leia or M03 markup. Record the verification in `docs/STATE.md` and seed
+P3/D03 from `.babysteps/main-delta.tasks.json`.

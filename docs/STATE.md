@@ -2,13 +2,13 @@
 
 ## Where the work is
 
-The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on modern Snapdragon hardware, and Android ARM64. Its completed history is preserved below. A new main-to-Tauri feature-parity follow-up queue is now active; it is not a whole-branch merge. The follow-up plan is in `.babysteps/tauri-migration.plan.md`, and its approved task list is `.babysteps/main-to-tauri.tasks.json`. Existing Android support limitations and release constraints remain authoritative.
+The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on modern Snapdragon hardware, and Android ARM64. Its completed history is preserved below. Feature parity is now split into two queues: the active 2026-11-06..08 delta queue (D01-D09, source `96fd68c..0310657`, baseline `b0eec88`) and the remaining M03-M06 queue. The plan is in `.babysteps/tauri-migration.plan.md`; approved tasks are `.babysteps/main-delta.tasks.json` and `.babysteps/main-to-tauri.tasks.json`. Main originals are snapshotted in `localTmp/main-ref-0310657/`. Existing Android support limitations and release constraints remain authoritative.
 
 ## Next action
 
-The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first parity slice, **P1 / M01 — Renderer presentation and library-view parity**, is committed. Their verification records remain in the completed history below.
+The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P3 / M03 — Collection administration and per-game controls** from `docs/slices/NEXT.md`.
+**Next action:** Start **P2 / D02 — Launcher chrome and shelf navigation behaviour** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -98,13 +98,26 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no changes to `main.js`, `preload.js`, or `artwork.js`.
   - Post-commit guard: WITHIN at 124,461/225,000 tokens (55%); session cost $0.00/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
 
+- **P1 / D01 — Quiet interface palette and management screens.** Source committed as `20b610a` (`Port the quiet interface palette and management screens (D01/P1)`). Added `renderer/interface.css` linked after the existing stylesheets, with charcoal tokens adapted to the branch chrome, a transparent header, Settings regrouped into Interface / Library display / Updates with main's shortened copy, a two-column artwork type grid, and main's muted theme accents (`efaa68`/`ffca97` family) in `appearance.js`. Leia and feedback markup were not added; rules for elements the branch does not have were omitted.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (32 passed), `cargo check --manifest-path src-tauri/Cargo.toml`, `node --check renderer/appearance.js`, a static check that every `$('#id')` resolves to an element in `index.html` and `interface.css` braces balance, and `npm start` built and launched `target/debug/pyrocade` and stayed alive through a 45-second smoke window. The pre-existing `tauri_plugin_updater` `manage()` panic remains.
+  - `node scripts/check-carousel.cjs` and `node scripts/check-library-ui.cjs` could not run on this host (no Electron runtime; no `tauri-driver`); recorded, not claimed. No visual inspection was performed.
+  - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
+  - The plan's slice tables were re-cut into the priced format (slice, task, scope, reads, allowance) so the seed gate could run: P1 row prices 12 files at 90,849 tokens, seed total 178,676 under the 225,000 work budget; `babysteps-budget --seed` PASS. Post-commit guard: WITHIN at 131,539/225,000 tokens (58%); session cost $0/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
-- **P1 / M01 — Renderer presentation and library-view parity.** [COMPLETE] Committed as `b1b29ac`.
-- **P2 / M02 — Library state and play-history workflows.** [COMPLETE] Committed as `3e1432c`.
-- **P3 / M03 — Collection administration and per-game controls.** [PENDING] Depends on M02.
-- **P4 / M04 — Artwork enrichment and manual workflows.** [PENDING] Depends on M02.
-- **P5 / M05 — Platform-aware launch/emulator behavior.** [PENDING] Depends on M03.
-- **P6 / M06 — Parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05.
+- **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
+- **P2 / D02 — Launcher chrome and shelf navigation behaviour.** [PENDING] Depends on D01.
+- **P3 / D03 — Flat button-prompt assets and generator.** [PENDING] Depends on D01.
+- **P4 / D04 — Page turn, media carousel, and shelf sizing.** [PENDING] Depends on D02.
+- **P5 / D05 — Case art, physical media, and booklet proportions.** [PENDING] Depends on D04.
+- **P6 / D06 — Library cache and parallel Rust scan.** [PENDING] Depends on D05.
+- **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [PENDING] Depends on D06.
+- **P8 / D08 — In-app feedback reporting.** [PENDING] Depends on D07.
+- **P9 / D09 — Demo capture, docs, and delta audit close-out.** [PENDING] Depends on D08.
+- **P10 / M03 — Collection administration and per-game controls.** [PENDING] Depends on D09. Absorbs the details editor, hidden list, drag order and Recomp menus added in `64a5ba6`.
+- **P11 / M04 — Artwork and manual workflows.** [PENDING] Depends on M03. Cover providers are D07; this keeps LaunchBox/ScreenScraper comparison and manual discovery/download/viewing.
+- **P12 / M05 — Platform-aware launch and emulator behaviour.** [PENDING] Depends on M03.
+- **P13 / M06 — Remaining parity checks, Tauri release docs, target validation.** [PENDING] Depends on M01, M04, and M05; D09 already closes the renderer checks and docs it covers.
 
-Task scope and planner estimates are recorded in `.babysteps/tauri-migration.plan.md`; the approved task definitions are in `.babysteps/main-to-tauri.tasks.json`.
+Task scope, planner estimates, exclusions and the renderer divergence are recorded in `.babysteps/tauri-migration.plan.md`. The approved delta task definitions are in `.babysteps/main-delta.tasks.json`; the earlier M03-M06 definitions remain in `.babysteps/main-to-tauri.tasks.json`.
