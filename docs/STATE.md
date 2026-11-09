@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P7 / D07 — MarioWiki and Internet Archive cover fallbacks** from `docs/slices/NEXT.md`.
+**Next action:** Start **P8 / D08 — In-app feedback reporting** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -129,6 +129,11 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
   - Seed PASS: P6 row prices 14 files at 164,789 tokens, seed 164,783 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 126,992/225,000 tokens (56%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
 
+- **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** Source committed as `7c04a03` (`Port MarioWiki and Internet Archive cover fallbacks (D07/P7)`). Rust now runs one polite request per second per site with the PyroCade user agent, a 20 s timeout, 404/410 as no answer, 429/503 surfaced as slow-down, and a 30-day JSON disk cache (`mariowiki.json`, `archive-items.json`, `archive-boxart.json` v2). Super Mario Wiki is matched on raw page text with its cover category check (infobox `File:` names, `NOT_FRONT`/back-cover guards, MD5 image path); the Internet Archive `softwareboxart` index is built from `advancedsearch.php` (5 pages) with serial/system-shape checks (`systems_of`, `itemName`, `indexItem`), front-cover file checks (`frontFiles`, 19 MB cap), and front-shape checks (`fitsFront` within 8%). Untrusted releases are skipped, `version` is ignored when comparing titles, and tagged regions (`region_of`) rank the game's own region first. Fallbacks run front covers only, after Libretro/GameTDB, and never replace an existing cover (media/file checks return `existing` first; `write_new` stays exclusive). Added `md5` dependency for the MediaWiki path. Renderer artwork source display now names Super Mario Wiki & Internet Archive with the front-cover-only policy; `scripts/check-artwork.cjs` gained static Rust-contract assertions and `scripts/check-artwork-ui.cjs` gained fallback-source assertions.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (40 passed, 3 new), `cargo check --manifest-path src-tauri/Cargo.toml` (existing dead-code warnings), `node --check renderer/artwork-ui.js`, `node --check scripts/check-artwork.cjs`, `node --check scripts/check-artwork-ui.cjs`, and `node scripts/check-artwork.cjs` passed (including the new static contract assertions). `node scripts/check-artwork-ui.cjs` and the `npm start` smoke could not run on this host (no Electron runtime / no display); recorded, not claimed. No visual inspection was performed.
+  - Boundary linkage and path checks (working-tree vs HEAD scope) found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the new `md5` crate is a regular crates.io dependency, not the predecessor.
+  - Seed PASS: P7 row prices 17 files at 98,725 tokens, seed 98,718 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 144,097/225,000 tokens (64%); session cost $0/$0.70. Do-Not count remains 4; #1 applies (manual paths stay filesystem paths), #4 unaffected; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
@@ -137,7 +142,7 @@ The base migration queue's final task, **P10d — On-device renderer, controller
 - **P4 / D04 — Page turn, media carousel, and shelf sizing.** [COMPLETE] Committed as `fd7a8c8`.
 - **P5 / D05 — Case art, physical media, and booklet proportions.** [COMPLETE] Committed as `d4778d3`.
 - **P6 / D06 — Library cache and parallel Rust scan.** [COMPLETE] Committed as `2fa1983`.
-- **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [PENDING] Depends on D06.
+- **P7 / D07 — MarioWiki and Internet Archive cover fallbacks.** [COMPLETE] Committed as `7c04a03`.
 - **P8 / D08 — In-app feedback reporting.** [PENDING] Depends on D07.
 - **P9 / D09 — Demo capture, docs, and delta audit close-out.** [PENDING] Depends on D08.
 - **P10 / M03 — Collection administration and per-game controls.** [PENDING] Depends on D09. Absorbs the details editor, hidden list, drag order and Recomp menus added in `64a5ba6`.
