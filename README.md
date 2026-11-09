@@ -4,19 +4,17 @@
 
 An emulator launcher for Windows, macOS and Linux. Browse your library as 3D game cases with spines, cartridges, discs and manuals. Install or link emulators from the same app.
 
-![Shrek 2 selected in the GameCube carousel, with four other Shrek games and a gameplay preview](docs/media/screen-carousel.jpg)
+![Kirby Air Ride selected in the GameCube carousel, with neighbouring cases and a gameplay preview](docs/media/screen-carousel.jpg)
 
-[Download the 20-second demo (MP4)](https://raw.githubusercontent.com/Pyrodrifter/PyroCade/v0.8.0/docs/media/pyrocade-demo.mp4): the Shrek shelf in Carousel, Page turn and Media carousel, then a Game Boy Advance box opening.
-
-The screenshots show the current source build. The GameCube shelf has **Shrek 2**, **Shrek Extra Large**, **Shrek Super Party**, **Shrek SuperSlam** and **Shrek: Smash n’ Crash Racing**. Press **/** and type **shrek** on the GameCube shelf to find them, or switch to **All games** to search across systems. That also turns up **Shrek: Swamp Kart Speedway** on Game Boy Advance and **Shrek: Ogres & Dronkeys** on Nintendo DS.
+The 20-second demo moves from GameCube cases and discs to PlayStation jewel cases, then opens the **Golden Sun** box to reveal its Game Boy Advance cartridge. [Download the demo (MP4)](docs/media/pyrocade-demo.mp4?raw=true)
 
 | Bookshelf | Page turn |
 | --- | --- |
-| ![Shrek Super Party pulled out of a row of GameCube spines with details hidden](docs/media/screen-bookshelf.jpg) | ![Shrek 2 open beside the back cover of SuperSlam, turned like a book page](docs/media/screen-page-turn.jpg) |
+| ![Luigi’s Mansion pulled out from a row of GameCube spines](docs/media/screen-bookshelf.jpg) | ![Tekken 3 selected in the PlayStation Page turn layout](docs/media/screen-page-turn.jpg) |
 | **Media carousel** | **Open the case** |
-| ![The Shrek GameCube discs in a carousel, with the Shrek 2 disc in front](docs/media/screen-media.jpg) | ![The open Smash n’ Crash Racing case with its GameCube mini disc](docs/media/screen-case.jpg) |
+| ![F-Zero GX and other GameCube mini discs in the Media carousel](docs/media/screen-media.jpg) | ![The open F-Zero GX case with its GameCube mini disc](docs/media/screen-case.jpg) |
 | **Manuals** | **Artwork** |
-| ![The Shrek SuperSlam booklet with its manual ready to open](docs/media/screen-manual.jpg) | ![Artwork download options for the whole GameCube shelf](docs/media/screen-artwork.jpg) |
+| ![The Kirby Air Ride instruction booklet with its PDF manual ready to open](docs/media/screen-manual.jpg) | ![Artwork download options for the GameCube shelf](docs/media/screen-artwork.jpg) |
 | **Emulators** | |
 | ![Emulator catalog with install, link and update controls](docs/media/screen-emulators.jpg) | |
 
@@ -38,7 +36,7 @@ The screenshots show the current source build. The GameCube shelf has **Shrek 2*
   - Press **I** to hide or show game details. The shelf expands when details are hidden. Drag the top edge of the details panel to resize it. Press **O** to toggle the overlay.
   - PyroCade opens on the system and game you had selected.
 - **Multi-disc games** are one game with a disc choice in the case view. **Your own screenshots** from the emulator appear under the open case.
-- **Launch animation.** Play slides the disc or cartridge into a slot before the game starts. Toggle it in **Settings → Library display**. [Shrek 2 cartridge launch](docs/media/screen-launch.jpg)
+- **Launch animation.** Play slides the disc or cartridge into a slot before the game starts. Toggle it in **Settings → Library display**. [Castlevania: Aria of Sorrow cartridge launch](docs/media/screen-launch.jpg)
 - **Sharp artwork, no account needed:**
   - Covers, back covers, spines, disc scans, cartridge labels, clear logos, background art and screenshots come from the [LaunchBox Games Database](https://gamesdb.launchbox-app.com/), with GameTDB and Libretro as fallbacks. Front covers none of those have can still come from the [Super Mario Wiki](https://www.mariowiki.com/) (Mario-series games) and the [Internet Archive](https://archive.org/details/softwareboxart)'s box scan collection.
   - Game descriptions, years, developers and genres fill in automatically.
@@ -166,7 +164,7 @@ The form shows the app version and basic device details that will be included; u
 Found something, or want something? [Open an issue](https://github.com/Pyrodrifter/PyroCade/issues) — and if you have already written the fix, a pull request is very welcome.
 
 ## Legal
-PyroCade is only a launcher. It does not include or download games, BIOS files or console firmware/keys. Use dumps of games and systems you own. Emulators come from their own official GitHub releases, or a fork you choose, and remain under their own licenses. Artwork and game details come from the LaunchBox Games Database, GameTDB, Libretro thumbnails, the Super Mario Wiki, the Internet Archive and (optionally) ScreenScraper, and belong to their respective owners. The screenshots use local library artwork. The Shrek SuperSlam booklet links to a local PDF manual. The Emulators shot uses a demo configuration.
+PyroCade is only a launcher. It does not include or download games, BIOS files or console firmware/keys. Use dumps of games and systems you own. Emulators come from their own official GitHub releases, or a fork you choose, and remain under their own licenses. Artwork and game details come from the LaunchBox Games Database, GameTDB, Libretro thumbnails, the Super Mario Wiki, the Internet Archive and (optionally) ScreenScraper, and belong to their respective owners. The screenshots use local library artwork. The Kirby Air Ride booklet links to a local PDF manual. The Emulators shot uses a demo configuration.
 
 ## License
 MIT. See [LICENSE](LICENSE). Changes are listed in the [changelog](CHANGELOG.md).
