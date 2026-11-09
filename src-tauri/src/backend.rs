@@ -190,7 +190,11 @@ fn data_directory(app: &AppHandle) -> Result<PathBuf, Box<dyn std::error::Error>
 
 #[tauri::command]
 pub fn get_config(state: State<'_, AppState>) -> Value {
-    let config = state.config();
+    let mut config = state.config();
+    // ScreenScraper passwords stay in the app data config; the renderer never sees them.
+    if let Some(object) = config.as_object_mut() {
+        object.remove("screenscraper");
+    }
     if let Some(warning) = state.warning.lock().expect("warning lock poisoned").take() {
         let app = state.app.clone();
         std::thread::spawn(move || {
@@ -204,6 +208,13 @@ pub fn get_config(state: State<'_, AppState>) -> Value {
 #[tauri::command]
 pub fn set_config(state: State<'_, AppState>, cfg: Value) -> Result<Value, String> {
     let mut current = state.config.write().map_err(|e| e.to_string())?;
+    let mut cfg = cfg;
+    // ScreenScraper credentials are owned by the backend; the renderer cannot overwrite them.
+    if let Some(section) = current.get("screenscraper") {
+        cfg["screenscraper"] = section.clone();
+    } else if let Some(object) = cfg.as_object_mut() {
+        object.remove("screenscraper");
+    }
     let next = config_for_save(cfg, &current)?;
     save_config(&state.config_path, &next)?;
     *current = next.clone();

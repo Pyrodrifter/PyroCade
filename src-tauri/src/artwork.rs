@@ -3,7 +3,7 @@ use image::GenericImageView;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, OpenOptions};
-use std::io::{Cursor, Write};
+use std::io::{BufReader, Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
@@ -21,6 +21,16 @@ const MARIOWIKI_IMAGES: &str = "https://mario.wiki.gallery";
 const ARCHIVE_API: &str = "https://archive.org";
 const ARCHIVE_IIIF: &str = "https://iiif.archive.org/image/iiif/3";
 const ARCHIVE_COLLECTION: &str = "softwareboxart";
+const LAUNCHBOX_METADATA: &str = "https://gamesdb.launchbox-app.com/Metadata.zip";
+const LAUNCHBOX_IMAGES: &str = "https://images.launchbox-app.com";
+const SCREENSCRAPER_API: &str = "https://api.screenscraper.fr/api2";
+const SCREENSCRAPER_SOFTNAME: &str = "PyroCade";
+// LAUNCHBOX_INDEX_VERSION is the LaunchBox index schema version; a different on-disk version rebuilds from the database download.
+const LAUNCHBOX_INDEX_VERSION: u64 = 2;
+// LAUNCHBOX_KEEP bounds front files kept per game, so the cached index stays small.
+const LAUNCHBOX_KEEP: usize = 6;
+// SCREENSCRAPER_CRC_LIMIT bounds checksum hashing to cartridge-sized ROMs; larger disc images are matched by name and size.
+const SCREENSCRAPER_CRC_LIMIT: u64 = 64 * 1024 * 1024;
 // USER_AGENT stays PyroCade-Frontend: the branch host and the web sources share it.
 const USER_AGENT: &str = "PyroCade-Frontend";
 const WEB_CACHE_AGE_SECS: u64 = 30 * 86400;
@@ -80,6 +90,7 @@ pub async fn fetch_art(
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let refreshed_indexes = Arc::new(Mutex::new(HashSet::new()));
+    // Automatic lookups reuse a cached LaunchBox index; only the Artwork page may build it.
     let result = download_game(
         &state.app,
         &game,
@@ -89,6 +100,7 @@ pub async fn fetch_art(
         None,
         retry_missing,
         &refreshed_indexes,
+        false,
     )
     .await;
     update_game_media(&state.games, &game.id, &result);
@@ -229,6 +241,7 @@ pub fn start_artwork_download(
                         Some(&cancelled),
                         retry_missing,
                         &refreshed_indexes,
+                        true,
                     )
                     .await;
                     update_game_media(&game_store, &game.id, &result);
@@ -424,6 +437,7 @@ async fn download_game(
     cancelled: Option<&Arc<AtomicBool>>,
     retry_missing: bool,
     refreshed_indexes: &Arc<Mutex<HashSet<String>>>,
+    allow_index_download: bool,
 ) -> Value {
     let system = config
         .get("systems")
@@ -440,7 +454,10 @@ async fn download_game(
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_owned();
-    let fallback = mariowiki_covers(&system_id) || archive_covers(&system_id);
+    let fallback = mariowiki_covers(&system_id)
+        || archive_covers(&system_id)
+        || launchbox_covers(&system_id)
+        || screenscraper_covers(&system_id, config);
     if !switch && system.get("libretro").and_then(Value::as_str).is_none() && !fallback {
         return empty_result(game, true);
     }
@@ -563,6 +580,64 @@ async fn download_game(
                 )
                 .await;
                 match archive {
+                    Ok(Some(bytes)) => outcome = Some(Ok(Some(bytes))),
+                    Ok(None) => {}
+                    Err(error) => {
+                        if error == "Cancelled"
+                            || cancelled.is_some_and(|c| c.load(Ordering::Relaxed))
+                        {
+                            outcome = Some(Err(error));
+                        } else if primary_error.is_none() {
+                            primary_error = Some(error);
+                        }
+                    }
+                }
+            }
+            if outcome.is_none()
+                && !cancelled.is_some_and(|c| c.load(Ordering::Relaxed))
+                && launchbox_covers(&system_id)
+            {
+                let launchbox_refresh =
+                    refresh_index(retry_missing, refreshed_indexes, "launchbox".to_owned());
+                let launchbox = fetch_launchbox_image(
+                    game,
+                    &system_id,
+                    data_dir,
+                    cancelled,
+                    launchbox_refresh,
+                    allow_index_download,
+                )
+                .await;
+                match launchbox {
+                    Ok(Some(bytes)) => outcome = Some(Ok(Some(bytes))),
+                    Ok(None) => {}
+                    Err(error) => {
+                        if error == "Cancelled"
+                            || cancelled.is_some_and(|c| c.load(Ordering::Relaxed))
+                        {
+                            outcome = Some(Err(error));
+                        } else if primary_error.is_none() {
+                            primary_error = Some(error);
+                        }
+                    }
+                }
+            }
+            if outcome.is_none()
+                && !cancelled.is_some_and(|c| c.load(Ordering::Relaxed))
+                && screenscraper_covers(&system_id, config)
+            {
+                let screenscraper_refresh =
+                    refresh_index(retry_missing, refreshed_indexes, "screenscraper".to_owned());
+                let screenscraper = fetch_screenscraper_image(
+                    game,
+                    &system_id,
+                    config,
+                    data_dir,
+                    cancelled,
+                    screenscraper_refresh,
+                )
+                .await;
+                match screenscraper {
                     Ok(Some(bytes)) => outcome = Some(Ok(Some(bytes))),
                     Ok(None) => {}
                     Err(error) => {
@@ -893,14 +968,20 @@ async fn request_bytes(
 enum PoliteSite {
     MarioWiki,
     Archive,
+    LaunchBox,
+    ScreenScraper,
 }
 
 fn polite_last(site: PoliteSite) -> &'static Mutex<Option<Instant>> {
     static MARIO_LAST: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
     static ARCHIVE_LAST: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+    static LAUNCHBOX_LAST: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+    static SCREENSCRAPER_LAST: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
     match site {
         PoliteSite::MarioWiki => MARIO_LAST.get_or_init(|| Mutex::new(None)),
         PoliteSite::Archive => ARCHIVE_LAST.get_or_init(|| Mutex::new(None)),
+        PoliteSite::LaunchBox => LAUNCHBOX_LAST.get_or_init(|| Mutex::new(None)),
+        PoliteSite::ScreenScraper => SCREENSCRAPER_LAST.get_or_init(|| Mutex::new(None)),
     }
 }
 
@@ -1513,6 +1594,138 @@ fn archive_over(sys_id: &str) -> &'static [&'static str] {
     }
 }
 
+const LAUNCHBOX_PLATFORMS: &[(&str, &str)] = &[
+    ("ps1", "Sony Playstation"),
+    ("ps2", "Sony Playstation 2"),
+    ("ps3", "Sony Playstation 3"),
+    ("ps4", "Sony Playstation 4"),
+    ("psp", "Sony PSP"),
+    ("switch", "Nintendo Switch"),
+    ("switch2", "Nintendo Switch 2"),
+    ("wiiu", "Nintendo Wii U"),
+    ("wii", "Nintendo Wii"),
+    ("gc", "Nintendo GameCube"),
+    ("n64", "Nintendo 64"),
+    ("snes", "Super Nintendo Entertainment System"),
+    ("nes", "Nintendo Entertainment System"),
+    ("3ds", "Nintendo 3DS"),
+    ("nds", "Nintendo DS"),
+    ("gba", "Nintendo Game Boy Advance"),
+    ("gbc", "Nintendo Game Boy Color"),
+    ("gb", "Nintendo Game Boy"),
+    ("dreamcast", "Sega Dreamcast"),
+    ("genesis", "Sega Genesis"),
+    ("xbox", "Microsoft Xbox"),
+    ("x360", "Microsoft Xbox 360"),
+    ("a2600", "Atari 2600"),
+    ("arcade", "Arcade"),
+    ("pc", "Windows"),
+];
+
+const SCREENSCRAPER_SYSTEMS: &[(&str, u32)] = &[
+    ("genesis", 1),
+    ("nes", 3),
+    ("snes", 4),
+    ("gb", 9),
+    ("gbc", 10),
+    ("gba", 12),
+    ("gc", 13),
+    ("n64", 14),
+    ("nds", 15),
+    ("wii", 16),
+    ("3ds", 17),
+    ("wiiu", 18),
+    ("dreamcast", 23),
+    ("a2600", 26),
+    ("xbox", 32),
+    ("x360", 33),
+    ("ps1", 57),
+    ("ps2", 58),
+    ("ps3", 59),
+    ("psp", 61),
+    ("arcade", 75),
+    ("switch", 225),
+];
+
+const SCREENSCRAPER_REGIONS: &[&str] = &["us", "wor", "ss", "eu", "uk", "fr", "de", "jp"];
+
+fn launchbox_platform(sys_id: &str) -> Option<&'static str> {
+    LAUNCHBOX_PLATFORMS
+        .iter()
+        .find(|(id, _)| *id == sys_id)
+        .map(|(_, name)| *name)
+}
+
+fn launchbox_covers(sys_id: &str) -> bool {
+    launchbox_platform(sys_id).is_some()
+}
+
+fn screenscraper_system(sys_id: &str) -> Option<u32> {
+    SCREENSCRAPER_SYSTEMS
+        .iter()
+        .find(|(id, _)| *id == sys_id)
+        .map(|(_, system)| *system)
+}
+
+struct ScreenScraperCredentials {
+    user: String,
+    dev_id: String,
+    password: String,
+    dev_password: String,
+}
+
+fn screenscraper_credentials(config: &Value) -> Option<ScreenScraperCredentials> {
+    let section = config.get("screenscraper")?;
+    let field = |key: &str| {
+        section
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_owned()
+    };
+    let credentials = ScreenScraperCredentials {
+        user: field("user"),
+        dev_id: field("devId"),
+        password: field("password"),
+        dev_password: field("devPassword"),
+    };
+    if credentials.user.is_empty()
+        || credentials.dev_id.is_empty()
+        || credentials.password.is_empty()
+        || credentials.dev_password.is_empty()
+    {
+        None
+    } else {
+        Some(credentials)
+    }
+}
+
+fn screenscraper_configured(config: &Value) -> bool {
+    screenscraper_credentials(config).is_some()
+}
+
+fn screenscraper_covers(sys_id: &str, config: &Value) -> bool {
+    screenscraper_system(sys_id).is_some() && screenscraper_configured(config)
+}
+
+fn screenscraper_region_rank(region: &str) -> u32 {
+    SCREENSCRAPER_REGIONS
+        .iter()
+        .position(|known| *known == region)
+        .unwrap_or(SCREENSCRAPER_REGIONS.len()) as u32
+}
+
+fn screenscraper_media_url(url: &str) -> bool {
+    let Ok(parsed) = Url::parse(url) else {
+        return false;
+    };
+    parsed.scheme() == "https"
+        && parsed
+            .host_str()
+            .is_some_and(|host| host == "screenscraper.fr" || host.ends_with(".screenscraper.fr"))
+}
+
 fn front_shapes(sys_id: &str) -> &'static [f64] {
     match sys_id {
         "nds" | "3ds" => &[0.89],
@@ -2106,6 +2319,590 @@ async fn fetch_internet_archive_image(
     Ok(None)
 }
 
+fn launchbox_front_rank(image_type: &str, region: &str) -> Option<u32> {
+    let type_rank = match image_type {
+        "Box - Front" => 0,
+        "Box - Front - Reconstructed" => 1,
+        _ => return None,
+    };
+    let region_rank = if region.is_empty() {
+        1
+    } else if regex::Regex::new(r"North America|United States|World|Canada")
+        .unwrap()
+        .is_match(region)
+    {
+        0
+    } else if regex::Regex::new(r"Europe|United Kingdom|Australia|Oceania")
+        .unwrap()
+        .is_match(region)
+    {
+        2
+    } else {
+        3
+    };
+    Some(type_rank * 10 + region_rank)
+}
+
+fn launchbox_file_ok(name: &str) -> bool {
+    regex::Regex::new(r"(?i)^[\w.-]+\.(png|jpe?g)$")
+        .unwrap()
+        .is_match(name)
+}
+
+fn parse_launchbox_metadata<R: Read>(
+    source: R,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<
+    (
+        HashMap<String, HashMap<String, Vec<String>>>,
+        HashMap<String, HashMap<String, Vec<String>>>,
+    ),
+    String,
+> {
+    let wanted: HashSet<String> = LAUNCHBOX_PLATFORMS
+        .iter()
+        .map(|(_, platform)| (*platform).to_owned())
+        .collect();
+    let mut platform_of: HashMap<String, String> = HashMap::new();
+    let mut names: HashMap<String, HashMap<String, Vec<String>>> = HashMap::new();
+    let mut ranked: HashMap<String, HashMap<String, Vec<(u32, String)>>> = HashMap::new();
+    let mut reader = quick_xml::Reader::from_reader(BufReader::new(source));
+    reader.config_mut().trim_text(true);
+    let mut buffer = Vec::new();
+    let mut record = false;
+    let mut fields: HashMap<String, String> = HashMap::new();
+    let mut field: Option<String> = None;
+    let mut text = String::new();
+    let mut events: u64 = 0;
+    loop {
+        buffer.clear();
+        events += 1;
+        if events % 4096 == 0 && cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            return Err("Cancelled".to_owned());
+        }
+        match reader.read_event_into(&mut buffer) {
+            Ok(quick_xml::events::Event::Start(event)) => {
+                let tag = String::from_utf8_lossy(event.local_name().as_ref()).into_owned();
+                match tag.as_str() {
+                    "Game" | "GameAlternateName" | "GameImage" => {
+                        record = true;
+                        fields.clear();
+                        field = None;
+                    }
+                    _ => {
+                        if record {
+                            field = Some(tag);
+                            text.clear();
+                        }
+                    }
+                }
+            }
+            Ok(quick_xml::events::Event::Text(event)) => {
+                if field.is_some() {
+                    let decoded = event.unescape().map(|s| s.into_owned()).unwrap_or_default();
+                    text.push_str(&decoded);
+                }
+            }
+            Ok(quick_xml::events::Event::End(event)) => {
+                let tag = String::from_utf8_lossy(event.local_name().as_ref()).into_owned();
+                match tag.as_str() {
+                    "Game" | "GameAlternateName" | "GameImage" => {
+                        let id = fields.get("DatabaseID").cloned().unwrap_or_default();
+                        if !id.is_empty() {
+                            match tag.as_str() {
+                                "Game" => {
+                                    let platform =
+                                        fields.get("Platform").cloned().unwrap_or_default();
+                                    if wanted.contains(&platform) {
+                                        platform_of.insert(id.clone(), platform.clone());
+                                        let key = fallback_key(
+                                            fields.get("Name").map(String::as_str).unwrap_or(""),
+                                        );
+                                        if !key.is_empty() {
+                                            let list = names
+                                                .entry(platform)
+                                                .or_default()
+                                                .entry(key)
+                                                .or_default();
+                                            if !list.contains(&id) {
+                                                list.push(id);
+                                            }
+                                        }
+                                    }
+                                }
+                                "GameAlternateName" => {
+                                    if let Some(platform) = platform_of.get(&id).cloned() {
+                                        let key = fallback_key(
+                                            fields
+                                                .get("AlternateName")
+                                                .map(String::as_str)
+                                                .unwrap_or(""),
+                                        );
+                                        if !key.is_empty() {
+                                            let list = names
+                                                .entry(platform)
+                                                .or_default()
+                                                .entry(key)
+                                                .or_default();
+                                            if !list.contains(&id) {
+                                                list.push(id);
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    if let Some(platform) = platform_of.get(&id).cloned() {
+                                        let rank = launchbox_front_rank(
+                                            fields.get("Type").map(String::as_str).unwrap_or(""),
+                                            fields.get("Region").map(String::as_str).unwrap_or(""),
+                                        );
+                                        if let Some(rank) = rank {
+                                            let file =
+                                                fields.get("FileName").cloned().unwrap_or_default();
+                                            if launchbox_file_ok(&file) {
+                                                ranked
+                                                    .entry(platform)
+                                                    .or_default()
+                                                    .entry(id)
+                                                    .or_default()
+                                                    .push((rank, file));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        record = false;
+                        field = None;
+                        fields.clear();
+                    }
+                    _ => {
+                        if let Some(current) = field.take() {
+                            fields.insert(current, text.trim().to_owned());
+                            text.clear();
+                        }
+                    }
+                }
+            }
+            Ok(quick_xml::events::Event::Eof) => break,
+            Ok(_) => {}
+            Err(_) => return Err("Could not read the LaunchBox database".to_owned()),
+        }
+    }
+    if platform_of.is_empty() {
+        return Err("Could not read any games from the LaunchBox database".to_owned());
+    }
+    let mut images: HashMap<String, HashMap<String, Vec<String>>> = HashMap::new();
+    for (platform, by_id) in ranked {
+        let mapped = by_id
+            .into_iter()
+            .map(|(id, mut files)| {
+                files.sort_by_key(|(rank, _)| *rank);
+                files.truncate(LAUNCHBOX_KEEP);
+                (
+                    id,
+                    files.into_iter().map(|(_, file)| file).collect::<Vec<_>>(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+        images.insert(platform, mapped);
+    }
+    Ok((names, images))
+}
+
+fn launchbox_index_file(data_dir: &Path) -> PathBuf {
+    data_dir.join("media/_index/launchbox-index.json")
+}
+
+async fn download_launchbox_zip(
+    path: &Path,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<(), String> {
+    if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+        return Err("Cancelled".to_owned());
+    }
+    polite_gap(PoliteSite::LaunchBox).await;
+    let client = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut response = client
+        .get(LAUNCHBOX_METADATA)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("LaunchBox returned HTTP {}", response.status()));
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let mut file = fs::File::create(path).map_err(|e| e.to_string())?;
+    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+        if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            drop(file);
+            let _ = fs::remove_file(path);
+            return Err("Cancelled".to_owned());
+        }
+        file.write_all(&chunk).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+async fn build_launchbox_index(
+    data_dir: &Path,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<Value, String> {
+    let dir = data_dir.join("media/_index");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let zip_path = dir.join(format!("launchbox-metadata-{}.zip", uuid::Uuid::new_v4()));
+    download_launchbox_zip(&zip_path, cancelled).await?;
+    let (names, images) = {
+        let file = fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+        let entry = archive
+            .by_name("Metadata.xml")
+            .map_err(|_| "The LaunchBox database is missing Metadata.xml".to_owned())?;
+        parse_launchbox_metadata(entry, cancelled)?
+    };
+    let _ = fs::remove_file(&zip_path);
+    let built = json!({
+        "version": LAUNCHBOX_INDEX_VERSION,
+        "built": chrono::Utc::now().timestamp_millis(),
+        "names": names,
+        "images": images
+    });
+    let file = launchbox_index_file(data_dir);
+    let tmp = file.with_extension("json.tmp");
+    fs::write(&tmp, serde_json::to_vec(&built).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &file).map_err(|e| e.to_string())?;
+    Ok(built)
+}
+
+async fn load_launchbox_index(
+    data_dir: &Path,
+    cancelled: Option<&Arc<AtomicBool>>,
+    refresh: bool,
+    allow_download: bool,
+) -> Result<Option<Value>, String> {
+    let file = launchbox_index_file(data_dir);
+    let age_ms: u64 = file
+        .metadata()
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.elapsed().ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(u64::MAX);
+    let mut want_refresh = refresh;
+    if want_refresh && age_ms < 86400 * 1000 {
+        want_refresh = false;
+    }
+    if let Ok(text) = fs::read_to_string(&file) {
+        if let Ok(cached) = serde_json::from_str::<Value>(&text) {
+            if cached.get("version").and_then(Value::as_u64) == Some(LAUNCHBOX_INDEX_VERSION) {
+                if !want_refresh && age_ms < WEB_CACHE_AGE_SECS * 1000 {
+                    return Ok(Some(cached));
+                }
+                if !allow_download {
+                    return Ok(Some(cached));
+                }
+            }
+        }
+    }
+    if !allow_download {
+        return Ok(None);
+    }
+    Ok(Some(build_launchbox_index(data_dir, cancelled).await?))
+}
+
+async fn first_image(
+    urls: Vec<String>,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<Option<Vec<u8>>, String> {
+    let mut failure: Option<String> = None;
+    for url in urls {
+        if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            return Err("Cancelled".to_owned());
+        }
+        let parsed = Url::parse(&url).map_err(|e| e.to_string())?;
+        match request_image(parsed, cancelled).await {
+            Ok(Some(bytes)) => return Ok(Some(bytes)),
+            Ok(None) => {}
+            Err(error) => {
+                if error == "Cancelled" || cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+                    return Err(error);
+                }
+                failure = Some(error);
+            }
+        }
+    }
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(None),
+    }
+}
+
+async fn fetch_launchbox_image(
+    game: &Game,
+    sys_id: &str,
+    data_dir: &Path,
+    cancelled: Option<&Arc<AtomicBool>>,
+    refresh: bool,
+    allow_download: bool,
+) -> Result<Option<Vec<u8>>, String> {
+    let Some(platform) = launchbox_platform(sys_id) else {
+        return Ok(None);
+    };
+    if !trusted_release(&game.base) {
+        return Ok(None);
+    }
+    let Some(index) = load_launchbox_index(data_dir, cancelled, refresh, allow_download).await?
+    else {
+        return Ok(None);
+    };
+    let Some(names) = index.get("names").and_then(|names| names.get(platform)) else {
+        return Ok(None);
+    };
+    let Some(images) = index.get("images").and_then(|images| images.get(platform)) else {
+        return Ok(None);
+    };
+    let mut keys = Vec::new();
+    for key in artwork_title_keys(game) {
+        keys.push(key.clone());
+        keys.push(without_version(&key));
+    }
+    for key in keys {
+        let Some(ids) = names.get(&key).and_then(Value::as_array) else {
+            continue;
+        };
+        for id in ids {
+            let Some(files) = id
+                .as_str()
+                .and_then(|id| images.get(id))
+                .and_then(Value::as_array)
+            else {
+                continue;
+            };
+            if files.is_empty() {
+                continue;
+            }
+            let urls: Vec<String> = files
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|file| format!("{LAUNCHBOX_IMAGES}/{file}"))
+                .collect();
+            if !urls.is_empty() {
+                return first_image(urls, cancelled).await;
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn crc32_table() -> &'static [u32; 256] {
+    static TABLE: OnceLock<[u32; 256]> = OnceLock::new();
+    TABLE.get_or_init(|| {
+        let mut table = [0u32; 256];
+        for (index, slot) in table.iter_mut().enumerate() {
+            let mut crc = index as u32;
+            for _ in 0..8 {
+                crc = if crc & 1 != 0 {
+                    0xEDB88320 ^ (crc >> 1)
+                } else {
+                    crc >> 1
+                };
+            }
+            *slot = crc;
+        }
+        table
+    })
+}
+
+fn crc32_update(crc: u32, data: &[u8]) -> u32 {
+    let mut crc = !crc;
+    for &byte in data {
+        crc = crc32_table()[(crc ^ u32::from(byte)) as usize & 0xff] ^ (crc >> 8);
+    }
+    !crc
+}
+
+fn screenscraper_crc(game: &Game, size: u64) -> Option<u32> {
+    if size > SCREENSCRAPER_CRC_LIMIT {
+        return None;
+    }
+    let mut file = fs::File::open(&game.rom_path).ok()?;
+    let mut crc = 0u32;
+    let mut buffer = [0u8; 8192];
+    loop {
+        match file.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(read) => crc = crc32_update(crc, &buffer[..read]),
+            Err(_) => return None,
+        }
+    }
+    Some(crc)
+}
+
+fn screenscraper_lookup_url(
+    game: &Game,
+    system: u32,
+    credentials: &ScreenScraperCredentials,
+    rom_size: Option<u64>,
+    crc: Option<u32>,
+) -> Url {
+    let rom_path = Path::new(&game.rom_path);
+    let folder = game.rom_path.to_lowercase().ends_with("exefs/main");
+    let mut url = Url::parse(&format!("{SCREENSCRAPER_API}/jeuInfos.php"))
+        .expect("ScreenScraper API URL is valid");
+    {
+        let mut q = url.query_pairs_mut();
+        q.append_pair("devid", &credentials.dev_id);
+        q.append_pair("devpassword", &credentials.dev_password);
+        q.append_pair("softname", SCREENSCRAPER_SOFTNAME);
+        q.append_pair("output", "json");
+        q.append_pair("ssid", &credentials.user);
+        q.append_pair("sspassword", &credentials.password);
+        q.append_pair("systemeid", &system.to_string());
+        if folder {
+            q.append_pair("romtype", "dossier");
+            q.append_pair("romnom", &game.base);
+        } else {
+            q.append_pair("romtype", "rom");
+            let romnom = rom_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(&game.base);
+            q.append_pair("romnom", romnom);
+            if let Some(size) = rom_size {
+                q.append_pair("romtaille", &size.to_string());
+                if let Some(crc) = crc {
+                    q.append_pair("crc", &format!("{crc:08X}"));
+                }
+            }
+        }
+    }
+    url
+}
+
+async fn screenscraper_json(
+    url: Url,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<Option<Value>, String> {
+    if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+        return Err("Cancelled".to_owned());
+    }
+    polite_gap(PoliteSite::ScreenScraper).await;
+    if cancelled.is_some_and(|c| c.load(Ordering::Relaxed)) {
+        return Err("Cancelled".to_owned());
+    }
+    let response = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(25))
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    match response.status().as_u16() {
+        404 => return Ok(None),
+        400 => return Err("ScreenScraper could not read the request".to_owned()),
+        401 => return Err("ScreenScraper is busy right now; try again later".to_owned()),
+        403 => return Err("ScreenScraper rejected the developer ID or password".to_owned()),
+        423 => return Err("ScreenScraper is down for maintenance".to_owned()),
+        426 => return Err("ScreenScraper no longer accepts this version of PyroCade".to_owned()),
+        429 => return Err("ScreenScraper says too many requests; slow down and retry".to_owned()),
+        430 => return Err("Your ScreenScraper daily quota is used up".to_owned()),
+        431 => return Err("ScreenScraper saw too many unknown ROMs today".to_owned()),
+        status if !response.status().is_success() => {
+            return Err(format!("ScreenScraper returned HTTP {status}"));
+        }
+        _ => {}
+    }
+    let data = response
+        .json::<Value>()
+        .await
+        .map_err(|_| "ScreenScraper sent an unreadable reply".to_owned())?;
+    Ok(Some(data))
+}
+
+async fn screenscraper_medias(
+    game: &Game,
+    system: u32,
+    credentials: &ScreenScraperCredentials,
+    cancelled: Option<&Arc<AtomicBool>>,
+) -> Result<Vec<String>, String> {
+    let rom_size = fs::metadata(&game.rom_path).map(|meta| meta.len()).ok();
+    let crc = rom_size.and_then(|size| screenscraper_crc(game, size));
+    let url = screenscraper_lookup_url(game, system, credentials, rom_size, crc);
+    let Some(data) = screenscraper_json(url, cancelled).await? else {
+        return Ok(Vec::new());
+    };
+    let Some(medias) = data
+        .get("response")
+        .and_then(|response| response.get("jeu"))
+        .and_then(|jeu| jeu.get("medias"))
+        .and_then(Value::as_array)
+    else {
+        return Ok(Vec::new());
+    };
+    let mut candidates: Vec<(u32, String)> = medias
+        .iter()
+        .filter(|media| media.get("type").and_then(Value::as_str) == Some("box-2D"))
+        .filter_map(|media| {
+            let url = media.get("url").and_then(Value::as_str)?;
+            if !screenscraper_media_url(url) {
+                return None;
+            }
+            let region = media.get("region").and_then(Value::as_str).unwrap_or("");
+            Some((screenscraper_region_rank(region), url.to_owned()))
+        })
+        .collect();
+    candidates.sort_by_key(|(rank, _)| *rank);
+    candidates.truncate(6);
+    Ok(candidates.into_iter().map(|(_, url)| url).collect())
+}
+
+async fn fetch_screenscraper_image(
+    game: &Game,
+    sys_id: &str,
+    config: &Value,
+    data_dir: &Path,
+    cancelled: Option<&Arc<AtomicBool>>,
+    refresh: bool,
+) -> Result<Option<Vec<u8>>, String> {
+    let Some(system) = screenscraper_system(sys_id) else {
+        return Ok(None);
+    };
+    let Some(credentials) = screenscraper_credentials(config) else {
+        return Ok(None);
+    };
+    let file = web_cache_file(data_dir, "screenscraper.json");
+    let key = format!("ss/{sys_id}/{}", game.id);
+    let mut urls: Option<Vec<String>> = None;
+    if !refresh {
+        if let Some(cached) = web_cache_get(&file, &key) {
+            if let Some(cached) = cached.as_array() {
+                urls = Some(
+                    cached
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned)
+                        .collect(),
+                );
+            }
+        }
+    }
+    if urls.is_none() {
+        let found = screenscraper_medias(game, system, &credentials, cancelled).await?;
+        web_cache_set(&file, &key, json!(found));
+        urls = Some(found);
+    }
+    first_image(urls.unwrap_or_default(), cancelled).await
+}
+
 fn write_new(path: &Path, bytes: &[u8]) -> Result<bool, String> {
     fs::create_dir_all(path.parent().ok_or("Artwork directory is invalid")?)
         .map_err(|e| e.to_string())?;
@@ -2348,5 +3145,125 @@ mod tests {
         assert!(fits_front("snes", 2160, 3000));
         assert!(!fits_front("snes", 3137, 6735));
         assert!(!fits_front("arcade", 1000, 1000));
+    }
+
+    #[test]
+    fn launchbox_and_screenscraper_cover_their_systems() {
+        assert_eq!(launchbox_platform("ps4"), Some("Sony Playstation 4"));
+        assert_eq!(launchbox_platform("arcade"), Some("Arcade"));
+        assert!(launchbox_covers("snes"));
+        assert!(!launchbox_covers("unknown"));
+        assert_eq!(screenscraper_system("snes"), Some(4));
+        assert_eq!(screenscraper_system("ps1"), Some(57));
+        assert_eq!(screenscraper_system("switch"), Some(225));
+        assert_eq!(screenscraper_system("ps4"), None);
+        assert_eq!(screenscraper_region_rank("us"), 0);
+        assert!(screenscraper_region_rank("us") < screenscraper_region_rank("wor"));
+        assert!(screenscraper_region_rank("eu") < screenscraper_region_rank("jp"));
+        assert!(screenscraper_region_rank("xx") > screenscraper_region_rank("jp"));
+    }
+
+    #[test]
+    fn launchbox_front_files_rank_type_then_region() {
+        assert_eq!(
+            launchbox_front_rank("Box - Front", "United States"),
+            Some(0)
+        );
+        assert_eq!(
+            launchbox_front_rank("Box - Front - Reconstructed", "Europe"),
+            Some(12)
+        );
+        assert_eq!(launchbox_front_rank("Box - Front", ""), Some(1));
+        assert_eq!(
+            launchbox_front_rank("Screenshot - Gameplay", "United States"),
+            None
+        );
+        assert!(launchbox_file_ok("Game-01.jpg"));
+        assert!(launchbox_file_ok("a.b_png.PNG"));
+        assert!(!launchbox_file_ok("dir/Game.jpg"));
+        assert!(!launchbox_file_ok("Game.bmp"));
+    }
+
+    #[test]
+    fn launchbox_metadata_parses_games_names_and_front_files() {
+        let xml = "<Database><Games><Game><DatabaseID>1</DatabaseID><Platform>Sony Playstation</Platform><Name>Test Game</Name></Game><Game><DatabaseID>2</DatabaseID><Platform>Other</Platform><Name>Skipped</Name></Game></Games><GameAlternateName><DatabaseID>1</DatabaseID><AlternateName>Test Game &amp; More</AlternateName></GameAlternateName><GameImage><DatabaseID>1</DatabaseID><Type>Box - Front</Type><FileName>test-reconstructed.jpg</FileName><Region>Europe</Region></GameImage><GameImage><DatabaseID>1</DatabaseID><Type>Box - Front</Type><FileName>test-front.jpg</FileName><Region>United States</Region></GameImage><GameImage><DatabaseID>1</DatabaseID><Type>Screenshot - Gameplay</Type><FileName>ignored.jpg</FileName><Region>United States</Region></GameImage></Database>";
+        let (names, images) =
+            parse_launchbox_metadata(Cursor::new(xml), None).expect("metadata parses");
+        let platform = "Sony Playstation";
+        assert_eq!(names[platform]["testgame"], vec!["1".to_owned()]);
+        assert!(names[platform].contains_key("testgamemore"));
+        assert_eq!(
+            images[platform]["1"],
+            vec![
+                "test-front.jpg".to_owned(),
+                "test-reconstructed.jpg".to_owned()
+            ]
+        );
+        assert!(!names.contains_key("Other"));
+    }
+
+    #[test]
+    fn crc32_matches_the_ieee_check_value() {
+        assert_eq!(crc32_update(0, b"123456789"), 0xCBF43926);
+        assert_eq!(crc32_update(0, b""), 0);
+    }
+
+    #[test]
+    fn screenscraper_stays_inert_without_credentials() {
+        let config = json!({"screenscraper": {"user": "u", "devId": "d"}});
+        assert!(!screenscraper_configured(&config));
+        assert!(!screenscraper_covers("snes", &config));
+        let configured = json!({"screenscraper": {"user": "u", "devId": "d", "password": "p", "devPassword": "q"}});
+        assert!(screenscraper_configured(&configured));
+        assert!(screenscraper_covers("snes", &configured));
+        assert!(!screenscraper_covers("ps4", &configured));
+    }
+
+    #[test]
+    fn screenscraper_lookup_names_the_rom() {
+        let game = Game {
+            id: "snes:game".to_owned(),
+            system: "snes".to_owned(),
+            rom_path: "roms/Game (USA).sfc".to_owned(),
+            base: "Game (USA)".to_owned(),
+            title: "Game".to_owned(),
+            info: json!({}),
+            media: std::collections::HashMap::new(),
+            shell: None,
+            hidden: false,
+            scanned_title: None,
+            custom_title: false,
+            version: None,
+            media_type: None,
+            emulator: None,
+            added: None,
+        };
+        let credentials = ScreenScraperCredentials {
+            user: "u".to_owned(),
+            dev_id: "d".to_owned(),
+            password: "p".to_owned(),
+            dev_password: "q".to_owned(),
+        };
+        let url = screenscraper_lookup_url(&game, 4, &credentials, Some(12345), Some(0xCBF43926));
+        let query = url.query().unwrap_or("");
+        assert!(query.contains("systemeid=4"));
+        assert!(query.contains("romnom=Game+%28USA%29.sfc"));
+        assert!(query.contains("romtaille=12345"));
+        assert!(query.contains("crc=CBF43926"));
+        let dossier = Game {
+            rom_path: "roms/exefs/main".to_owned(),
+            ..game
+        };
+        let url = screenscraper_lookup_url(&dossier, 4, &credentials, None, None);
+        let query = url.query().unwrap_or("");
+        assert!(query.contains("romtype=dossier"));
+        assert!(query.contains("romnom=Game+%28USA%29"));
+        assert!(screenscraper_media_url(
+            "https://www.screenscraper.fr/box-2D.png"
+        ));
+        assert!(!screenscraper_media_url(
+            "http://www.screenscraper.fr/box-2D.png"
+        ));
+        assert!(!screenscraper_media_url("https://example.com/box-2D.png"));
     }
 }

@@ -92,6 +92,29 @@ async function until(test){for(let i=0;i<300;i++){if(test())return;await pause(1
       assert(ui.includes('Internet Archive'),'Artwork UI must name Internet Archive');
       assert(ui.includes('never replacing an existing cover'),'Artwork UI must state front-cover fallback policy');
     }
+    // M04a: LaunchBox/ScreenScraper providers through the Rust artwork service (same static style as D07).
+    {
+      const rust=await fs.readFile(path.join(__dirname,'../src-tauri/src/artwork.rs'),'utf8');
+      for(const needle of [
+        'launchbox_platform','launchbox_covers','fetch_launchbox_image','parse_launchbox_metadata',
+        'launchbox_index_file','build_launchbox_index','load_launchbox_index','download_launchbox_zip',
+        'LAUNCHBOX_METADATA','LAUNCHBOX_IMAGES','LAUNCHBOX_INDEX_VERSION','LAUNCHBOX_KEEP',
+        'Metadata.xml','launchbox-index.json','Box - Front','launchbox_front_rank','launchbox_file_ok',
+        'screenscraper_system','screenscraper_covers','screenscraper_configured','screenscraper_credentials',
+        'fetch_screenscraper_image','screenscraper_medias','screenscraper_json','screenscraper_lookup_url',
+        'SCREENSCRAPER_API','jeuInfos.php','romtaille','crc32_update','box-2D','screenscraper_media_url',
+        'PoliteSite::ScreenScraper','PoliteSite::LaunchBox','allow_index_download',
+      ]) assert(rust.includes(needle),`Rust provider missing ${needle}`);
+      // Front covers only, after Libretro/GameTDB: same gate as the D07 providers.
+      assert(rust.includes('launchbox_covers(&system_id)'),'LaunchBox must join the front-cover fallback gate');
+      assert(rust.includes('screenscraper_covers(&system_id, config)'),'ScreenScraper must join the front-cover fallback gate');
+      // ScreenScraper never runs without all four credentials (user, devId, password, devPassword).
+      assert(rust.includes('credentials.dev_password.is_empty()'),'ScreenScraper must require credentials');
+      const backend=await fs.readFile(path.join(__dirname,'../src-tauri/src/backend.rs'),'utf8');
+      // ScreenScraper passwords must never cross the bridge to the renderer.
+      assert(backend.includes('object.remove("screenscraper")'),'Backend must strip ScreenScraper credentials from get_config');
+      assert(backend.includes('cfg["screenscraper"] = section.clone()'),'Backend must preserve ScreenScraper credentials on set_config');
+    }
     console.log('Passed: missing screenshots with cached covers, custom-art preservation, exact-region matching, independent title art, refreshed matches, invalid-image handling, path validation, shared requests, cancellation, resume, unsupported systems and progress updates.');
   } finally {
     // Only remove the unique test directory inside the OS temp directory.
