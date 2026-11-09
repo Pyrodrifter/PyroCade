@@ -196,11 +196,17 @@ jobs:
           if (!fs.existsSync(path.join(toolDir, 'AppRun'))) throw new Error('Failed to extract appimagetool runtime');
           const pkgVersion = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri/tauri.conf.json'), 'utf8')).version;
           const out = path.join(root, 'dist', `PyroCade_${pkgVersion}_aarch64-extract.AppImage`);
-          run(path.join(toolDir, 'AppRun'), ['--appimage-extract', target, out], { cwd: base, env: { ...env, ARCH: 'arm64' } });
+          const runtime = path.join(base, 'runtime-aarch64');
+          run('curl', ['-fL', 'https://github.com/AppImage/AppImageKit/releases/download/continuous/runtime-aarch64', '-o', runtime]);
+          fs.chmodSync(runtime, 0o755);
+          run(path.join(toolDir, 'AppRun'), ['--runtime-file', runtime, target, out], { cwd: base, env: { ...env, ARCH: 'arm64' } });
           if (!fs.existsSync(out)) throw new Error(`Missing extracted-type AppImage: ${out}`);
           for (const kind of ['deb', 'rpm']) {
             const source = path.join(bundle, kind);
-            for (const file of fs.readdirSync(source)) fs.copyFileSync(path.join(source, file), path.join(root, 'dist', file));
+            for (const file of fs.readdirSync(source)) {
+              const p = path.join(source, file);
+              if (fs.statSync(p).isFile()) fs.copyFileSync(p, path.join(root, 'dist', file));
+            }
           }
           JS
               node /tmp/build-appimage.mjs

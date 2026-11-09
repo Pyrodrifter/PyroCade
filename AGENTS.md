@@ -108,9 +108,9 @@ Environment:
 
 ## 4. Build a Windows release
 
-The fork's `package.json` ships only macOS/Linux/Android wrapper scripts
-(`dist:macos:arm64`, `dist:linux:arm64`, `dist:android:arm64`). On Windows,
-use Tauri directly:
+Windows x64 artifacts are produced two ways:
+
+### Native (on Windows)
 
 ```powershell
 # Dev/debug bundle (single-file .exe + default targets)
@@ -124,30 +124,98 @@ npm run build
 #   src-tauri\target\release\bundle\
 ```
 
-### Bundle targets
+### Cross-compile from macOS (cargo-xwin)
 
-`src-tauri/tauri.conf.json` currently lists:
+Tauri documents NSIS cross-compilation from macOS/Linux (MSI needs Windows/WiX).
+Prerequisites on macOS: `brew install nsis llvm lld`, `rustup target add
+x86_64-pc-windows-msvc`, `cargo install --locked cargo-xwin`. Use the
+**rustup** toolchain (Homebrew `rustc` lacks the Windows target) and expose
+LLVM's `llvm-rc`/`lld`:
 
-```json
-"targets": ["app", "dmg", "appimage", "deb", "rpm"]
+```bash
+export PATH="/Users/kaicherry/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$HOME/.cargo/bin:/opt/homebrew/opt/llvm@22/bin:$PATH"
+npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
+# → src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/PyroCade_*_x64-setup.exe
 ```
 
-There is **no Windows target** in CI yet. To add a Windows installer:
+If `rust-lld` aborts with `Library not loaded: @rpath/libLLVM.dylib`, symlink
+`~/.rustup/.../lib/libLLVM.dylib` into
+`~/.rustup/.../lib/rustlib/aarch64-apple-darwin/lib/` (rustup layout puts it
+one level up from where the linker looks). `windows.nsis.installerIcon`
+must be `../renderer/assets/brand/pyrocade.ico` (NSIS needs ICO, not PNG).
 
-1. Edit `src-tauri/tauri.conf.json` → `bundle.targets` to include `"nsis"`
-   (and/or `"msi"`).
-2. Add empty right-side keys as needed:
-   ```json
-   "windows": { "nsis": { "installerIcon": "../renderer/assets/brand/pyrocade-icon-512.png" } }
-   ```
-3. Install NSIS / WiX and re-run `npm run build`.
-4. Outputs land in `src-tauri\target\release\bundle\nsis\` /
-   `msi\` (versioned file names).
+### Bundle targets
+
+`src-tauri/tauri.conf.json` lists:
+
+```json
+"targets": ["app", "dmg", "appimage", "deb", "rpm", "nsis", "msi"]
+```
+
+`nsis`/`msi` are native Windows installers. `app`/`dmg`/`appimage`/`deb`/`rpm`
+are the macOS/Linux set (see §5 table). Fixtures built from macOS supply
+`PyroCade_*_x64-setup.exe` (NSIS) + portable `PyroCade_*_x64.exe`.
 
 For a **single-file exe / app folder only** (no installer), keep default
 `targets` and use `src-tauri\target\release\pyrocade.exe` (or
 `bundle\msi\`/`nsis\` when enabled). Copy the `.exe` for manual QA without
 building installers.
+
+### Linux AppImage (extract-type, non-FUSE)
+
+Build in Apple Containers with **container-local** storage (spec:
+`desktop-runtime.md`): one-shot `container run --memory 3G --cpus 4` for
+ARM64, `-a x86_64` for x86_64 via Rosetta 2 (never Lima QEMU — ~50 min).
+Inside the container: deps + Node 22 + Rust + `cargo tauri build`, then
+`copyTree` the `PyroCade.AppDir` to `os.tmpdir()` and package with
+
+```
+AppRun --runtime-file <runtime-{aarch64,x86_64}> <appdir> <out>
+```
+
+(`cargo tauri build --bundles appimage` alone already emits a standard
+AppImage; the extract-type repack is the distributable on the release page.)
+
+### macOS signing / notarization
+
+macOS artifacts use Developer ID + notarization:
+
+```bash
+APPLE_SIGNING_IDENTITY="Developer ID Application: …" \
+  npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg
+xcrun notarytool submit dist/PyroCade_*_aarch64.dmg --keychain-profile impressium --wait
+xcrun stapler staple dist/PyroCade_*_aarch64.dmg
+```
+
+`impressium` is a stored `notarytool` Keychain profile (Apple ID + Team ID +
+app-specific password already in Keychain). Verify with
+`spctl -a -vv PyroCade.app` → `accepted source=Notarized Developer ID`.
+
+### Android signing
+
+Applies on Windows, macOS and CI alike. Tauri reads
+`src-tauri/gen/android/keystore.properties` (private, gitignored):
+
+```
+keyAlias=pyrocade
+storeFile=/Users/<user>/.keystores/pyrocade.jks
+```
+
+plus a `signingConfigs.release` block in the generated
+`app/build.gradle.kts`. Both are produced by `scripts/configure-android.cjs`
+when `TAURI_ANDROID_KEYSTORE_PATH` / `TAURI_ANDROID_KEYSTORE_PASSWORD` /
+`TAURI_ANDROID_KEY_ALIAS` / `TAURI_ANDROID_KEY_PASSWORD` env are set;
+generate the store once with `keytool -genkeypair -keystore ~/.keystores/pyrocade.jks
+-alias pyrocade -keyalg RSA -keysize 2048 -validity 10000`, then
+
+```bash
+npm run tauri:android:configure
+RUSTC="$(rustup which rustc)" npm run dist:android:arm64
+```
+
+Signed output is `app-arm64-release.apk` (rename to
+`PyroCade_0.2.1_android-arm64.apk` for the release). Verify with
+`$ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs dist/*.apk`.
 
 ### Emulator catalog on Windows
 

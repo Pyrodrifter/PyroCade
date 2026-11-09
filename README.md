@@ -12,9 +12,11 @@ A glass-styled emulator front end with a 3D library, animated physical media, si
 
 | Platform | Artifact | Validation |
 | --- | --- | --- |
-| macOS ARM64 | DMG | Native ARM64 build and install smoke test in the release workflow. |
-| Linux ARM64 | AppImage, `.deb`, `.rpm` | Native ARM64 build and packaging in the release workflow (no install smoke test; only macOS installs and smoke-launches its artifact). |
-| Android ARM64 | CI-only unsigned `arm64-v8a` APK for pull requests; signed APK on release runs | Signed release APKs are attached to GitHub releases. On-device renderer, controller navigation, and Web Audio startup were checked on an Odin2 running Android 13; see [platform validation](docs/SUPPORT.md). |
+| macOS ARM64 | DMG (Developer ID signed + notarized) | Native ARM64 build and install smoke test in the release workflow. |
+| Linux ARM64 | AppImage (extract-type), `.deb`, `.rpm` | Native ARM64 build and packaging in the release workflow (no install smoke test; only macOS installs and smoke-launches its artifact). |
+| Linux x86_64 | AppImage (extract-type) | Cross-build via Rosetta x86_64 Apple Container (`container run -a x86_64`); same extract-type flow, guest-local AppDir. |
+| Windows x86_64 | NSIS `-setup.exe` + portable `.exe` | Cross-compiled from macOS with `cargo-xwin` (`npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis`); MSI (WiX) is Windows-host only. |
+| Android ARM64 | Signed `arm64-v8a` APK (`PyroCade_*_android-arm64.apk`) | Signed release APKs are attached to GitHub releases. On-device renderer, controller navigation, and Web Audio startup were checked on an Odin2 running Android 13; see [platform validation](docs/SUPPORT.md). |
 
 The Android app requires Android 7.0 (API 24) or newer. Settings and managed data use app-private storage, and PyroCade does not request broad external-storage access. ROM-folder selection uses Android's Storage Access Framework; linked Android emulator apps can be launched with the selected ROM URI. Android emulator packages are separate apps, not the desktop executables managed by the macOS/Linux downloader. See [platform validation](docs/SUPPORT.md) for tested-device details and remaining validation limits.
 
@@ -25,7 +27,7 @@ Download desktop builds and the signed Android APK from the [latest release](htt
     npm ci
     npm start
 
-Build macOS or Linux ARM64 releases with `npm run dist:macos:arm64` or `npm run dist:linux:arm64`. For Android, install the Android SDK/NDK and JDK 17, then run:
+Build macOS or Linux ARM64 releases with `npm run dist:macos:arm64` or `npm run dist:linux:arm64`. Build Windows NSIS from macOS with `npm run dist:windows:x64` (cargo-xwin cross-compile). For Android, install the Android SDK/NDK and JDK 17, then run:
 
     ANDROID_HOME=/path/to/android-sdk ANDROID_SDK_ROOT=/path/to/android-sdk npm run tauri:android:init
     ANDROID_HOME=/path/to/android-sdk ANDROID_SDK_ROOT=/path/to/android-sdk npm run tauri:android:configure
@@ -42,7 +44,7 @@ The flame and play-button mark, glass app icon, wordmark and banner are in `rend
 
 ## Use
 - **Settings**: set a ROM folder for each system, pick its emulator, then click *Save & rescan*. **+ Add system…** creates your own systems (colour, case style, file types, removable); **+ Add game…** adds any file to any system under *Games you added*; the per-system **Show** checkbox hides a system and its games from every shelf. *Hidden games* in Settings lists hidden games with **Restore**.
-- **Emulators**: *Install* downloads the latest managed build for your operating system and CPU architecture into `data/emulators/<id>`. *Check all for updates* compares your copy with the newest release, and updates are copied over the old files so emulator settings survive. *Use existing .exe…* links an emulator you already have. *Add your own emulator* covers anything not in the list (Eden, Dolphin, RetroArch…). Any system can use **Run the file itself**.
+- **Emulators**: *Install* downloads the latest managed build for your operating system and CPU architecture into `data/emulators/<id>`. *Check all for updates* compares your copy with the newest release, and updates are copied over the old files so emulator settings survive. *Use existing program…* links an emulator you already have. *Add your own emulator* covers anything not in the list (Eden, Dolphin, RetroArch…). Any system can use **Run the file itself**.
 - **Library**: ← → to browse, ↑ ↓ to switch system in Carousel/Flipbook, Enter to play, Space to open the case, M for the manual. Vertical stack uses ↑ ↓ to browse; Media carousel uses the arrow keys to browse discs and cartridges directly. Controllers work too (A play, B back, Y case, X manual, LB/RB system). Press **F** to favourite a game, **Delete** to hide it (nothing in your ROM folder is renamed, moved or deleted), use the filter buttons for Favourites / Recently played, and cycle sort modes from the shelf. Drag a game to reorder it (Custom sort). Right-click a game for *Rename…*, *Edit details…* (title, version, media type), *Emulator…* (per-game choice or *Run the file itself*) and artwork; the info bar carries the same **Favourite**, **Hide**, **Emulator** and **Edit details** controls.
 
 ## Library appearance and sound
@@ -70,7 +72,7 @@ Keyboard and controller navigation follow the chosen layout. In the system brows
 Screenshots are illustrative of the six layouts and are copied from the upstream showcase; they are not re-captured from the Tauri build on this host. Recreate them with `npm run docs:screens` where the demo capture harness can run, then review against the Tauri WebView.
 
 ## Button prompts
-The frontend includes **283 matching prompts** for Xbox, PlayStation, Nintendo, generic gamepads, keyboard and mouse. Hints and action buttons automatically follow the last input used. Choose a fixed family in **Settings → Button prompts**, then **Save & rescan** to keep it. Face-button actions use physical positions: Nintendo B plays and A goes back. Triggers jump ten games in the library and zoom in the case viewer; the top face button opens/closes the case lid.
+The frontend includes **283 matching prompts** for Xbox, PlayStation, Nintendo, generic gamepads, keyboard and mouse. Hints and action buttons automatically follow the last input used. Choose a fixed family in **Settings → Button prompts**, then **Save & rescan** to keep it. Face-button actions follow logical buttons (A confirms/plays, B goes back): Xbox/PlayStation use the bottom face button for A/cross, Nintendo uses the right face button for A. Triggers jump ten games in the library and zoom in the case viewer; the top face button opens/closes the case lid.
 
 Browse the complete set in `renderer/assets/prompts/preview.html`. Scalable SVGs, transparent 64/128 px PNGs, the inventory and usage notes are in `renderer/assets/prompts/`. Rebuild with `npm run prompts:build`, export PNGs with `npm run prompts:export`, and verify integration with `npm run prompts:check`.
 
@@ -83,7 +85,7 @@ Boxes use system packaging profiles: clear jewel cases and hinges, coloured plas
 
 Raised bevels and layered rim highlights give the shells more depth while leaving cover files intact. Jewel cases, plastic and cardboard have different surface finishes. Move the pointer across the selected box for a soft moving highlight; reduced motion keeps it static. The shelf adds a faint cover reflection and a contact shadow. Open plastic cases include booklet clips and closure latches.
 
-Use the on-screen arrows, mouse wheel, keyboard or controller to browse. Fast scrolling cancels old reveal animations. The shelf resizes around the title, description and screenshot so game details and button prompts remain visible. **Settings → Interface motion** follows Windows by default; choose **Reduced** for instant previews without idle movement, or **Full** for animated media and light. Save & rescan keeps the preference. PyroCade opens on the library it found last time and rescans your folders in the background, redrawing the shelf only if something changed.
+Use the on-screen arrows, mouse wheel, keyboard or controller to browse. Fast scrolling cancels old reveal animations. The shelf resizes around the title, description and screenshot so game details and button prompts remain visible. **Settings → Interface motion** follows the OS preference by default (`Follow macOS/Windows/Linux preference`); choose **Reduced** for instant previews without idle movement, or **Full** for animated media and light. Save & rescan keeps the preference. PyroCade opens on the library it found last time and rescans your folders in the background, redrawing the shelf only if something changed.
 
 Run `npm run carousel:check` for the isolated interaction and layout check. It verifies disc/cartridge reveal, box depth, rapid selection, case open/close cancellation, keyboard focus, empty search, reduced motion and the minimum 1100 × 650 window. Captures are saved under `output/`.
 
@@ -106,7 +108,7 @@ Run `npm run artwork:check` to verify the download service and the integrated UI
 
 ## Emulator catalog
 
-Managed emulator downloads are selected by operating system and CPU architecture. The release catalog currently provides macOS and Linux ARM64 packages; Android builds do not offer desktop executables as Android emulator apps. Custom executable linking and process launching are native-path operations and are not a substitute for installing and launching an Android emulator application.
+Managed emulator downloads are selected by operating system and CPU architecture. The release catalog currently provides macOS ARM64, Linux ARM64/x86_64, and Windows x86_64 packages where upstream publishes them; Android builds do not offer desktop executables as Android emulator apps. Custom executable linking and process launching are native-path operations and are not a substitute for installing and launching an Android emulator application.
 
 ## Report a problem or send feedback
 

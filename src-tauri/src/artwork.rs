@@ -556,6 +556,7 @@ pub fn manual_url(
         .map_err(|_| "Manual not found.".to_owned())
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn find_manuals(
     app: AppHandle,
@@ -693,6 +694,13 @@ pub async fn find_manuals(
         matched.push(entry);
     }
     Ok(Some(json!({"found": pdfs.len(), "matched": matched})))
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn find_manuals(_app: AppHandle, _state: State<'_, AppState>) -> Result<Option<Value>, String> {
+    Err("Manual folder picking needs a document-tree grant; the dialog plugin does not support folder picking on Android."
+        .to_owned())
 }
 
 fn valid_pdf(bytes: &[u8]) -> bool {

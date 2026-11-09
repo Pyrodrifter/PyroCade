@@ -31,7 +31,12 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": false,
-    "targets": ["app", "dmg", "appimage", "deb", "rpm"],
+    "targets": ["app", "dmg", "appimage", "deb", "rpm", "nsis", "msi"],
+    "windows": {
+      "nsis": {
+        "installerIcon": "../renderer/assets/brand/pyrocade.ico"
+      }
+    },
     "android": {
       "minSdkVersion": 24
     },
