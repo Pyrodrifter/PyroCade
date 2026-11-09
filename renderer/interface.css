@@ -1,0 +1,237 @@
+/* Shared chrome for the launcher. Game art and case materials keep their own colours. */
+:root {
+  color-scheme: dark;
+  --canvas: #1d1c1b;
+  --surface: #272523;
+  --raised: #302e2c;
+  --hover: #3b3936;
+  --field: #211f1e;
+  --line: #45423f;
+  --control-line: #5c5853;
+  --text: #f2eee8;
+  --muted: #bbb7b1;
+  --secondary: #a39e98;
+  --accent: #efaa68;
+  --accent2: #ffca97;
+  --ink: #24211f;
+  --selected: color-mix(in srgb, var(--accent) 21%, var(--surface));
+  --stage-light: color-mix(in srgb, var(--accent) 14%, #363330);
+  --glass: var(--surface);
+  --bar-text: var(--muted);
+  --bar-dim: var(--secondary);
+  --bar-hover: var(--raised);
+  --bar-pill: var(--selected);
+  --gutter: clamp(24px, 3.2vw, 60px);
+  --radius: 7px;
+}
+
+html, body { background: var(--canvas); font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+body { scrollbar-color: var(--control-line) var(--field); }
+
+button, .actions button, .view:not(#view-library) button, #info .actions button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: none;
+  font-weight: 550;
+}
+button:hover, .actions button:hover, .view:not(#view-library) button:hover, #info .actions button:hover {
+  background: var(--hover);
+  border-color: var(--control-line);
+}
+button.primary, .actions button.primary,
+.view:not(#view-library) button.primary, #info .actions button.primary {
+  background: var(--accent);
+  color: var(--ink);
+  border: 1px solid transparent;
+  box-shadow: none;
+  font-weight: 650;
+}
+button.primary:hover, .actions button.primary:hover,
+.view:not(#view-library) button.primary:hover, #info .actions button.primary:hover {
+  background: var(--accent2);
+  border-color: transparent;
+  box-shadow: none;
+}
+input, select, textarea, .view:not(#view-library) :is(input:not([type=checkbox], [type=range], [type=color]), select) {
+  background: var(--field);
+  color: var(--text);
+  border-color: var(--control-line);
+  border-radius: var(--radius);
+}
+input::placeholder, textarea::placeholder { color: var(--secondary); }
+select option, select optgroup { background: var(--field); color: var(--text); }
+input:is([type=checkbox], [type=range]) { accent-color: var(--accent); }
+:is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 3px;
+}
+kbd, code { background: var(--field); border-color: var(--line); color: var(--muted); }
+a { color: var(--accent2); }
+
+/* Keep the backdrop charcoal, with the active accent concentrated around the shelf. */
+#bg, html:not([data-theme=ember]) #bg {
+  background: radial-gradient(ellipse at 50% 43%, var(--stage-light), var(--canvas) 71%);
+}
+.bg-layer, html:not([data-theme=ember]) .bg-layer { filter: blur(68px) grayscale(.76); }
+.bg-layer.on { opacity: .12; }
+.bg-vignette { background: linear-gradient(180deg, transparent 25%, var(--canvas) 97%); }
+html:has(#xmb[data-scene=ribbon]) #xmb { opacity: .26; }
+html.ambient:has(#xmb[data-scene=ribbon]) #xmb { opacity: .45; }
+#floor, html:not([data-theme=ember]) #floor {
+  background: radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%);
+  opacity: .65;
+}
+#caseView { background: radial-gradient(ellipse at 50% 43%, var(--stage-light), #171615 76%); }
+
+/* Library */
+header { background: transparent; }
+header::after, #info::before, html:not([data-theme=ember]) #info::before { background: var(--line); }
+header .toolbar { border-color: var(--line); }
+.brand { letter-spacing: .17em; }
+#tabs { gap: 2px; padding: 0; background: none; border: 0; border-radius: 0; backdrop-filter: none; }
+#tabs button, .chips .system-tile {
+  position: relative;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: var(--bar-text);
+}
+#tabs button:hover, .chips .system-tile:hover { background: var(--bar-hover); color: var(--text); }
+#tabs button.active, .chips .system-tile.active { background: var(--bar-pill); color: #fff; }
+#tabs button.active::after, .chips .system-tile.active::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.system-browser, #btnAppearance { border-radius: var(--radius); }
+.search, .system-picker-search {
+  background: var(--field);
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+}
+.search:focus-within, .system-picker-search:focus-within { border-color: var(--accent2); }
+.search input, .system-picker-search input { background: transparent; }
+.search input:focus-visible, .system-picker-search input:focus-visible { outline: none; }
+#clearSearch { background: transparent; color: var(--muted); }
+.shelf-arrow {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: var(--radius);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.shelf-arrow:hover { background: var(--hover); }
+.shelf-position { left: var(--gutter); right: var(--gutter); opacity: 1; color: var(--muted); }
+.shelf-progress { background: var(--line); height: 2px; }
+.shelf-progress i, .bar i, #artProgress::-webkit-progress-value { background: var(--accent); box-shadow: none; }
+#info { background: none; padding-inline: var(--gutter); }
+#info::before { left: var(--gutter); right: var(--gutter); }
+#info h1, .case-title h2 { font-weight: 625; letter-spacing: -.025em; text-shadow: none; }
+#gDesc, .prompt-hint { color: var(--muted); }
+#libraryHints { left: var(--gutter); right: var(--gutter); border-color: var(--line); }
+#info .actions button { white-space: nowrap; }
+#info .shot { border-radius: var(--radius); box-shadow: none; }
+#gShot.shot-empty { background: var(--field); border-color: var(--control-line); }
+
+/* Management screens */
+#view-emus, #view-artwork, #view-settings {
+  background: var(--canvas);
+  padding: 32px max(var(--gutter), calc((100vw - 1440px) / 2)) 48px;
+}
+.view:not(#view-library) .view-head { align-items: flex-start; margin-bottom: 26px; }
+.view:not(#view-library) .view-head h1 { font-size: clamp(29px, 2.4vw, 36px); font-weight: 625; letter-spacing: -.035em; }
+.view:not(#view-library) .view-head .sub { color: var(--muted); line-height: 1.55; }
+.view:not(#view-library) :is(.panel, .emu) {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: 10px;
+  backdrop-filter: none;
+}
+.view:not(#view-library) .panel h2 { font-size: 17px; font-weight: 625; letter-spacing: -.015em; }
+.emu h3 { letter-spacing: -.015em; }
+.emu-source, .help pre { background: var(--field); color: var(--muted); }
+.emu .tag, .art-state { border-radius: 4px; background: var(--field); }
+.emu .tag.ok, #artImportStatus, .art-state[data-status=complete] { color: #b9cfae; }
+.emu .tag.up { color: #e0c496; }
+.art-field, #artTypes legend, .art-state { color: var(--muted); }
+.art-state[data-status=running] { color: var(--accent2); border-color: var(--control-line); }
+.art-stats strong { font-weight: 600; }
+.art-stats span, #artTypes small { font-size: 12px; }
+#artTypes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+#artTypes label { margin: 0; }
+.art-retry + .art-retry { margin-top: 8px; }
+.art-options > .actions { margin-top: 20px; }
+.settings-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.settings-groups > .panel { min-width: 0; }
+.settings-groups h2 { margin: 0 0 15px; }
+.settings-groups .row:not(.check) { min-height: 33px; }
+.settings-groups .row > span { width: 9.5em; flex: 0 0 9.5em; }
+.settings-groups .row :is(input, select) { min-width: 0; }
+.settings-groups .row .update-version { width: auto; flex: none; }
+.settings-groups .row.check { min-height: 28px; }
+.settings-groups .prompt-note { margin: 5px 0 12px; }
+.settings-groups .prompt-note:empty, #settingsScanStatus:empty { display: none; }
+.settings-section-title { margin: 24px 0 12px; font-size: 17px; font-weight: 625; }
+#sysTable { margin-top: 12px; }
+#sysTable thead { background: var(--field); }
+#sysTable th { font-size: 11px; letter-spacing: .035em; text-transform: none; }
+#sysTable tbody tr:hover { background: #ffffff04; }
+
+/* Dialogs and overlays */
+:is(#systemPicker, #appearancePicker),
+#toast {
+  background: var(--surface);
+  border: 1px solid var(--control-line);
+  border-radius: 11px;
+  color: var(--text);
+  box-shadow: 0 16px 52px #0006;
+  backdrop-filter: none;
+}
+:is(#systemPicker, #appearancePicker)::backdrop {
+  background: #151413b3;
+  backdrop-filter: blur(4px);
+}
+#appearancePicker .system-picker-heading { margin-bottom: 12px; }
+.appearance-label { margin: 17px 0 8px; }
+#appearancePicker .row.check { font-size: 12px; }
+.system-picker-heading h2 {
+  font-weight: 625;
+  letter-spacing: -.025em;
+}
+.system-picker-heading > button { color: var(--muted); border-radius: var(--radius); }
+.appearance-label, .appearance-note, .system-picker-footer,
+.system-picker-card .n, .sound-controls output {
+  color: var(--muted);
+}
+.appearance-label { text-transform: none; letter-spacing: .03em; font-weight: 600; font-size: 12px; }
+.layout-option, .theme-option, .system-picker-card, .sound-controls button {
+  background: var(--raised);
+  border-color: var(--line);
+  border-radius: var(--radius);
+}
+:is(.layout-option, .theme-option, .system-picker-card)[aria-pressed=true] {
+  background: var(--selected);
+  border-color: var(--accent);
+  color: var(--text);
+}
+.layout-mini { background: var(--field); }
+.layout-mini i { background: var(--control-line); border-color: var(--secondary); }
+.layout-mini i:nth-child(2) { background: var(--accent); }
+.layout-option small, .theme-option, .search-icon, #systemPickerEmpty { color: var(--muted); }
+.system-glyph { background: var(--field); border-color: var(--line); }
+.update-banner { border-radius: var(--radius); }
+#toast { max-width: min(560px, 90vw); }
+
+@media (max-width: 1250px) {
+  .settings-groups .row > span { width: 8em; flex-basis: 8em; }
+  .settings-groups .prompt-preview-link { margin-left: 0; }
+}

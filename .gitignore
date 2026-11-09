@@ -15,8 +15,9 @@ Desktop.ini
 .vscode/
 *.log
 
-# Installer builds
+# Installer builds and scratch references
 dist/
+localTmp/
 src-tauri/target/
 src-tauri/gen/schemas/
 src-tauri/gen/android/

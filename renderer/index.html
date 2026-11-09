@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="library-ui.css" />
   <link rel="stylesheet" href="xmb.css" />
+  <link rel="stylesheet" href="interface.css" />
 </head>
 <body>
   <div id="bg"><div class="bg-layer" id="bgA"></div><div class="bg-layer" id="bgB"></div><canvas id="xmb" aria-hidden="true"></canvas><div class="bg-vignette"></div></div>
@@ -173,26 +174,34 @@
       <div><h1>Settings</h1><p class="sub">Set a ROM folder for each system. To use several folders (e.g. two SD cards), click “+ Add” or separate paths with <code>|</code>.</p></div>
       <div class="actions"><button id="btnSave" class="primary">Save &amp; rescan</button></div>
     </div>
-    <div class="panel">
-      <label class="row"><span>Button prompts</span><select id="sPrompts"><option value="auto">Automatic · last input used</option><option value="keyboard">Keyboard &amp; mouse</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="nintendo">Nintendo</option><option value="generic">Generic gamepad</option></select><a class="prompt-preview-link" href="assets/prompts/preview.html" target="_blank" rel="noopener">View full set ↗</a></label>
-      <p class="prompt-note" id="promptStatus" role="status"></p>
-      <p class="prompt-note">Prompt labels follow your physical controller, regardless of the emulated system. Override the family if your adapter reports a generic name.</p>
-      <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow Windows preference</option><option value="full">Full · animated media &amp; ambient light</option><option value="reduced">Reduced · instant previews</option></select></label>
-      <label class="row check"><input type="checkbox" id="sDisableModels" /> Disable 3D models · use flat covers</label>
-      <label class="row check"><input type="checkbox" id="sDisableAnimations" /> Disable animations · static backgrounds and instant navigation</label>
-      <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes (a Game Boy box next to a PS2 case looks small)</label>
-      <label class="row check"><input type="checkbox" id="sWear" /> Used copies: scuffed cases and faded labels</label>
-      <p class="prompt-note">These options apply immediately and save automatically. Turn both on for slower computers.</p>
-      <label class="row"><span>Ambient mode</span><select id="sAmbient"><option value="0">Off</option><option value="1">After 1 minute idle</option><option value="2">After 2 minutes idle</option><option value="5">After 5 minutes idle</option><option value="10">After 10 minutes idle</option></select></label>
-      <label class="row"><span>Background scene</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
-      <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first · larger artwork &amp; clean titles</option><option value="original">Original downloaded cover</option></select></label>
-      <label class="row"><span>Artwork folder (optional)</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
-      <label class="row check"><input type="checkbox" id="sHide" /> Minimise PyroCade while a game is running</label>
+    <div class="settings-groups">
+      <section class="panel" aria-labelledby="interfaceHeading">
+        <h2 id="interfaceHeading">Interface</h2>
+        <label class="row"><span>Button prompts</span><select id="sPrompts"><option value="auto">Automatic</option><option value="keyboard">Keyboard &amp; mouse</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="nintendo">Nintendo</option><option value="generic">Generic gamepad</option></select><a class="prompt-preview-link" href="assets/prompts/preview.html" target="_blank" rel="noopener">View full set ↗</a></label>
+        <p class="prompt-note" id="promptStatus" role="status"></p>
+        <label class="row"><span>Interface motion</span><select id="sMotion"><option value="auto">Follow Windows preference</option><option value="full">Full</option><option value="reduced">Reduced</option></select></label>
+        <label class="row check"><input type="checkbox" id="sDisableModels" /> Use flat covers</label>
+        <label class="row check"><input type="checkbox" id="sDisableAnimations" /> Disable animations</label>
+      </section>
+      <section class="panel" aria-labelledby="libraryDisplayHeading">
+        <h2 id="libraryDisplayHeading">Library display</h2>
+        <label class="row"><span>Ambient mode</span><select id="sAmbient"><option value="0">Off</option><option value="1">After 1 minute idle</option><option value="2">After 2 minutes idle</option><option value="5">After 5 minutes idle</option><option value="10">After 10 minutes idle</option></select></label>
+        <label class="row"><span>Background</span><select id="sBackground"><option value="ribbon">XMB ribbon</option><option value="xbox">Orbit</option><option value="codex">Constellation</option><option value="towers">Towers &amp; glowing orbs</option><option value="loom">Loom · weaving threads of light</option><option value="day">Pixel art · day</option><option value="night">Pixel art · night</option><option value="pixel-auto">Pixel art · follows the time of day</option><option value="off">Off · plain, game colours only</option></select></label>
+        <label class="row"><span>eShop covers</span><select id="sEshop"><option value="enhanced">Art first</option><option value="original">Original downloaded cover</option></select></label>
+        <label class="row"><span>Artwork folder</span><input id="sMedia" placeholder="e.g. D:\Media" /><button data-browse="sMedia">Browse…</button></label>
+        <label class="row check"><input type="checkbox" id="sRealSizes" /> Show cases at their real sizes</label>
+        <label class="row check"><input type="checkbox" id="sWear" /> Show wear on cases and labels</label>
+        <label class="row check"><input type="checkbox" id="sHide" /> Minimise PyroCade while a game is running</label>
+      </section>
     </div>
-    <div class="panel">
-      <div class="row"><span>PyroCade updates</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>
-      <label class="row check"><input type="checkbox" id="sCheckUpdates" /> Check for a new PyroCade release when the app starts</label>
+    <div class="settings-groups">
+      <section class="panel" aria-labelledby="updatesHeading">
+        <h2 id="updatesHeading">Updates</h2>
+        <div class="row"><span>PyroCade version</span><span id="sVersion" class="update-version"></span><button id="btnCheckApp">Check for updates</button></div>
+        <label class="row check"><input type="checkbox" id="sCheckUpdates" /> Check for a new PyroCade release when the app starts</label>
+      </section>
     </div>
+    <h2 class="settings-section-title">Systems and games</h2>
     <table id="sysTable" class="panel">
       <thead><tr><th>System</th><th>ROM folder</th><th></th><th>Emulator</th><th>Extensions</th><th>Launch arguments</th></tr></thead>
       <tbody></tbody>

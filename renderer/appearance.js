@@ -1,6 +1,6 @@
 const Appearance=(()=>{
   const $=s=>document.querySelector(s);
-  const themes={ember:{name:'Ember',accent:'#ff752e',light:'#ffc074'},glacier:{name:'Glacier',accent:'#37bfe6',light:'#9defff'},violet:{name:'Violet',accent:'#a685ff',light:'#ebafff'},mint:{name:'Mint',accent:'#4dc59c',light:'#c3f59f'},rose:{name:'Rose',accent:'#f46e9b',light:'#ffc2a5'}};
+  const themes={ember:{name:'Ember',accent:'#efaa68',light:'#ffca97'},glacier:{name:'Glacier',accent:'#78b8f3',light:'#afd6ff'},violet:{name:'Violet',accent:'#bc9af3',light:'#dac4ff'},mint:{name:'Mint',accent:'#83d5a4',light:'#b5eccb'},rose:{name:'Rose',accent:'#ed9da7',light:'#ffc6ce'}};
   const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Page through'},bookshelf:{name:'Bookshelf',note:'Spines on a shelf'},spinner:{name:'Spinner rack',note:'Rotating store tower'},swatches:{name:'Colour cards',note:'Colour grid'}};
   let theme='ember',mode='carousel',infoBar='small',context,saves=Promise.resolve(),volumeTimer;
   function persist(){

@@ -1,32 +1,101 @@
 # Main-to-Tauri feature-parity follow-up
 
-This is a feature-parity follow-up, not a whole-branch merge. At planning time, the target was `tauri-port` at `0657352aa24a7d0ef6dea19bcbda7a4f805208f0`; comparison source `main` was at `96fd68ce93c67299b2354db26d6eebe8aed4f6be`, with merge base `96aac041ee6af2b347afba60c9bb2d08b5a930df`. There were 49 main-only and 32 tauri-port-only commits.
+Feature parity, not a whole-branch merge. Two queues share this file: the active
+2026-11-06..08 delta queue (D01-D09), then the remaining collection/artwork/platform
+queue (M03-M06) from the earlier plan.
 
-Keep Tauri v2 as the product runtime. The six planner estimates below are each under 225,000 tokens and the configured $0.70 cap; they are estimates, not guarantees. The conservative budget-check forecast prices each allowance as output and peaks at $0.0767032. P1-P5 exceed the local host's 153,354-token usable window and need the configured model; P6 fits locally. Existing desktop/Android target and release constraints remain in force; existing docs/specs, especially the Android support limitations and `docs/donot.md`, remain authoritative.
+## Where the branches stand
 
-| Slice | Task | Scope | Total tokens | Headroom | Conservative cost forecast (USD) |
-|---|---|---|---:|---:|---:|
-| P1 | M01 | Renderer presentation and library-view parity: ambient scenes, bookshelf/spinner and carousel refinements, physical media models, manual/booklet presentation, appearance/performance settings, renderer checks. | 179,070 | 45,930 | 0.0679070 |
-| P2 | M02 | Library state and play-history workflows: favorites, recently played/play time, sorting/filtering, multidisc handling, screenshots; preserve renderer payload and backend-owned state. | 177,773 | 47,227 | 0.0717773 |
-| P3 | M03 | Collection administration and per-game controls: hide/group/rename, user-added systems/games, per-game emulator selection. | 184,286 | 40,714 | 0.0704286 |
-| P4 | M04 | Artwork enrichment and manual workflows: compare main's LaunchBox/ScreenScraper and manual discovery/download/viewing with current Rust Libretro/GameTDB services; preserve safe write/import/cancellation/progress/library-sync/path contracts. | 187,032 | 37,968 | 0.0767032 |
-| P5 | M05 | Platform-aware launch/emulator behavior: Steam/SteamOS, Linux X11/gamescope launch, logging and metadata/custom-PC config only where missing; preserve OS/CPU, Android package launch, safe extraction, and no-x86-on-ARM64 invariants. | 179,836 | 45,164 | 0.0679836 |
-| P6 | M06 | Parity checks, Tauri release docs, target validation. | 132,438 | 92,562 | 0.0572438 |
+- Baseline: `tauri-port` at `b0eec88` (`3e1432c` M02 plus the artwork-display fix).
+- Source: `origin/main` at `0310657`; the delta is `96fd68c..0310657`, 32 commits.
+  The earlier plan compared against `96fd68c`, and `main` was fast-forwarded from
+  there to `0310657` after M01/M02 were planned.
+- Completed already: M01 (`b1b29ac`) and M02 (`3e1432c`).
+- Main originals for every read below are snapshotted in
+  `localTmp/main-ref-0310657/` (ignored scratch; regenerate with the command under
+  Reference snapshot if the directory is missing).
 
-## Dependencies and exclusions
+Keep Tauri v2 as the product runtime. Every forecast below is under the 225,000-token
+work budget. The active model prices all stages at $0, so the $0.70 per-slice cap is
+not approached; a paid model would be governed by the same cap. Existing desktop and
+Android target constraints, the Android support limitations, and `docs/donot.md`
+remain authoritative.
 
-- Order: M01; M02 after M01; M03 and M04 after M02; M05 after M03; M06 after M01, M04, and M05.
-- P1/M01 is complete as `b1b29ac`; start P2/M02 next. Parity implementation for M02 has not started.
-- Do not reintroduce Electron `main.js`/`preload.js`, the separate Capacitor Android project, or the Windows launcher from `main`. Do not port all of `main` or copy runtime pieces incompatible with Tauri.
-- The approved task list is `.babysteps/main-to-tauri.tasks.json`; do not change its scope, estimates, or priority order.
+## Delta queue (active)
 
-## Budget rows
+Every row prices the standing set — `docs/STATE.md`, this plan, its task list,
+`docs/donot.md` and `.operator/specs/desktop-runtime.md` — plus the task's own reads.
+`reads` is the row's whole priced set and `allowance` is the non-reading estimate; a
+slice's seed copies both verbatim and `babysteps-budget --seed` rejects any file the
+row does not price.
 
-| Slice | Reads | Allowance |
-|---|---|---:|
-| P1 | `docs/STATE.md`, `.babysteps/tauri-migration.plan.md`, `.babysteps/main-to-tauri.tasks.json`, `.operator/specs/desktop-runtime.md`, `docs/donot.md`, `renderer/app.js`, `renderer/appearance.js`, `renderer/library-ui.js`, `renderer/cartridges.js`, `renderer/packaging.js`, `renderer/styles.css`, `renderer/index.html`, `scripts/check-carousel.cjs`, `scripts/check-library-ui.cjs` | 114037 |
-| P2 | `renderer/app.js`, `renderer/library-ui.js`, `renderer/tauri-bridge.js`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `scripts/check-library-ui.cjs` | 135000 |
-| P3 | `renderer/app.js`, `renderer/tauri-bridge.js`, `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `src-tauri/src/emulators.rs`, `scripts/check-library-ui.cjs` | 130000 |
-| P4 | `artwork.js`, `renderer/art.js`, `renderer/artwork-ui.js`, `src-tauri/src/artwork.rs`, `src-tauri/src/backend.rs`, `scripts/check-artwork.cjs`, `scripts/check-artwork-ui.cjs` | 145000 |
-| P5 | `emulators.json`, `renderer/app.js`, `src-tauri/src/backend.rs`, `src-tauri/src/emulators.rs`, `src-tauri/src/config.rs` | 125000 |
-| P6 | `scripts/check-library-ui.cjs`, `scripts/check-carousel.cjs`, `scripts/check-artwork.cjs`, `scripts/check-artwork-ui.cjs`, `.github/workflows/release.yml`, `README.md`, `docs/SUPPORT.md`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json` | 110000 |
+| slice | task | scope | reads | allowance |
+|---|---|---|---|---:|
+| P1 | D01 | Quiet interface palette, `interface.css`, grouped Settings, shortened copy, artwork type grid, transparent header. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, renderer/index.html, renderer/styles.css, renderer/appearance.js, localTmp/main-ref-0310657/renderer/index.html, localTmp/main-ref-0310657/renderer/styles.css, localTmp/main-ref-0310657/renderer/appearance.js, localTmp/main-ref-0310657/renderer/interface.css | 87827 |
+| P2 | D02 | Launcher chrome: `LibraryChrome`, `DetailsResize`, shelf space when details hide, `/` search, console previews and key navigation. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, renderer/app.js, renderer/index.html, renderer/styles.css, localTmp/main-ref-0310657/renderer/app.js, localTmp/main-ref-0310657/renderer/index.html | 70827 |
+| P3 | D03 | Flat graphite button-prompt SVG/PNG set, `build-prompts.js`, manifest and preview, prompt checks. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, renderer/prompts.js, scripts/build-prompts.js, scripts/check-prompts.cjs, scripts/check-prompts-preload.cjs, localTmp/main-ref-0310657/renderer/prompts.js, localTmp/main-ref-0310657/scripts/build-prompts.js, localTmp/main-ref-0310657/scripts/check-prompts.cjs | 27828 |
+| P4 | D04 | Page turn and media carousel replacing spinner and colour cards, retired-layout migration, selected-disc geometry, bookshelf disc peek and sizing, carousel checks. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, renderer/app.js, renderer/appearance.js, renderer/library-ui.css, renderer/styles.css, scripts/check-carousel.cjs, scripts/check-library-ui.cjs, localTmp/main-ref-0310657/renderer/app.js, localTmp/main-ref-0310657/renderer/appearance.js, localTmp/main-ref-0310657/renderer/library-ui.css, localTmp/main-ref-0310657/renderer/styles.css, localTmp/main-ref-0310657/scripts/check-carousel.cjs, localTmp/main-ref-0310657/scripts/check-library-ui.cjs | 48827 |
+| P5 | D05 | Back covers, cartridge lift, spine hinges, label z-offset, physical-media overrides, Super Famicom packaging, booklet proportions. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, renderer/app.js, renderer/art.js, renderer/packaging.js, renderer/cartridges.js, renderer/styles.css, localTmp/main-ref-0310657/renderer/app.js, localTmp/main-ref-0310657/renderer/art.js, localTmp/main-ref-0310657/renderer/packaging.js, localTmp/main-ref-0310657/renderer/cartridges.js, localTmp/main-ref-0310657/renderer/styles.css | 53828 |
+| P6 | D06 | Library cache and cache-first start, 16-way parallel scan, one listing per folder, tie-only size stats, disc side-file check, title sort, `startLibrary`/`applyLibrary`. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, src-tauri/src/backend.rs, src-tauri/src/config.rs, src-tauri/src/lib.rs, renderer/app.js, renderer/tauri-bridge.js, scripts/check-library-ui.cjs, localTmp/main-ref-0310657/main.js, localTmp/main-ref-0310657/renderer/app.js, localTmp/main-ref-0310657/preload.js | 50827 |
+| P7 | D07 | Polite web artwork source plus MarioWiki and Internet Archive front-cover fallbacks, disk cache, source UI and checks. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, src-tauri/src/artwork.rs, src-tauri/src/backend.rs, renderer/artwork-ui.js, scripts/check-artwork.cjs, scripts/check-artwork-ui.cjs, .operator/specs/artwork-service.md, localTmp/main-ref-0310657/web-source.js, localTmp/main-ref-0310657/mariowiki.js, localTmp/main-ref-0310657/internet-archive.js, localTmp/main-ref-0310657/artwork.js, localTmp/main-ref-0310657/scripts/check-artwork.cjs, localTmp/main-ref-0310657/scripts/check-artwork-ui.cjs | 102827 |
+| P8 | D08 | Feedback dialog, report composition, diagnostics/copy/open commands and issue templates. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, renderer/index.html, renderer/styles.css, renderer/tauri-bridge.js, src-tauri/src/backend.rs, src-tauri/src/lib.rs, src-tauri/Cargo.toml, localTmp/main-ref-0310657/feedback.js, localTmp/main-ref-0310657/renderer/feedback-ui.js, localTmp/main-ref-0310657/renderer/index.html, localTmp/main-ref-0310657/renderer/styles.css, localTmp/main-ref-0310657/scripts/check-feedback.cjs, localTmp/main-ref-0310657/scripts/check-feedback-ui.cjs, localTmp/main-ref-0310657/.github/ISSUE_TEMPLATE/bug_report.md, localTmp/main-ref-0310657/.github/ISSUE_TEMPLATE/feedback.md | 67827 |
+| P9 | D09 | Demo capture, README/CHANGELOG/screenshots, exclusion record, gates and the parity audit close-out. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-delta.tasks.json, README.md, docs/SUPPORT.md, package.json, .github/workflows/release.yml, scripts/record-reddit-demo.cjs, scripts/reddit-demo-timeline.js, localTmp/main-ref-0310657/README.md, localTmp/main-ref-0310657/CHANGELOG.md, localTmp/main-ref-0310657/package.json, localTmp/main-ref-0310657/scripts/capture-readme.cjs, localTmp/main-ref-0310657/scripts/record-reddit-demo.cjs, localTmp/main-ref-0310657/scripts/reddit-demo-timeline.js, localTmp/main-ref-0310657/scripts/full-demo-timeline.js | 60975 |
+
+Order is strictly D01, D02, D03, D04, D05, D06, D07, D08, D09.
+
+## Earlier queue (remaining)
+
+| slice | task | scope | reads | allowance |
+|---|---|---|---|---:|
+| P10 | M03 | Collection administration, user-added systems and games, hide/group/rename, per-game emulator selection, details editor, hidden list, drag order and Recomp menus from `64a5ba6`. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-to-tauri.tasks.json, renderer/app.js, renderer/tauri-bridge.js, src-tauri/src/backend.rs, src-tauri/src/config.rs, src-tauri/src/emulators.rs, scripts/check-library-ui.cjs | 104888 |
+| P11 | M04 | LaunchBox/ScreenScraper comparison and manual discovery/download/viewing only; cover providers moved to D07. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-to-tauri.tasks.json, artwork.js, renderer/art.js, renderer/artwork-ui.js, src-tauri/src/artwork.rs, src-tauri/src/backend.rs, scripts/check-artwork.cjs, scripts/check-artwork-ui.cjs, .operator/specs/artwork-service.md | 122706 |
+| P12 | M05 | Platform-aware launch and emulator behaviour: Steam/SteamOS, Linux X11/gamescope, logging and metadata only where missing. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-to-tauri.tasks.json, emulators.json, renderer/app.js, src-tauri/src/backend.rs, src-tauri/src/emulators.rs, src-tauri/src/config.rs | 100095 |
+| P13 | M06 | Remaining parity checks, Tauri release docs and target validation not already closed by D09. | docs/STATE.md, .babysteps/tauri-migration.plan.md, docs/donot.md, .operator/specs/desktop-runtime.md, .babysteps/main-to-tauri.tasks.json, scripts/check-library-ui.cjs, scripts/check-carousel.cjs, scripts/check-artwork.cjs, scripts/check-artwork-ui.cjs, .github/workflows/release.yml, README.md, docs/SUPPORT.md, src-tauri/Cargo.toml, src-tauri/tauri.conf.json | 95019 |
+
+Order: M03 after D09; M04 after M03; M05 after M03; M06 after M01, M04 and M05.
+
+## Exclusions
+
+- Leia SR is Windows-only: an Electron offscreen renderer and a native D3D11
+  presenter. No macOS, Linux ARM64 or Android target can use it, so `native/leia-*`,
+  `renderer/leia-*`, `leia-output.js`, the `3D` button, `LeiaUI` and the snapshot
+  IPC are excluded. Revisit only if a Windows target is added.
+- Main's Electron release path, `checks.yml`, Capacitor `android/` project and
+  `start.bat` are excluded. The Tauri `.github/workflows/release.yml` is authoritative.
+- The stray 571 KB root file `1` added by `01b77fd` is not ported.
+- Do not port all of `main`; port the listed behaviour and adapt it to the branch
+  renderer.
+
+## Renderer divergence to respect
+
+The branch renderer is not a smaller copy of main's: at `b0eec88`, `app.js` is 50 KB
+against main's 124 KB, `index.html` 19 KB against 34 KB, `packaging.js` 8 KB against
+17 KB, and `cartridges.js` 6 KB against 17 KB. The branch has no `minimal.css` or
+`physical-models.css` at all; its rules are merged into `styles.css`. Main's delta
+patches therefore have to be translated, not cherry-picked, and whole-file imports
+of `minimal.css`/`physical-models.css` are out of scope.
+
+## Approved task list
+
+`.babysteps/main-delta.tasks.json` for D01-D09, then `.babysteps/main-to-tauri.tasks.json`
+for M03-M06. Do not change scope, estimates or order without re-planning.
+
+## Reference snapshot
+
+```sh
+mkdir -p localTmp/main-ref-0310657
+git archive 0310657 -- feedback.js main.js preload.js artwork.js web-source.js \
+  mariowiki.js internet-archive.js CHANGELOG.md .github/ISSUE_TEMPLATE \
+  scripts/build-prompts.js scripts/check-carousel.cjs scripts/check-library-ui.cjs \
+  scripts/check-artwork.cjs scripts/check-artwork-ui.cjs scripts/check-feedback.cjs \
+  scripts/check-feedback-ui.cjs scripts/check-prompts.cjs scripts/capture-readme.cjs \
+  scripts/record-reddit-demo.cjs scripts/reddit-demo-timeline.js \
+  scripts/full-demo-timeline.js renderer/app.js renderer/appearance.js \
+  renderer/art.js renderer/packaging.js renderer/cartridges.js \
+  renderer/library-ui.css renderer/library-ui.js renderer/styles.css \
+  renderer/index.html renderer/prompts.js renderer/interface.css \
+  renderer/minimal.css renderer/physical-models.css renderer/feedback-ui.js \
+  renderer/xmb.css package.json README.md |
+  tar -x -C localTmp/main-ref-0310657
+```
+
