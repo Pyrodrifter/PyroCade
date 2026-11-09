@@ -1,79 +1,73 @@
 ---
-slice: P5
+slice: P6
 stateFile: docs/STATE.md
 donotCount: 4
-seededFrom: fd7a8c8
+seededFrom: d4778d3
 reads:
   - docs/STATE.md
   - .babysteps/tauri-migration.plan.md
   - docs/donot.md
   - .operator/specs/desktop-runtime.md
   - .babysteps/main-delta.tasks.json
+  - src-tauri/src/backend.rs
+  - src-tauri/src/config.rs
+  - src-tauri/src/lib.rs
   - renderer/app.js
-  - renderer/art.js
-  - renderer/packaging.js
-  - renderer/cartridges.js
-  - renderer/styles.css
+  - renderer/tauri-bridge.js
+  - scripts/check-library-ui.cjs
+  - localTmp/main-ref-0310657/main.js
   - localTmp/main-ref-0310657/renderer/app.js
-  - localTmp/main-ref-0310657/renderer/art.js
-  - localTmp/main-ref-0310657/renderer/packaging.js
-  - localTmp/main-ref-0310657/renderer/cartridges.js
-  - localTmp/main-ref-0310657/renderer/styles.css
-allowanceTokens: 53828
+  - localTmp/main-ref-0310657/preload.js
+allowanceTokens: 50827
 ---
 
-**P5 / D05 — Case art, physical media, and booklet proportions.** Fifth slice of the
+**P6 / D06 — Library cache and parallel Rust scan.** Sixth slice of the
 2026-11-06..08 delta queue. Baseline `tauri-port` at `b0eec88` plus D01 (`20b610a`),
-D02 (`60fdc7a`), D03 (`030662e`) and D04 (`fd7a8c8`); source `main` at `0310657` (`96fd68c..0310657`).
-Main originals are in `localTmp/main-ref-0310657/`. D04 closed: Page turn and Media
-carousel replaced the spinner rack and colour cards with retired-layout migration
-(spinner to page-turn, swatches and top-flip to media), the stage-sized bookshelf
-from `e1b504e`, bookshelf disc peek and reveal, and the carousel/library checks
-adapted (the library check is the branch Tauri WebDriver smoke). Its Electron and
-WebDriver checks could not run on the host (Electron failed to install, no
-`tauri-driver`); that is recorded in `docs/STATE.md`, not claimed.
+D02 (`60fdc7a`), D03 (`030662e`), D04 (`fd7a8c8`) and D05 (`d4778d3`); source `main`
+at `0310657` (`96fd68c..0310657`). Main originals are in `localTmp/main-ref-0310657/`.
+D05 closed: back covers drawn in the background, cartridge lift above covers,
+spine hinges, label z-offset, physical-media overrides, Super Famicom packaging
+and booklet proportions ported. Its Electron and WebDriver checks could not run
+on the host (Electron failed to install, no `tauri-driver`); that is recorded in
+`docs/STATE.md`, not claimed.
 
 ## Action
 
-Port back covers drawn in the background behind cartridges, the cartridge lift
-above its cover, spine hinges, the cartridge label z-offset, per-game physical
-media overrides, Super Famicom package shapes, and the real-manual booklet
-proportions. Adapt main's `art.js` drawing and packaging/cartridge profiles to
-the branch renderer rather than importing main's larger files. Keep the case
-payload contract and existing artwork paths. The D04 slice left these pieces of
-main's `8e15d77` commit (`Packaging.size` and the case-spine hinge, the lid
-transform, the snes cover `background-size: contain`, the cartridge label z-offset
-in `cartridges.js`, and the `art.js` manual cache key) plus `98e07ee` (back
-covers, cartridge lift above `f-left`), `3f297f1` and `7209b33` (booklet
-proportions) for this slice.
+Show the last scan immediately, rescan behind it, and redraw only when the scan
+changed. Add `library-cache.json` under the app data dir keyed by app version,
+mediaRoot, extra games and each system's id/romDir/extensions/direct, with
+tie-break sizes kept separately; expose `cachedLibrary` and `scan
+{onlyIfChanged}` through the Tauri bridge; return null when unchanged. In Rust,
+list each folder once per scan, match media with 16-way concurrency, stat only
+tied duplicate copies, check disc `.json` side files against the listing, sort
+titles case-insensitively, and refactor renderer `loadLibrary` into
+`startLibrary`/`applyLibrary` restoring selection by id. Keep the disc/shell
+metadata contract.
 
 ## Scope and exclusions
 
-- Adapt main's drawing and profiles to the branch renderer; keep the case
-  payload contract (front/back/spine/disc paths) and existing artwork paths.
-- Do not port the per-game details editor, hidden-game list, drag order or Recomp
-  menus (M03 owns those), and do not port Leia hooks.
+- Adapt the cache and scan to the branch's Rust backend and Tauri bridge; keep the
+  disc/shell metadata contract.
+- Do not port the per-game details editor, hidden-grouping or Recomp menus (M03
+  owns those), and do not port Leia hooks.
 
 ## Code to touch
 
-`renderer/app.js`, `renderer/art.js`, `renderer/packaging.js`,
-`renderer/cartridges.js` and `renderer/styles.css`.
+`src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `src-tauri/src/lib.rs`,
+`renderer/app.js`, `renderer/tauri-bridge.js` and `scripts/check-library-ui.cjs`.
 
 ## Read these first
 
 - `.operator/specs/desktop-runtime.md`
 - `docs/donot.md`
-- `localTmp/main-ref-0310657/renderer/app.js`,
-  `localTmp/main-ref-0310657/renderer/art.js`,
-  `localTmp/main-ref-0310657/renderer/packaging.js`,
-  `localTmp/main-ref-0310657/renderer/cartridges.js`,
-  `localTmp/main-ref-0310657/renderer/styles.css`
-- `renderer/app.js`, `renderer/art.js`, `renderer/packaging.js`,
-  `renderer/cartridges.js`, `renderer/styles.css`
+- `localTmp/main-ref-0310657/main.js`, `localTmp/main-ref-0310657/preload.js`,
+  `localTmp/main-ref-0310657/renderer/app.js`
+- `src-tauri/src/backend.rs`, `src-tauri/src/config.rs`, `src-tauri/src/lib.rs`,
+  `renderer/app.js`, `renderer/tauri-bridge.js`, `scripts/check-library-ui.cjs`
 
 ## Do-Not entries that apply here
 
-Total Do-Not count: 4. Entry #1 applies only if manual media paths are touched.
+Total Do-Not count: 4. Entry #1 applies (manual paths stay filesystem paths).
 Entry #4 governs Android SAF paths and is unaffected.
 
 ## Gate
@@ -82,18 +76,16 @@ Entry #4 governs Android SAF paths and is unaffected.
 - `cargo test --manifest-path src-tauri/Cargo.toml`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
 - `node --check renderer/app.js`
-- `node --check renderer/art.js`
-- `node --check renderer/packaging.js`
-- `node --check renderer/cartridges.js`
-- `npm start` smoke: the library renders without a startup error.
+- `node --check renderer/tauri-bridge.js`
+- `node --check scripts/check-library-ui.cjs`
+- `npm start` smoke: cache-first start and unchanged rescan without a startup error.
 
-`node scripts/check-carousel.cjs` and `node scripts/check-library-ui.cjs` cannot
-run on this host (no Electron runtime; no `tauri-driver`). Record that rather than
-claiming they passed.
+`node scripts/check-library-ui.cjs` cannot run on this host (no `tauri-driver`).
+Record that rather than claiming it passed.
 
 ## When this seed closes
 
-Close D05 when back covers, cartridge lift, spine hinges, label z-offset,
-physical-media overrides, Super Famicom packaging and booklet proportions are
-ported. Record the verification in `docs/STATE.md` and seed P6/D06 from
-`.babysteps/main-delta.tasks.json`.
+Close D06 when the cache-first start, `onlyIfChanged` rescan and 16-way parallel
+Rust scan are ported, and the library checks are adapted (the library check is
+the branch Tauri WebDriver smoke). Record the verification in `docs/STATE.md`
+and seed P7/D07 from `.babysteps/main-delta.tasks.json`.
