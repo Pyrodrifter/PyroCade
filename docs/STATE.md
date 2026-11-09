@@ -8,7 +8,7 @@ The base Tauri v2 migration queue is complete for macOS ARM64, Linux ARM64 on mo
 
 The base migration queue's final task, **P10d — On-device renderer, controller, and audio validation**, is complete, and the first two parity slices, **M01 — Renderer presentation** (`b1b29ac`) and **M02 — Library state and play-history** (`3e1432c`), are committed. Their verification records remain in the completed history below.
 
-**Next action:** Start **P3 / D03 — Flat button-prompt assets and generator** from `docs/slices/NEXT.md`.
+**Next action:** Start **P4 / D04 — Page turn and media carousel** from `docs/slices/NEXT.md`.
 
 **The Do-Not list is `docs/donot.md`** — 4 entries, append-only. Never dropped, never trimmed.
 
@@ -109,11 +109,16 @@ The base migration queue's final task, **P10d — On-device renderer, controller
   - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`; the boundary guide was absent.
   - Seed PASS: P2 row prices 10 files at 116,567 tokens, seed 116,563 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 124,496/225,000 tokens (55%); session cost $0/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
 
+- **P3 / D03 — Flat button-prompt assets and generator.** Source committed as `030662e` (`Port flat graphite button-prompt assets and generator (D03/P3)`). Replaced the branch prompt art with main's flat graphite set from `0310657` — 283 SVGs, 566 transparent PNGs (64/128 px), manifest and preview copied verbatim (845 changed files) — and ported `scripts/build-prompts.js` verbatim (flat shells, centred labels/symbols, 64/128 px raster description, key marks, mouse gestures). `node scripts/build-prompts.js` reproduces the SVGs, manifest and preview exactly; Electron rasterization was not run and no new image pipeline was introduced. `renderer/prompts.js` was adapted to the branch: added Details (`I`) and UI mode (`O`) hints implemented by D02, kept the branch vertical/swatches browse handling; main's Favourite (F/Select) and Random (L3) hints were omitted because the branch has no F/Select binding and no Random feature, and `Appearance.browsesVertically` arrives with D04. `scripts/check-prompts.cjs` is identical between branch and main; no check change was needed.
+  - This slice's own gate: `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`, `cargo test --manifest-path src-tauri/Cargo.toml` (32 passed), `cargo check --manifest-path src-tauri/Cargo.toml`, `node --check renderer/prompts.js`, `node --check scripts/build-prompts.js`, a scratch vm render check of `Prompts.library`/`caseHints` against the new manifest, and `npm start` built `target/debug/pyrocade` (pre-existing `tauri_plugin_updater` `manage()` panic remains; stayed alive to timeout). `node scripts/check-prompts.cjs`, `node scripts/check-carousel.cjs` and `node scripts/check-library-ui.cjs` could not run on this host (no Electron runtime; no `tauri-driver`); recorded, not claimed. No visual inspection was performed.
+  - Boundary linkage and path checks on this slice's diff found no new linkage or paths into `main.js`, `preload.js`, or `artwork.js`.
+  - Seed PASS: P3 row prices 12 files at 33,797 tokens, seed 33,793 tokens under the 225,000 work budget. Post-commit guard: WITHIN at 93,033/225,000 tokens (41%); session cost $0/$0.70. Do-Not count remains 4; no new fault was added and no numbers were withdrawn.
+
 ## Queue
 
 - **P1 / D01 — Quiet interface palette and management screens.** [COMPLETE] Committed as `20b610a`.
 - **P2 / D02 — Launcher chrome and shelf navigation behaviour.** [COMPLETE] Committed as `60fdc7a`.
-- **P3 / D03 — Flat button-prompt assets and generator.** [PENDING] Depends on D01.
+- **P3 / D03 — Flat button-prompt assets and generator.** [COMPLETE] Committed as `030662e`.
 - **P4 / D04 — Page turn, media carousel, and shelf sizing.** [PENDING] Depends on D02.
 - **P5 / D05 — Case art, physical media, and booklet proportions.** [PENDING] Depends on D04.
 - **P6 / D06 — Library cache and parallel Rust scan.** [PENDING] Depends on D05.
