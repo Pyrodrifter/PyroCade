@@ -224,7 +224,7 @@ pub fn set_config(state: State<'_, AppState>, cfg: Value) -> Result<Value, Strin
 }
 
 #[tauri::command]
-pub fn scan_library(
+pub async fn scan_library(
     app: AppHandle,
     state: State<'_, AppState>,
     with_report: Option<bool>,
@@ -236,14 +236,23 @@ pub fn scan_library(
         .and_then(|o| o.get("onlyIfChanged"))
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    let with_report = with_report.unwrap_or(false);
     let (cached_raw, known_sizes) = read_library_cache(&config, &state.data_dir);
-    let outcome = scan(
-        &app,
-        &config,
-        &state.data_dir,
-        &known_sizes,
-        with_report.unwrap_or(false),
-    )?;
+    let data_dir = state.data_dir.clone();
+    let app_for_scan = app.clone();
+    let config_for_scan = config.clone();
+    let known_sizes_for_scan = known_sizes.clone();
+    let outcome = tauri::async_runtime::spawn_blocking(move || {
+        scan(
+            &app_for_scan,
+            &config_for_scan,
+            &data_dir,
+            &known_sizes_for_scan,
+            with_report,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??;
     let raw_text = serde_json::to_string(&outcome.games).map_err(|e| e.to_string())?;
     let changed = write_library_cache(
         &config,
@@ -252,7 +261,7 @@ pub fn scan_library(
         &outcome.sizes,
         cached_raw.as_ref(),
     );
-    if only_if_changed && !with_report.unwrap_or(false) && !changed {
+    if only_if_changed && !with_report && !changed {
         return Ok(None);
     }
     let mut games = outcome.games;
@@ -262,9 +271,15 @@ pub fn scan_library(
 }
 
 #[tauri::command]
-pub fn cached_library(state: State<'_, AppState>) -> Result<Option<Vec<Game>>, String> {
+pub async fn cached_library(state: State<'_, AppState>) -> Result<Option<Vec<Game>>, String> {
     let config = state.config();
-    let (cached_raw, _known_sizes) = read_library_cache(&config, &state.data_dir);
+    let data_dir = state.data_dir.clone();
+    let config_for_read = config.clone();
+    let (cached_raw, _known_sizes) = tauri::async_runtime::spawn_blocking(move || {
+        read_library_cache(&config_for_read, &data_dir)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     let Some(cached) = cached_raw else {
         return Ok(None);
     };
