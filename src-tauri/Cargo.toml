@@ -1,6 +1,6 @@
 [package]
 name = "pyrocade"
-version = "0.2.1"
+version = "0.4.2"
 description = "PyroCade emulator front end"
 authors = ["Pyrodrifter"]
 edition = "2024"

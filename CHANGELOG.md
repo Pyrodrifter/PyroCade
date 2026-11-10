@@ -4,7 +4,10 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 This Tauri ARM64 branch tracks upstream product history for the layouts, library, artwork and feedback behaviour listed below, with platform differences recorded in `docs/SUPPORT.md` and `docs/STATE.md`. Windows/Electron-only items (Leia SR, `start.bat`, Electron/Capacitor release path) are excluded and are not shipped in Tauri artifacts.
 
+The Tauri fork numbers its own builds separately from upstream, starting at 0.2.0; the current fork version is 0.4.2.
+
 ## [Unreleased]
+- Fork 0.4.2: a Quit button in Settings, startup library scan and cache reads moved off the UI thread so a large library no longer blocks the window, and the PSP UMD label lowered to fill the caddy instead of overflowing its arched top. Renderer-only edits now force a crate rebuild, so builds no longer ship a stale embedded renderer.
 - Tauri ARM64 delta parity D01–D09 from upstream main (quiet palette, launcher chrome, flat prompts, Page turn/Media carousel, back covers and booklet proportions, library cache, MarioWiki/Archive fallbacks, feedback reporting, demo timelines and docs). See `docs/STATE.md`.
 
 ## [0.8.1] - 2026-11-08
