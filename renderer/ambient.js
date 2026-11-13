@@ -5,7 +5,7 @@ const Ambient=(()=>{
   const ADVANCE_MS=11000,QUIET_MS=7000,MOVE_PX=14;
   let canvas,ctx,raf=0,last=0,t=0,w=0,h=0,rgb=[255,117,46],rgb2=[255,192,116],colorAt=0;
   let speed=1,brightness=1,lastDt=0,idleMinutes=2,background='ribbon',active=false,idleTimer=0,quietTimer=0,advanceTimer=0,context,originX=null,originY=null,lastPoke=0;
-  const backgrounds=['off','ribbon','xbox','codex','towers','loom','fable','aurora','ridges','embers','deep','day','night','pixel-auto'];
+  const backgrounds=['off','ribbon','xbox','codex','towers','loom','fable','aurora','ridges','embers','deep','warp','rain','bokeh','sunset','day','night','pixel-auto'];
   const motes=Array.from({length:46},(_,i)=>({x:Math.random(),y:Math.random(),r:.6+Math.random()*1.8,v:.004+Math.random()*.012,p:Math.random()*6.28,s:.4+Math.random()*1.4,i}));
 
   function parse(hex,fallback){
@@ -25,7 +25,7 @@ const Ambient=(()=>{
   }
   const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
   // Scenes that paint their own dark backdrop, so they are shown as they are instead of blended in.
-  const OPAQUE=['towers','loom','fable','aurora','ridges','embers','deep'];
+  const OPAQUE=['towers','loom','fable','aurora','ridges','embers','deep','warp','rain','bokeh','sunset'];
   const opaque=()=>OPAQUE.includes(background);
   const isPixel=()=>background==='day'||background==='night'||background==='pixel-auto';
   // Automatic pixel scene follows the clock: daylight 06:00-19:00.

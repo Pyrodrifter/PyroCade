@@ -12,6 +12,8 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
   - **Motion:** how the selected case moves (float, bob, rock, turn, pulse or still), how fast the shelf glides, how the game details and screens appear, a light sweep across the selected case, a pulsing floor glow, and a colour cycle that drifts the accent colour through every colour. All of it rests when motion is reduced.
   - **Keyboard and controller:** choose the key and the controller button for each action. The on-screen prompts follow your choices.
 - **Fable** background: a story drawn as a tree of light. One warm path is told through the forks while the paths not taken fade in the theme colour, then the next story sets out from the other side.
+- Four further backgrounds: **Warp** (stars streaming past), **Rain** (a wet night in the city), **Bokeh** (soft lights out of focus) and **Sunset** (a striped sun over a grid). They take their colours from the accent colour.
+- Five more accent colours: **Gold**, **Crimson**, **Teal**, **Orchid** and **Silver**.
 - Four more backgrounds: **Aurora** (curtains of northern light), **Ridges** (line-drawn hills rolling towards you), **Embers** (sparks rising from a fire) and **Deep** (sunlight under water, with a school of fish passing by).
 
 ### Changed

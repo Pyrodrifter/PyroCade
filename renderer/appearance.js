@@ -6,6 +6,11 @@ const Appearance=(()=>{
     violet: {name: 'Violet', accent: '#bc9af3', light: '#dac4ff'},
     mint: {name: 'Mint', accent: '#83d5a4', light: '#b5eccb'},
     rose: {name: 'Rose', accent: '#ed9da7', light: '#ffc6ce'},
+    gold: {name: 'Gold', accent: '#e9c25a', light: '#ffe49a'},
+    crimson: {name: 'Crimson', accent: '#ee6f66', light: '#ffa8a0'},
+    teal: {name: 'Teal', accent: '#54c6c0', light: '#9ce8e3'},
+    orchid: {name: 'Orchid', accent: '#e084d4', light: '#f6b9ee'},
+    silver: {name: 'Silver', accent: '#b3bccb', light: '#dee4ee'},
   };
   const layouts={carousel:{name:'Carousel',note:'3D cases'},vertical:{name:'Vertical stack',note:'Vertical list'},flipbook:{name:'Flipbook',note:'Fanned covers'},bookshelf:{name:'Bookshelf',note:'Spines on a shelf'},'page-turn':{name:'Page turn',note:'Cases swing around a spine'},media:{name:'Media carousel',note:'Discs and cartridges'}};
   // Old layout names in saved settings. Top flip was replaced by the media carousel before release.
@@ -44,7 +49,7 @@ const Appearance=(()=>{
     for(const [id,v]of Object.entries(themes)){
       const b=document.createElement('button');b.className='theme-option';b.dataset.theme=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${v.light},${v.accent})`);b.innerHTML=`<i aria-hidden="true"></i>${v.name}`;b.onclick=()=>{Customize.clearAccent();apply({theme:id})};$('#themeOptions').append(b);
     }
-    const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],fable:['Fable','#ffecd6,#d97757'],aurora:['Aurora','#54e896,#3a2f8f'],ridges:['Ridges','#8fa3d8,#0b0e1b'],embers:['Embers','#ffe4b0,#c2330e'],deep:['Deep','#96e2f0,#062b47'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
+    const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],fable:['Fable','#ffecd6,#d97757'],aurora:['Aurora','#54e896,#3a2f8f'],ridges:['Ridges','#8fa3d8,#0b0e1b'],embers:['Embers','#ffe4b0,#c2330e'],deep:['Deep','#96e2f0,#062b47'],warp:['Warp','#e6ecff,#141a4a'],rain:['Rain','#9fb6dc,#0a0f1a'],bokeh:['Bokeh','#ffc480,#5a2f7a'],sunset:['Sunset','#ffd98a,#d6337a'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
     for(const id of Ambient.backgrounds()){
       const b=document.createElement('button');b.className='theme-option';b.dataset.background=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${bgNames[id][1]})`);b.innerHTML=`<i aria-hidden="true"></i>${bgNames[id][0]}`;
       b.onclick=()=>{Ambient.configure({background:id});const state=context.getState();state.config.ambient={...(state.config.ambient||{}),idleMinutes:Ambient.settings().idleMinutes,background:id};delete state.config.ambient.ribbon;syncBackground();const sel=$('#sBackground');if(sel)sel.value=id;AudioUI.play('confirm');persist()};
@@ -117,8 +122,8 @@ const Appearance=(()=>{
     if(action==='play'||action==='case'){if(active.matches('button,input[type=checkbox]'))active.click();return;}
     if(!['left','right','up','down'].includes(action))return;
     if(active.id==='soundVolume'&&['left','right'].includes(action)){active.value=Math.max(0,Math.min(100,Number(active.value)+(action==='left'?-5:5)));active.dispatchEvent(new Event('input'));AudioUI.play('scroll');return;}
-    // Backgrounds wrap five to a row (library-ui.css), so up and down move between those rows too.
-    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],backgroundButtons=[...document.querySelectorAll('#backgroundOptions button')],rows=[layoutButtons.slice(0,3),layoutButtons.slice(3),[...document.querySelectorAll('#themeOptions button')],backgroundButtons.slice(0,5),backgroundButtons.slice(5,10),backgroundButtons.slice(10),[...document.querySelectorAll('#infoBarOptions button')],[$('#appearanceDetailsPinned')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
+    // Colours and backgrounds wrap five to a row (library-ui.css), so up and down move between those rows too.
+    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],backgroundButtons=[...document.querySelectorAll('#backgroundOptions button')],fives=list=>list.flatMap((b,i)=>i%5?[]:[list.slice(i,i+5)]),rows=[layoutButtons.slice(0,3),layoutButtons.slice(3),...fives([...document.querySelectorAll('#themeOptions button')]),...fives(backgroundButtons),[...document.querySelectorAll('#infoBarOptions button')],[$('#appearanceDetailsPinned')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
     let row=rows.findIndex(r=>r.includes(active)),col=row<0?0:rows[row].indexOf(active);if(row<0){rows[0][0].focus();return;}
     if(action==='left'||action==='right')col=Math.max(0,Math.min(rows[row].length-1,col+(action==='left'?-1:1)));
     else{row=Math.max(0,Math.min(rows.length-1,row+(action==='up'?-1:1)));col=Math.min(col,rows[row].length-1)}
