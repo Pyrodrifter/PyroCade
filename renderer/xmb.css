@@ -53,11 +53,12 @@ html.ambient .item.sel .sway { animation-duration: 12s; }
 html:has(#xmb[data-scene='xbox']) .bg-layer,
 html:has(#xmb[data-scene='towers']) .bg-layer,
 html:has(#xmb[data-scene='loom']) .bg-layer,
+html:has(#xmb[data-scene='fable']) .bg-layer,
 html:has(#xmb[data-scene='codex']) .bg-layer { opacity: .15 !important; }
 
 /* Towers & orbs is an opaque scene, so it replaces the blend and keeps game art out of the way. */
-#xmb:is([data-scene='towers'],[data-scene='loom']) { mix-blend-mode: normal; opacity: .92; }
-html.ambient #xmb:is([data-scene='towers'],[data-scene='loom']) { opacity: 1; }
+#xmb:is([data-scene='towers'],[data-scene='loom'],[data-scene='fable']) { mix-blend-mode: normal; opacity: .92; }
+html.ambient #xmb:is([data-scene='towers'],[data-scene='loom'],[data-scene='fable']) { opacity: 1; }
 
 /* Detail sizes return unused space to the game shelf. */
 html:is([data-info-bar='small'],[data-info-bar='compact']) #info { padding-top: 10px; gap: 22px; }

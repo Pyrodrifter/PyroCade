@@ -43,7 +43,7 @@ const Appearance=(()=>{
     for(const [id,v]of Object.entries(themes)){
       const b=document.createElement('button');b.className='theme-option';b.dataset.theme=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${v.light},${v.accent})`);b.innerHTML=`<i aria-hidden="true"></i>${v.name}`;b.onclick=()=>apply({theme:id});$('#themeOptions').append(b);
     }
-    const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
+    const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],fable:['Fable','#ffecd6,#d97757'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
     for(const id of Ambient.backgrounds()){
       const b=document.createElement('button');b.className='theme-option';b.dataset.background=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${bgNames[id][1]})`);b.innerHTML=`<i aria-hidden="true"></i>${bgNames[id][0]}`;
       b.onclick=()=>{Ambient.configure({background:id});const state=context.getState();state.config.ambient={...(state.config.ambient||{}),idleMinutes:Ambient.settings().idleMinutes,background:id};delete state.config.ambient.ribbon;syncBackground();const sel=$('#sBackground');if(sel)sel.value=id;AudioUI.play('confirm');persist()};

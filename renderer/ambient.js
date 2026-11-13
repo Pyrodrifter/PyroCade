@@ -5,7 +5,7 @@ const Ambient=(()=>{
   const ADVANCE_MS=11000,QUIET_MS=7000,MOVE_PX=14;
   let canvas,ctx,raf=0,last=0,t=0,w=0,h=0,rgb=[255,117,46],rgb2=[255,192,116],colorAt=0;
   let lastDt=0,idleMinutes=2,background='ribbon',active=false,idleTimer=0,quietTimer=0,advanceTimer=0,context,originX=null,originY=null,lastPoke=0;
-  const backgrounds=['off','ribbon','xbox','codex','towers','loom','day','night','pixel-auto'];
+  const backgrounds=['off','ribbon','xbox','codex','towers','loom','fable','day','night','pixel-auto'];
   const motes=Array.from({length:46},(_,i)=>({x:Math.random(),y:Math.random(),r:.6+Math.random()*1.8,v:.004+Math.random()*.012,p:Math.random()*6.28,s:.4+Math.random()*1.4,i}));
 
   function parse(hex,fallback){
@@ -20,10 +20,11 @@ const Ambient=(()=>{
   function resize(){
     if(!canvas)return;
     if(isPixel()){h=PixelScenes.height;w=Math.min(520,Math.max(2,Math.round(h*innerWidth/innerHeight)))}
-    else{const k=(background==='towers'||background==='loom'?.75:.5)*(context?.renderScale||1);w=Math.max(2,Math.round(innerWidth*k));h=Math.max(2,Math.round(innerHeight*k))}
+    else{const k=(opaque()?.75:.5)*(context?.renderScale||1);w=Math.max(2,Math.round(innerWidth*k));h=Math.max(2,Math.round(innerHeight*k))}
     canvas.width=w;canvas.height=h;
   }
   const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  const opaque=()=>background==='towers'||background==='loom'||background==='fable';
   const isPixel=()=>background==='day'||background==='night'||background==='pixel-auto';
   // Automatic pixel scene follows the clock: daylight 06:00-19:00.
   const pixelKind=()=>background==='pixel-auto'?(new Date().getHours()>=6&&new Date().getHours()<19?'day':'night'):background;
@@ -33,6 +34,7 @@ const Ambient=(()=>{
     else if(background==='codex')paintConstellation();
     else if(background==='towers')Ps2Scene.draw(ctx,w,h,t,lastDt);
     else if(background==='loom'){readColors(now);Loom.draw(ctx,w,h,t,rgb,rgb2)}
+    else if(background==='fable'){readColors(now);Fable.draw(ctx,w,h,t,rgb,rgb2,root.dataset.motion==='reduced')}
     else paintRibbon(now);
   }
   function halo(x,y,r,color,alpha){
@@ -120,7 +122,7 @@ const Ambient=(()=>{
     const reduced=root.dataset.motion==='reduced';
     canvas.hidden=background==='off';if(background==='off')return;
     canvas.dataset.scene=isPixel()?'pixel':background;
-    const wanted=isPixel()?PixelScenes.height:Math.round(innerHeight*(background==='towers'||background==='loom'?.75:.5)*(context?.renderScale||1));if(canvas.height!==wanted)resize();
+    const wanted=isPixel()?PixelScenes.height:Math.round(innerHeight*(opaque()?.75:.5)*(context?.renderScale||1));if(canvas.height!==wanted)resize();
     if(reduced){paint(performance.now());return}
     last=performance.now();raf=requestAnimationFrame(frame);
   }
@@ -150,7 +152,8 @@ const Ambient=(()=>{
 
   function init(options){
     context=options;canvas=$('#xmb');ctx=canvas.getContext('2d');
-    resize();addEventListener('resize',resize);
+    // Resizing clears the canvas, and with reduced motion nothing else would paint it again.
+    addEventListener('resize',()=>{resize();if(!raf&&background!=='off')paint(performance.now())});resize();
     const swallow=e=>{if(active){e.preventDefault();e.stopImmediatePropagation();exit()}else poke()};
     for(const type of ['keydown','pointerdown','touchstart','wheel'])addEventListener(type,swallow,{capture:true,passive:false});
     addEventListener('pointermove',e=>{
@@ -159,7 +162,8 @@ const Ambient=(()=>{
       if(Math.hypot(e.clientX-originX,e.clientY-originY)>MOVE_PX)exit();
     },{capture:true,passive:true});
     document.addEventListener('visibilitychange',()=>{if(document.hidden)return;last=performance.now()});
-    new MutationObserver(run).observe(root,{attributes:true,attributeFilter:['data-motion']});
+    // A theme change recolours the scene at once, including the single frame reduced motion shows.
+    new MutationObserver(()=>{colorAt=0;run()}).observe(root,{attributes:true,attributeFilter:['data-motion','data-theme']});
     configure(options.initial||{});
     poke(true);
   }

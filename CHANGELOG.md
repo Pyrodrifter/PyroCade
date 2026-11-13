@@ -4,6 +4,12 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+### Added
+- **Fable** background: a story drawn as a tree of light. One warm path is told through the forks while the paths not taken fade in the theme colour, then the next story sets out from the other side.
+
+### Fixed
+- With reduced motion on, the background no longer goes blank after the window is resized, and it now follows a theme change straight away.
+
 ## [0.8.2] - 2026-11-08
 
 ### Added
