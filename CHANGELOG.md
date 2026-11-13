@@ -4,6 +4,8 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-13
+
 ### Added
 - **Customize** panel in Settings. Everything in it applies straight away and saves itself:
   - **Colours and background:** any accent colour, background speed and brightness, and your own image behind the library.
@@ -245,6 +247,7 @@ Entries marked *(u/RiceDesperate5724)* were asked for by [u/RiceDesperate5724](h
 - Launching finds the ROM by game ID, keeps `$` in paths, and only minimizes once the emulator has started.
 - Settings are saved atomically, and a damaged settings file is backed up instead of overwritten.
 
+[0.9.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.8.2...v0.9.0
 [0.8.2]: https://github.com/Pyrodrifter/PyroCade/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Pyrodrifter/PyroCade/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Pyrodrifter/PyroCade/compare/v0.7.0...v0.8.0
