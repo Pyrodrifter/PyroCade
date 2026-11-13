@@ -4,7 +4,7 @@ const Ambient=(()=>{
   const root=document.documentElement,$=s=>document.querySelector(s);
   const ADVANCE_MS=11000,QUIET_MS=7000,MOVE_PX=14;
   let canvas,ctx,raf=0,last=0,t=0,w=0,h=0,rgb=[255,117,46],rgb2=[255,192,116],colorAt=0;
-  let lastDt=0,idleMinutes=2,background='ribbon',active=false,idleTimer=0,quietTimer=0,advanceTimer=0,context,originX=null,originY=null,lastPoke=0;
+  let speed=1,brightness=1,lastDt=0,idleMinutes=2,background='ribbon',active=false,idleTimer=0,quietTimer=0,advanceTimer=0,context,originX=null,originY=null,lastPoke=0;
   const backgrounds=['off','ribbon','xbox','codex','towers','loom','fable','aurora','ridges','embers','deep','day','night','pixel-auto'];
   const motes=Array.from({length:46},(_,i)=>({x:Math.random(),y:Math.random(),r:.6+Math.random()*1.8,v:.004+Math.random()*.012,p:Math.random()*6.28,s:.4+Math.random()*1.4,i}));
 
@@ -118,7 +118,7 @@ const Ambient=(()=>{
   function frame(now){
     raf=requestAnimationFrame(frame);
     if(document.hidden||root.classList.contains('in-game')||now-last<(isPixel()?45:33))return;
-    lastDt=Math.min(.1,(now-last)/1000)*(active?1.5:1);t+=lastDt;last=now;paint(now);
+    lastDt=Math.min(.1,(now-last)/1000)*(active?1.5:1)*speed;t+=lastDt;last=now;paint(now);
   }
   function run(){
     cancelAnimationFrame(raf);raf=0;
@@ -174,6 +174,9 @@ const Ambient=(()=>{
     if('idleMinutes' in next)idleMinutes=Math.max(0,Number(next.idleMinutes)||0);
     if('background' in next&&backgrounds.includes(next.background))background=next.background;
     else if('ribbon' in next&&!('background' in next))background=next.ribbon===false?'off':'ribbon';
+    // Speed and brightness come from Settings > Customize.
+    if(Number.isFinite(next.speed))speed=Math.max(.1,Math.min(3,next.speed));
+    if(Number.isFinite(next.brightness)){brightness=Math.max(.2,Math.min(2,next.brightness));if(canvas)canvas.style.filter=brightness===1?'':`brightness(${brightness})`}
     if(active&&!idleMinutes)exit();
     arm();run();
   }

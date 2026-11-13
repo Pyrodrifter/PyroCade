@@ -5,6 +5,11 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 ## [Unreleased]
 
 ### Added
+- **Customize** panel in Settings. Everything in it applies straight away and saves itself:
+  - **Colours and background:** any accent colour, background speed and brightness, and your own image behind the library.
+  - **Shelf:** case size, the space between cases and how far the side cases tilt, plus switches for the floor reflection and the spotlight.
+  - **Interface:** show or hide the controls bar, clock, shelf arrows, position counter and the sort, filter and random buttons, and choose a 12-hour or 24-hour clock.
+  - **Keyboard and controller:** choose the key and the controller button for each action. The on-screen prompts follow your choices.
 - **Fable** background: a story drawn as a tree of light. One warm path is told through the forks while the paths not taken fade in the theme colour, then the next story sets out from the other side.
 - Four more backgrounds: **Aurora** (curtains of northern light), **Ridges** (line-drawn hills rolling towards you), **Embers** (sparks rising from a fire) and **Deep** (sunlight under water, with a school of fish passing by).
 

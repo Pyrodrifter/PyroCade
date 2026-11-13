@@ -1832,6 +1832,11 @@ handle('dialog:folder', async title => {
   const r = await dialog.showOpenDialog(win, { title, properties: ['openDirectory'] });
   return r.canceled ? null : r.filePaths[0];
 });
+// Settings > Customize: a picture of the user's own to show behind the library.
+handle('dialog:backgroundImage', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Choose a background image', properties: ['openFile'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'bmp'] }] });
+  return r.canceled ? null : pathToFileURL(r.filePaths[0]).href;
+});
 // Manuals open in PyroCade's own viewer; this gives it the file address of a library manual.
 const knownManual = p => typeof p === 'string' && /\.pdf$/i.test(p) && libraryGames.some(g => g.media.manual === p) && fs.existsSync(p);
 handle('manual:url', p => { if (!knownManual(p)) throw new Error('Manual not found.'); return pathToFileURL(p).href; });

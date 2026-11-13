@@ -30,6 +30,7 @@ const Appearance=(()=>{
     const palette=themes[theme];document.documentElement.style.setProperty('--accent',palette.accent);document.documentElement.style.setProperty('--accent2',palette.light);
     for(const b of document.querySelectorAll('#layoutOptions button'))b.setAttribute('aria-pressed',String(b.dataset.layout===mode));
     for(const b of document.querySelectorAll('#themeOptions button'))b.setAttribute('aria-pressed',String(b.dataset.theme===theme));
+    if(typeof Customize!=='undefined')Customize.paint(); // a custom accent colour goes on top of the preset
     $('#btnAppearance').title=`${layouts[mode].name} · ${themes[theme].name} · change appearance`;
     if(context&&(old!==mode||oldInfo!==infoBar))context.refresh();if(save){AudioUI.play('confirm');persist()}
   }
@@ -41,7 +42,7 @@ const Appearance=(()=>{
       b.onclick=()=>apply({layout:id});$('#layoutOptions').append(b);
     }
     for(const [id,v]of Object.entries(themes)){
-      const b=document.createElement('button');b.className='theme-option';b.dataset.theme=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${v.light},${v.accent})`);b.innerHTML=`<i aria-hidden="true"></i>${v.name}`;b.onclick=()=>apply({theme:id});$('#themeOptions').append(b);
+      const b=document.createElement('button');b.className='theme-option';b.dataset.theme=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${v.light},${v.accent})`);b.innerHTML=`<i aria-hidden="true"></i>${v.name}`;b.onclick=()=>{Customize.clearAccent();apply({theme:id})};$('#themeOptions').append(b);
     }
     const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],fable:['Fable','#ffecd6,#d97757'],aurora:['Aurora','#54e896,#3a2f8f'],ridges:['Ridges','#8fa3d8,#0b0e1b'],embers:['Embers','#ffe4b0,#c2330e'],deep:['Deep','#96e2f0,#062b47'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
     for(const id of Ambient.backgrounds()){
@@ -72,6 +73,8 @@ const Appearance=(()=>{
   // size(i) gives the [width, height, depth] of case i, so spines can stand side by side.
   function position(i,sel,scale,itemScale,stage,view,size=()=>[230,323,24]){
     const d=i-sel,a=Math.abs(d),s=Math.sign(d);
+    // Spacing and tilt of the side cases, from Settings > Customize.
+    const K=typeof Customize==='undefined'?{spacing:1,tilt:1}:Customize.shelf(),gap=scale*K.spacing;
     if(mode==='bookshelf') {
       // Cases stand spine-out side by side on one baseline; the selected one slides out to face you.
       // Spines are what this layout is for, and a 24px-deep case has very little spine to print a
@@ -102,11 +105,11 @@ const Appearance=(()=>{
       // The discs and cartridges themselves, out of their cases (library-ui.css hides the cases).
       // A carousel like the first layout, a little tighter since the media is smaller than a case,
       // and turned less so the discs on either side still read as discs.
-      return {transform:d===0?`translate3d(0px,-8px,140px) scale(${itemScale*1.05})`:`translate3d(${s*(270+(a-1)*150)*scale}px,10px,${-a*110-70}px) rotateY(${-s*38}deg) scale(${itemScale*.9})`,hidden:a>6};
+      return {transform:d===0?`translate3d(0px,-8px,140px) scale(${itemScale*1.05})`:`translate3d(${s*(270+(a-1)*150)*gap}px,10px,${-a*110-70}px) rotateY(${-s*38*K.tilt}deg) scale(${itemScale*.9})`,hidden:a>6};
     }
     if(mode==='vertical')return {transform:d===0?`translate3d(${85*scale}px,-8px,90px) scale(${itemScale*.91})`:`translate3d(${-235*scale}px,${d*Math.min(95*scale,stage.clientHeight*.17)}px,${-a*80}px) rotateY(12deg) scale(${itemScale*.40})`,hidden:a>(stage.clientHeight>300?2:1)};
-    if(mode==='flipbook')return {transform:d===0?`translate3d(${-15*scale}px,-6px,100px) rotateY(-9deg) scale(${itemScale})`:`translate3d(${s*(275+(a-1)*37)*scale}px,${a*3}px,${-a*65}px) rotateY(${-s*62}deg) scale(${itemScale*.87})`,hidden:a>3};
-    return {transform:d===0?`translate3d(0px,-8px,130px) scale(${itemScale})`:`translate3d(${s*(325+(a-1)*156)*scale}px,10px,${-a*115-85}px) rotateY(${-s*50}deg) scale(${itemScale*.92})`,hidden:a>6};
+    if(mode==='flipbook')return {transform:d===0?`translate3d(${-15*scale}px,-6px,100px) rotateY(-9deg) scale(${itemScale})`:`translate3d(${s*(275+(a-1)*37)*gap}px,${a*3}px,${-a*65}px) rotateY(${-s*62*K.tilt}deg) scale(${itemScale*.87})`,hidden:a>3};
+    return {transform:d===0?`translate3d(0px,-8px,130px) scale(${itemScale})`:`translate3d(${s*(325+(a-1)*156)*gap}px,10px,${-a*115-85}px) rotateY(${-s*50*K.tilt}deg) scale(${itemScale*.92})`,hidden:a>6};
   }
   function controller(action){
     if(action==='back'||action==='systems')return $('#appearancePicker').close();

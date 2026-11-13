@@ -198,6 +198,7 @@ async function boot() {
   Ambient.init({initial:S.config.ambient,canRun:()=>document.documentElement.dataset.leiaActive!=='true'&&!inGame()&&libraryActive()&&!caseShown()&&!LibraryUI.pickerOpen()&&!Appearance.panelOpen()&&!document.activeElement?.matches?.('input,select,textarea'),advance:()=>select(S.sel+1>=S.list.length?0:S.sel+1)});
   Appearance.init({getState:()=>S,toast,refresh:()=>{resizeShelf();for(const it of items.values()){const game=S.games.find(g=>g.id===it.dataset.id);if(game)fillItem(it,game)}if(S.list.length)layout();promptFamilyRendered='';renderPrompts()}});
   eShopStyle=S.config.eShopStyle==='original'?'original':'enhanced';
+  Customize.init({getState:()=>S,toast,relayout:()=>{if(S.list.length)layout()},refreshPrompts:()=>{promptFamilyRendered='';renderPrompts()}});
   promptPreference = validPromptPreference(S.config.promptFamily);
   applyMotion(S.config.motion || 'auto');
   applyPerformance();
@@ -237,7 +238,7 @@ async function boot() {
   shelfObserver.observe($('#libraryHints'));
   renderEmus();
   renderSettings();
-  setInterval(() => ($('#clock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })), 1000);
+  setInterval(() => ($('#clock').textContent = Customize.time()), 1000);
   requestAnimationFrame(pollPad);
 }
 
@@ -761,7 +762,7 @@ function layout() {
     const fresh = !e;
     if (fresh) { e = makeItem(i); items.set(i, e); }
     const d = i - S.sel, a = Math.abs(d);
-    const itemScale = scale * Number(e.dataset.displayScale || 1);
+    const itemScale = scale * Customize.shelf().size * Number(e.dataset.displayScale || 1);
     const placement=modelsEnabled()?Appearance.position(i,S.sel,scale,itemScale,stageSize,view,caseSize):{transform:`translate(${d*270*scale}px,0px) scale(${itemScale*(d===0?1:.7)})`,hidden:a>2},t=placement.transform;
     if (fresh && !transferring) {
       e.style.transition = 'none';
@@ -2021,8 +2022,9 @@ document.addEventListener('keydown', e => {
     if (!(pointerFocus && libraryActive() && !caseShown() && !e.target.closest('dialog'))) return;
     e.target.blur();
   }
-  const map = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', Enter: 'play', ' ': 'case', Escape: 'back', m: 'manual', M: 'manual', f: 'favorite', F: 'favorite', Delete: 'hide', PageUp: 'pgup', PageDown: 'pgdn' };
-  if (map[e.key]) { e.preventDefault(); input(caseShown() && e.key === ' ' ? 'back' : map[e.key]); }
+  // Which key does what is the user's choice (Settings > Customize); the key for "Open case" also closes it.
+  const action = Customize.keyAction(e.key);
+  if (action) { e.preventDefault(); input(caseShown() && action === 'case' ? 'back' : action); }
 });
 
 // Prompts switch only when input is used, so an idle connected pad never steals them.
@@ -2041,13 +2043,13 @@ function renderPrompts() {
   }
   const key = family === 'keyboard';
   $('#inputBadge').textContent = Prompts.labels[family];
-  const vertical=Appearance.mode()==='vertical';
+  const vertical=Appearance.mode()==='vertical',bound=action=>key?Customize.keyIcon(action):Customize.padIcon(action);
   $('#shelfPrev').innerHTML = Prompts.icon(key ? 'keyboard' : family,key ? (vertical?'up':'left'):(vertical?'dpad-up':'dpad-left'));
   $('#shelfNext').innerHTML = Prompts.icon(key ? 'keyboard' : family,key ? (vertical?'down':'right'):(vertical?'dpad-down':'dpad-right'));
   for (const [id, icon, label] of [
-    ['btnPlay',key ? 'enter':'south','Play'],['btnCase',key ? 'space':'north','Open case'],
-    ['btnManual',key ? 'm':'west','Manual'],['cvPlay',key ? 'enter':'south','Play'],
-    ['cvBack',key ? 'escape':'east','Back'],['cvToggle',key ? null:'north',CV.open ? 'Close case':'Open case']
+    ['btnPlay',bound('play'),'Play'],['btnCase',bound('case'),'Open case'],
+    ['btnManual',bound('manual'),'Manual'],['cvPlay',bound('play'),'Play'],
+    ['cvBack',bound('back'),'Back'],['cvToggle',key ? null:bound('case'),CV.open ? 'Close case':'Open case']
   ]) $('#' + id).innerHTML = (icon ? Prompts.icon(family,icon) : '') + label;
   $('#promptStatus').textContent = `Showing ${Prompts.labels[family]} prompts${pad.name ? ` · ${pad.name}` : ' · No controller connected'}`;
 }
@@ -2123,9 +2125,10 @@ function pollPad(now) {
   if (gp && active(gp)) usePromptInput(Prompts.detect(gp.id));
   if (gp) {
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, b = i => gp.buttons[i]?.pressed;
-    const st = { left: b(14) || ax < -.5, right: b(15) || ax > .5, up: b(12) || ay < -.6, down: b(13) || ay > .6,sysprev:b(4),sysnext:b(5),
-      play: b(0), back: b(1), manual: b(2), case: b(3), pgup: b(6), pgdn: b(7),systems:b(9),
-      favorite: b(8) && !S.running.size, random: b(10) };
+    const P = Customize.padMap(); // button numbers, as chosen in Settings > Customize
+    const st = { left: b(14) || ax < -.5, right: b(15) || ax > .5, up: b(12) || ay < -.6, down: b(13) || ay > .6,sysprev:b(P.sysprev),sysnext:b(P.sysnext),
+      play: b(P.play), back: b(P.back), manual: b(P.manual), case: b(P.case), pgup: b(P.pgup), pgdn: b(P.pgdn),systems:b(P.systems),
+      favorite: b(P.favorite) && !S.running.size, random: b(P.random) };
     // Hold Select + Start (View + Menu, Share + Options, - and +) for 1.5 s to close the running game.
     const quitCombo = b(8) && b(9);
     if (S.running.size && quitCombo) {

@@ -70,6 +70,7 @@ contextBridge.exposeInMainWorld('api', {
   emuAddRepo: opts => call('emu:addRepo', opts),
   emuRemove: id => call('emu:remove', id),
   pickFolder: title => call('dialog:folder', title),
+  pickBackgroundImage: () => call('dialog:backgroundImage'),
   openManual: p => call('manual:open', p),
   manualUrl: p => call('manual:url', p),
   onProgress: fn => ipcRenderer.on('emu:progress', (_e, p) => fn(p)),

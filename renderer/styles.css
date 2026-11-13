@@ -742,3 +742,27 @@ html[data-details-flow='true'] #info .actions {
   margin-top:auto;
 }
 html[data-details-flow='true'] #info .actions button { flex:none; white-space:nowrap; }
+
+/* ---------- Customize (customize.js) ---------- */
+#bgImage { position: absolute; inset: 0; background: center / cover no-repeat; pointer-events: none; }
+#bgImage[hidden] { display: none; }
+html[data-bg-image] .bg-layer { opacity: .1 !important; }
+html[data-reflections='off'] .ground-reflection { display: none !important; }
+html[data-spotlight='off'] .shelf-spotlight { display: none; }
+html[data-hide~='hints'] #libraryHints { display: none !important; }
+html[data-hide~='clock']:not(.ambient) #clock { display: none; }
+html[data-hide~='arrows'] .shelf-arrow { display: none !important; }
+html[data-hide~='position'] :is(#shelfPosition, .shelf-progress) { display: none; }
+html[data-hide~='tools'] .shelf-tools { display: none; }
+#customizePanel h3 { margin: 20px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+#customizePanel .hint { margin: 4px 0 8px; font-size: 12px; color: var(--muted); }
+#customizePanel .hint.warn { color: var(--accent2); }
+#customizePanel .row output { width: 48px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+#customizePanel input[type=color] { flex: 0 0 46px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; }
+.bindings { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 6px 22px; margin: 6px 0 10px; }
+.binding { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.binding > span { color: var(--muted); }
+.binding button { min-width: 84px; min-height: 36px; display: inline-grid; place-items: center; padding: 2px 10px; }
+.binding button .button-prompt { width: 28px; height: 28px; }
+.binding button.listening { border-color: var(--accent); color: var(--accent2); }
+.binding select { min-width: 190px; }
