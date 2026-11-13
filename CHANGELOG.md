@@ -6,6 +6,10 @@ All notable changes to PyroCade. Downloads are on the [releases page](https://gi
 
 ### Added
 - **Fable** background: a story drawn as a tree of light. One warm path is told through the forks while the paths not taken fade in the theme colour, then the next story sets out from the other side.
+- Four more backgrounds: **Aurora** (curtains of northern light), **Ridges** (line-drawn hills rolling towards you), **Embers** (sparks rising from a fire) and **Deep** (sunlight under water, with a school of fish passing by).
+
+### Changed
+- The background choices in View & theme wrap onto rows of five instead of running off the side of the panel.
 
 ### Fixed
 - With reduced motion on, the background no longer goes blank after the window is resized, and it now follows a theme change straight away.

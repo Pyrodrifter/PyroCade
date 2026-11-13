@@ -5,7 +5,7 @@ const Ambient=(()=>{
   const ADVANCE_MS=11000,QUIET_MS=7000,MOVE_PX=14;
   let canvas,ctx,raf=0,last=0,t=0,w=0,h=0,rgb=[255,117,46],rgb2=[255,192,116],colorAt=0;
   let lastDt=0,idleMinutes=2,background='ribbon',active=false,idleTimer=0,quietTimer=0,advanceTimer=0,context,originX=null,originY=null,lastPoke=0;
-  const backgrounds=['off','ribbon','xbox','codex','towers','loom','fable','day','night','pixel-auto'];
+  const backgrounds=['off','ribbon','xbox','codex','towers','loom','fable','aurora','ridges','embers','deep','day','night','pixel-auto'];
   const motes=Array.from({length:46},(_,i)=>({x:Math.random(),y:Math.random(),r:.6+Math.random()*1.8,v:.004+Math.random()*.012,p:Math.random()*6.28,s:.4+Math.random()*1.4,i}));
 
   function parse(hex,fallback){
@@ -24,7 +24,9 @@ const Ambient=(()=>{
     canvas.width=w;canvas.height=h;
   }
   const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
-  const opaque=()=>background==='towers'||background==='loom'||background==='fable';
+  // Scenes that paint their own dark backdrop, so they are shown as they are instead of blended in.
+  const OPAQUE=['towers','loom','fable','aurora','ridges','embers','deep'];
+  const opaque=()=>OPAQUE.includes(background);
   const isPixel=()=>background==='day'||background==='night'||background==='pixel-auto';
   // Automatic pixel scene follows the clock: daylight 06:00-19:00.
   const pixelKind=()=>background==='pixel-auto'?(new Date().getHours()>=6&&new Date().getHours()<19?'day':'night'):background;
@@ -35,6 +37,7 @@ const Ambient=(()=>{
     else if(background==='towers')Ps2Scene.draw(ctx,w,h,t,lastDt);
     else if(background==='loom'){readColors(now);Loom.draw(ctx,w,h,t,rgb,rgb2)}
     else if(background==='fable'){readColors(now);Fable.draw(ctx,w,h,t,rgb,rgb2,root.dataset.motion==='reduced')}
+    else if(Scenes[background]){readColors(now);Scenes[background](ctx,w,h,t,rgb,rgb2)}
     else paintRibbon(now);
   }
   function halo(x,y,r,color,alpha){
@@ -121,7 +124,7 @@ const Ambient=(()=>{
     cancelAnimationFrame(raf);raf=0;
     const reduced=root.dataset.motion==='reduced';
     canvas.hidden=background==='off';if(background==='off')return;
-    canvas.dataset.scene=isPixel()?'pixel':background;
+    canvas.dataset.scene=isPixel()?'pixel':background;canvas.toggleAttribute('data-opaque',opaque());
     const wanted=isPixel()?PixelScenes.height:Math.round(innerHeight*(opaque()?.75:.5)*(context?.renderScale||1));if(canvas.height!==wanted)resize();
     if(reduced){paint(performance.now());return}
     last=performance.now();raf=requestAnimationFrame(frame);

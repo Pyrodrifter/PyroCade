@@ -43,7 +43,7 @@ const Appearance=(()=>{
     for(const [id,v]of Object.entries(themes)){
       const b=document.createElement('button');b.className='theme-option';b.dataset.theme=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${v.light},${v.accent})`);b.innerHTML=`<i aria-hidden="true"></i>${v.name}`;b.onclick=()=>apply({theme:id});$('#themeOptions').append(b);
     }
-    const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],fable:['Fable','#ffecd6,#d97757'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
+    const bgNames={off:['Off','#2a2f3a,#12151d'],ribbon:['Ribbon','#ffc074,#ff752e'],xbox:['Orbit','#b8ee74,#266822'],codex:['Constellation','#70d2ce,#4f64c1'],towers:['Towers','#97b7ff,#243c89'],loom:['Loom','#60ced6,#ff752e'],fable:['Fable','#ffecd6,#d97757'],aurora:['Aurora','#54e896,#3a2f8f'],ridges:['Ridges','#8fa3d8,#0b0e1b'],embers:['Embers','#ffe4b0,#c2330e'],deep:['Deep','#96e2f0,#062b47'],day:['Pixel day','#dcf4fd,#3f9be0'],night:['Pixel night','#394e94,#070b22'],'pixel-auto':['Pixel auto','#dcf4fd,#070b22']};
     for(const id of Ambient.backgrounds()){
       const b=document.createElement('button');b.className='theme-option';b.dataset.background=id;b.type='button';b.style.setProperty('--theme-gradient',`linear-gradient(135deg,${bgNames[id][1]})`);b.innerHTML=`<i aria-hidden="true"></i>${bgNames[id][0]}`;
       b.onclick=()=>{Ambient.configure({background:id});const state=context.getState();state.config.ambient={...(state.config.ambient||{}),idleMinutes:Ambient.settings().idleMinutes,background:id};delete state.config.ambient.ribbon;syncBackground();const sel=$('#sBackground');if(sel)sel.value=id;AudioUI.play('confirm');persist()};
@@ -114,7 +114,8 @@ const Appearance=(()=>{
     if(action==='play'||action==='case'){if(active.matches('button,input[type=checkbox]'))active.click();return;}
     if(!['left','right','up','down'].includes(action))return;
     if(active.id==='soundVolume'&&['left','right'].includes(action)){active.value=Math.max(0,Math.min(100,Number(active.value)+(action==='left'?-5:5)));active.dispatchEvent(new Event('input'));AudioUI.play('scroll');return;}
-    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],rows=[layoutButtons.slice(0,3),layoutButtons.slice(3),[...document.querySelectorAll('#themeOptions button')],[...document.querySelectorAll('#backgroundOptions button')],[...document.querySelectorAll('#infoBarOptions button')],[$('#appearanceDetailsPinned')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
+    // Backgrounds wrap five to a row (library-ui.css), so up and down move between those rows too.
+    const layoutButtons=[...document.querySelectorAll('#layoutOptions button')],backgroundButtons=[...document.querySelectorAll('#backgroundOptions button')],rows=[layoutButtons.slice(0,3),layoutButtons.slice(3),[...document.querySelectorAll('#themeOptions button')],backgroundButtons.slice(0,5),backgroundButtons.slice(5,10),backgroundButtons.slice(10),[...document.querySelectorAll('#infoBarOptions button')],[$('#appearanceDetailsPinned')],[$('#soundToggle'),$('#soundVolume'),$('#soundPreview')]];
     let row=rows.findIndex(r=>r.includes(active)),col=row<0?0:rows[row].indexOf(active);if(row<0){rows[0][0].focus();return;}
     if(action==='left'||action==='right')col=Math.max(0,Math.min(rows[row].length-1,col+(action==='left'?-1:1)));
     else{row=Math.max(0,Math.min(rows.length-1,row+(action==='up'?-1:1)));col=Math.min(col,rows[row].length-1)}
