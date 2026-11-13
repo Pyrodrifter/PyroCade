@@ -620,13 +620,15 @@ function fillItem(it, game) {
   it.dataset.displayScale = S.config?.realCaseSizes ? .95 : Math.min(1.5,323/a.H,300/a.W);
   it.style.setProperty('--w',a.W+'px'); it.style.setProperty('--h',a.H+'px'); it.style.setProperty('--d',a.D+'px');
   const sway = el('div', 'sway');
-  if(!modelsEnabled()){sway.append(box);it.replaceChildren(sway);return;}
+  // The light sweep from Settings > Customize > Motion; shown on the selected case only.
+  const shine=el('div','case-shine');shine.setAttribute('aria-hidden','true');
+  if(!modelsEnabled()){sway.append(box,shine);it.replaceChildren(sway);return;}
   const mode = Appearance.mode();
   if (mode !== 'bookshelf' || (it.classList.contains('media-revealed') && !hasShell(a.sys))) {
     sway.append(createMedia(game, a));
   }
   sway.append(box);
-  const reflection=el('div','ground-reflection');reflection.setAttribute('aria-hidden','true');reflection.append(EshopCovers.face(game,a,'reflection-cover'));sway.append(reflection);
+  const reflection=el('div','ground-reflection');reflection.setAttribute('aria-hidden','true');reflection.append(EshopCovers.face(game,a,'reflection-cover'));sway.append(reflection,shine);
   const sh = el('div', 'shadow'); sh.style.top = a.H + 'px';
   it.replaceChildren(sway, sh);
 }

@@ -4,14 +4,14 @@
 // once and saves itself.
 const Customize=(()=>{
   const root=document.documentElement,$=s=>document.querySelector(s);
-  const DEFAULTS={accent:'',bgSpeed:1,bgBrightness:1,bgImage:'',caseSize:1,spacing:1,tilt:1,reflections:true,spotlight:true,idle:'float',shelfSpeed:1,infoAnim:'rise',viewAnim:'none',floorPulse:false,colorCycle:false,hide:[],clock:'auto',keys:{},pad:{}};
+  const DEFAULTS={accent:'',bgSpeed:1,bgBrightness:1,bgImage:'',caseSize:1,spacing:1,tilt:1,reflections:true,spotlight:true,idle:'float',shelfSpeed:1,infoAnim:'rise',viewAnim:'none',shine:false,floorPulse:false,colorCycle:false,hide:[],clock:'auto',keys:{},pad:{}};
   const RANGES={bgSpeed:[.25,2],bgBrightness:[.4,1.4],caseSize:[.8,1.1],spacing:[.7,1.4],tilt:[0,1.4],shelfSpeed:[.5,2]};
   // Animation styles. The first of each is what PyroCade does when nothing is chosen.
   const CHOICES={
     idle:{float:'Float',bob:'Bob up and down',rock:'Rock side to side',spin:'Turn all the way round',pulse:'Pulse',still:'Stay still'},
     infoAnim:{rise:'Rise',fade:'Fade',slide:'Slide in',none:'None'},
     viewAnim:{none:'None',fade:'Fade',slide:'Slide',zoom:'Zoom'}};
-  const OFF_FLAGS=['floorPulse','colorCycle'];
+  const OFF_FLAGS=['shine','floorPulse','colorCycle'];
   const PARTS={hints:'Controls bar at the bottom',clock:'Clock',arrows:'Shelf arrows',position:'Position counter',tools:'Sort, filter and random buttons'};
   const ACTIONS={left:'Previous game',right:'Next game',up:'Up · previous system',down:'Down · next system',play:'Play',case:'Open case',back:'Back',manual:'Manual',favorite:'Favourite',hide:'Hide game',pgup:'Jump back 10',pgdn:'Jump forward 10',random:'Random game',sysprev:'Previous system',sysnext:'Next system',systems:'System list'};
   const KEY_DEFAULTS={left:'ArrowLeft',right:'ArrowRight',up:'ArrowUp',down:'ArrowDown',play:'Enter',case:' ',back:'Escape',manual:'m',favorite:'f',hide:'Delete',pgup:'PageUp',pgdn:'PageDown',random:'',sysprev:'',sysnext:''};
@@ -93,7 +93,7 @@ const Customize=(()=>{
   }
   function apply(){
     root.dataset.idle=c.idle;root.dataset.infoAnim=c.infoAnim;root.dataset.viewAnim=c.viewAnim;
-    root.dataset.floorPulse=c.floorPulse?'on':'off';
+    root.dataset.shine=c.shine?'on':'off';root.dataset.floorPulse=c.floorPulse?'on':'off';
     root.style.setProperty('--glide',glide().toFixed(3));cycle();
     root.dataset.reflections=c.reflections?'on':'off';root.dataset.spotlight=c.spotlight?'on':'off';
     if(c.hide.length)root.dataset.hide=c.hide.join(' ');else delete root.dataset.hide;
@@ -134,7 +134,7 @@ const Customize=(()=>{
       ${check('data-flag="reflections"','Floor reflection under the selected case')}${check('data-flag="spotlight"','Spotlight behind the shelf')}
       <h3>Motion</h3>
       ${choice('idle','Selected case')}${slider('shelfSpeed','Shelf speed')}${choice('infoAnim','Game details')}${choice('viewAnim','Changing screens')}
-      ${check('data-flag="floorPulse"','Pulsing glow on the floor')}${check('data-flag="colorCycle"','Colour cycle: the accent colour drifts through every colour')}
+      ${check('data-flag="shine"','Light sweep across the selected case')}${check('data-flag="floorPulse"','Pulsing glow on the floor')}${check('data-flag="colorCycle"','Colour cycle: the accent colour drifts through every colour')}
       <p class="hint" id="cMotionNote"></p>
       <h3>Interface</h3>
       ${Object.entries(PARTS).map(([part,label])=>check(`data-part="${part}"`,label)).join('')}
