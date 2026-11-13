@@ -1,10 +1,17 @@
 // The "Customize" panel in Settings: your own accent colour and background image, background speed
 // and brightness, the size, spacing and tilt of the shelf, which parts of the interface are shown,
-// and which keys and controller buttons do what. Every change applies at once and saves itself.
+// how the interface moves, and which keys and controller buttons do what. Every change applies at
+// once and saves itself.
 const Customize=(()=>{
   const root=document.documentElement,$=s=>document.querySelector(s);
-  const DEFAULTS={accent:'',bgSpeed:1,bgBrightness:1,bgImage:'',caseSize:1,spacing:1,tilt:1,reflections:true,spotlight:true,hide:[],clock:'auto',keys:{},pad:{}};
-  const RANGES={bgSpeed:[.25,2],bgBrightness:[.4,1.4],caseSize:[.8,1.1],spacing:[.7,1.4],tilt:[0,1.4]};
+  const DEFAULTS={accent:'',bgSpeed:1,bgBrightness:1,bgImage:'',caseSize:1,spacing:1,tilt:1,reflections:true,spotlight:true,idle:'float',shelfSpeed:1,infoAnim:'rise',viewAnim:'none',floorPulse:false,colorCycle:false,hide:[],clock:'auto',keys:{},pad:{}};
+  const RANGES={bgSpeed:[.25,2],bgBrightness:[.4,1.4],caseSize:[.8,1.1],spacing:[.7,1.4],tilt:[0,1.4],shelfSpeed:[.5,2]};
+  // Animation styles. The first of each is what PyroCade does when nothing is chosen.
+  const CHOICES={
+    idle:{float:'Float',bob:'Bob up and down',rock:'Rock side to side',spin:'Turn all the way round',pulse:'Pulse',still:'Stay still'},
+    infoAnim:{rise:'Rise',fade:'Fade',slide:'Slide in',none:'None'},
+    viewAnim:{none:'None',fade:'Fade',slide:'Slide',zoom:'Zoom'}};
+  const OFF_FLAGS=['floorPulse','colorCycle'];
   const PARTS={hints:'Controls bar at the bottom',clock:'Clock',arrows:'Shelf arrows',position:'Position counter',tools:'Sort, filter and random buttons'};
   const ACTIONS={left:'Previous game',right:'Next game',up:'Up · previous system',down:'Down · next system',play:'Play',case:'Open case',back:'Back',manual:'Manual',favorite:'Favourite',hide:'Hide game',pgup:'Jump back 10',pgdn:'Jump forward 10',random:'Random game',sysprev:'Previous system',sysnext:'Next system',systems:'System list'};
   const KEY_DEFAULTS={left:'ArrowLeft',right:'ArrowRight',up:'ArrowUp',down:'ArrowDown',play:'Enter',case:' ',back:'Escape',manual:'m',favorite:'f',hide:'Delete',pgup:'PageUp',pgdn:'PageDown',random:'',sysprev:'',sysnext:''};
@@ -17,7 +24,7 @@ const Customize=(()=>{
   const RESERVED=['o','i','F9','F11'];
   const norm=key=>key.length===1?key.toLowerCase():key;
   const keyId=key=>!key?null:KEY_IDS[key]||(/^[a-z0-9]$/.test(key)?key:/^F([1-9]|1[0-2])$/.test(key)?key.toLowerCase():null);
-  let c=structuredClone(DEFAULTS),context,saves=Promise.resolve(),saveTimer=0,capture=null,layer=null;
+  let c=structuredClone(DEFAULTS),context,saves=Promise.resolve(),saveTimer=0,capture=null,layer=null,cycleTimer=0,hue=0;
 
   function sanitize(saved){
     const next=structuredClone(DEFAULTS);if(!saved||typeof saved!=='object')return next;
@@ -25,6 +32,8 @@ const Customize=(()=>{
     for(const [key,[lo,hi]] of Object.entries(RANGES)){const v=Number(saved[key]);if(Number.isFinite(v))next[key]=Math.max(lo,Math.min(hi,v))}
     if(typeof saved.bgImage==='string'&&/^file:/i.test(saved.bgImage))next.bgImage=saved.bgImage;
     next.reflections=saved.reflections!==false;next.spotlight=saved.spotlight!==false;
+    for(const flag of OFF_FLAGS)next[flag]=saved[flag]===true;
+    for(const key of Object.keys(CHOICES))if(Object.hasOwn(CHOICES[key],saved[key]))next[key]=saved[key];
     if(Array.isArray(saved.hide))next.hide=saved.hide.filter(part=>Object.hasOwn(PARTS,part));
     if(['auto','12','24'].includes(saved.clock))next.clock=saved.clock;
     // A binding is kept only while it stays one key or button per action.
@@ -50,6 +59,8 @@ const Customize=(()=>{
   const keyIcon=action=>keyId(keyFor(action));
   const padIcon=action=>PAD_BUTTONS[buttonFor(action)][0];
   const shelf=()=>({size:c.caseSize,spacing:c.spacing,tilt:c.tilt});
+  // How long the shelf takes to move, as a multiple of the usual time.
+  const glide=()=>1/c.shelfSpeed;
   function time(date=new Date()){
     return date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',...(c.clock==='auto'?{}:{hour12:c.clock==='12'})});
   }
@@ -61,11 +72,29 @@ const Customize=(()=>{
   }
   // Appearance sets the preset colours; this runs straight after to put a custom colour on top.
   function paint(){
-    if(!c.accent)return;
-    root.style.setProperty('--accent',c.accent);root.style.setProperty('--accent2',lighten(c.accent));root.dataset.theme='custom';
+    const colour=cycleTimer?cycleColour():c.accent;if(!colour)return;
+    root.style.setProperty('--accent',colour);root.style.setProperty('--accent2',lighten(colour));root.dataset.theme='custom';
     for(const button of document.querySelectorAll('#themeOptions button'))button.setAttribute('aria-pressed','false');
   }
+  // Colour cycle: the accent colour drifts round the colour wheel, once every minute and a half.
+  function cycleColour(){
+    const f=n=>{const k=(n+hue/30)%12,v=.62-.7*.38*Math.max(-1,Math.min(k-3,9-k,1));return Math.round(v*255).toString(16).padStart(2,'0')};
+    return '#'+f(0)+f(8)+f(4);
+  }
+  function cycleStep(){
+    if(document.hidden)return;hue=(hue+1)%360;const colour=cycleColour();
+    root.style.setProperty('--accent',colour);root.style.setProperty('--accent2',lighten(colour));
+  }
+  // It rests while motion is reduced or animations are off, and hands the colour back when it stops.
+  function cycle(){
+    const want=c.colorCycle&&root.dataset.motion!=='reduced';
+    if(want&&!cycleTimer)cycleTimer=setInterval(cycleStep,250);
+    else if(!want&&cycleTimer){clearInterval(cycleTimer);cycleTimer=0}
+  }
   function apply(){
+    root.dataset.idle=c.idle;root.dataset.infoAnim=c.infoAnim;root.dataset.viewAnim=c.viewAnim;
+    root.dataset.floorPulse=c.floorPulse?'on':'off';
+    root.style.setProperty('--glide',glide().toFixed(3));cycle();
     root.dataset.reflections=c.reflections?'on':'off';root.dataset.spotlight=c.spotlight?'on':'off';
     if(c.hide.length)root.dataset.hide=c.hide.join(' ');else delete root.dataset.hide;
     if(typeof Ambient!=='undefined')Ambient.configure({speed:c.bgSpeed,brightness:c.bgBrightness});
@@ -89,6 +118,7 @@ const Customize=(()=>{
 
   const percent=v=>Math.round(v*100)+'%';
   const slider=(key,label,step=.05)=>`<label class="row"><span>${label}</span><input type="range" data-range="${key}" min="${RANGES[key][0]}" max="${RANGES[key][1]}" step="${step}"/><output data-out="${key}"></output></label>`;
+  const choice=(key,label)=>`<label class="row"><span>${label}</span><select data-choice="${key}">${Object.entries(CHOICES[key]).map(([value,name])=>`<option value="${value}">${name}</option>`).join('')}</select></label>`;
   const check=(attr,label)=>`<label class="row check"><input type="checkbox" ${attr}/> ${label}</label>`;
   function build(panel){
     panel.innerHTML=`<h2 id="customizeHeading">Customize</h2>
@@ -102,6 +132,10 @@ const Customize=(()=>{
       ${slider('caseSize','Case size',.01)}${slider('spacing','Space between cases')}${slider('tilt','Side case tilt')}
       <p class="hint">Spacing and tilt apply to the Carousel, Flipbook and Media carousel layouts.</p>
       ${check('data-flag="reflections"','Floor reflection under the selected case')}${check('data-flag="spotlight"','Spotlight behind the shelf')}
+      <h3>Motion</h3>
+      ${choice('idle','Selected case')}${slider('shelfSpeed','Shelf speed')}${choice('infoAnim','Game details')}${choice('viewAnim','Changing screens')}
+      ${check('data-flag="floorPulse"','Pulsing glow on the floor')}${check('data-flag="colorCycle"','Colour cycle: the accent colour drifts through every colour')}
+      <p class="hint" id="cMotionNote"></p>
       <h3>Interface</h3>
       ${Object.entries(PARTS).map(([part,label])=>check(`data-part="${part}"`,label)).join('')}
       <label class="row"><span>Clock</span><select id="cClock"><option value="auto">Follow Windows</option><option value="12">12-hour</option><option value="24">24-hour</option></select></label>
@@ -115,13 +149,14 @@ const Customize=(()=>{
       <div class="row"><button type="button" id="cPadReset">Reset buttons</button><button type="button" id="cResetAll">Reset everything in Customize</button></div>`;
     panel.addEventListener('input',e=>{
       const range=e.target.dataset?.range;
-      if(range)change({[range]:Number(e.target.value)},{relayout:['caseSize','spacing','tilt'].includes(range)});
+      if(range)change({[range]:Number(e.target.value)},{relayout:['caseSize','spacing','tilt','shelfSpeed'].includes(range)});
       else if(e.target.id==='cAccent')change({accent:e.target.value});
     });
     panel.addEventListener('change',e=>{
       const t=e.target;
       if(t.dataset.flag)change({[t.dataset.flag]:t.checked});
       else if(t.dataset.part)change({hide:Object.keys(PARTS).filter(part=>part===t.dataset.part?!t.checked:c.hide.includes(part))},{relayout:true});
+      else if(t.dataset.choice)change({[t.dataset.choice]:t.value});
       else if(t.id==='cClock')change({clock:t.value});
       else if(t.dataset.padAction)bindButton(t.dataset.padAction,Number(t.value));
     });
@@ -142,6 +177,10 @@ const Customize=(()=>{
     $('#cAccentReset').disabled=!c.accent;
     for(const input of panel.querySelectorAll('[data-range]')){input.value=c[input.dataset.range];panel.querySelector(`[data-out="${input.dataset.range}"]`).textContent=percent(c[input.dataset.range])}
     for(const box of panel.querySelectorAll('[data-flag]'))box.checked=c[box.dataset.flag];
+    for(const select of panel.querySelectorAll('[data-choice]'))select.value=c[select.dataset.choice];
+    const still=root.dataset.motion==='reduced';
+    $('#cMotionNote').textContent=still?'Motion is reduced or animations are off in Interface, so these are resting. Shelf speed still applies when motion is back.':'The selected case style shows in the Carousel layout. All of these rest when motion is reduced.';
+    $('#cMotionNote').classList.toggle('warn',still);
     for(const box of panel.querySelectorAll('[data-part]'))box.checked=!c.hide.includes(box.dataset.part);
     $('#cClock').value=c.clock;
     const canPick=typeof api!=='undefined'&&!!api.pickBackgroundImage;
@@ -190,7 +229,8 @@ const Customize=(()=>{
     const canvas=$('#xmb');
     if(canvas){layer=document.createElement('div');layer.id='bgImage';layer.hidden=true;canvas.before(layer)}
     const panel=$('#customizePanel');if(panel)build(panel);
+    if(!init.watching){init.watching=true;new MutationObserver(()=>{const was=!!cycleTimer;cycle();if(was!==!!cycleTimer&&typeof Appearance!=='undefined')Appearance.apply({},false);sync()}).observe(root,{attributes:true,attributeFilter:['data-motion']})}
     apply();sync();
   }
-  return {init,paint,clearAccent,keyAction,padMap,keyIcon,padIcon,shelf,time,capturing:()=>!!capture,settings:()=>structuredClone(c)};
+  return {init,paint,clearAccent,keyAction,padMap,keyIcon,padIcon,shelf,glide,time,capturing:()=>!!capture,settings:()=>structuredClone(c)};
 })();

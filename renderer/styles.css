@@ -110,13 +110,13 @@ header { position: relative; z-index: 5; display: flex; align-items: center; gap
 .shelf-instruction { margin-left: auto; color: #a1a9bc; }
 #empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 18px; }
 
-.item { position: absolute; width: var(--w); height: var(--h); transform-style: preserve-3d; transition: transform .7s cubic-bezier(.22,1,.36,1); cursor: pointer; }
+.item { position: absolute; width: var(--w); height: var(--h); transform-style: preserve-3d; transition: transform calc(.7s * var(--glide, 1)) cubic-bezier(.22,1,.36,1); cursor: pointer; }
 .item.far { visibility: hidden; pointer-events: none; }
 /* Filters or opacity on a 3D ancestor flatten its six faces. Shade the faces instead. */
 .item:not(.sel) .f-front::after { background: #080b1555; }
-.item .sway { transform-style: preserve-3d; transform: rotateY(0deg); transition: transform .7s cubic-bezier(.22,1,.36,1); }
+.item .sway { transform-style: preserve-3d; transform: rotateY(0deg); transition: transform calc(.7s * var(--glide, 1)) cubic-bezier(.22,1,.36,1); }
 /* Ease into the selected pose before the idle loop starts, so selection never snaps. */
-.item.sel .sway { transform: rotateY(22deg) rotateX(-4deg); animation: shelf-float 6s ease-in-out .7s infinite; }
+.item.sel .sway { transform: rotateY(22deg) rotateX(-4deg); animation: shelf-float 6s ease-in-out calc(.7s * var(--glide, 1)) infinite; }
 @keyframes shelf-float { 0%,100% { transform: translateY(0) rotateY(22deg) rotateX(-4deg); } 50% { transform: translateY(-5px) rotateY(26deg) rotateX(-3deg); } }
 .item .shadow { position: absolute; left: -8%; right: -8%; height: 48px; pointer-events: none; transform: rotateX(90deg); transform-origin: top; }
 .item .shadow::before,.item .shadow::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: #0009; filter: blur(13px); }
@@ -754,6 +754,27 @@ html[data-hide~='clock']:not(.ambient) #clock { display: none; }
 html[data-hide~='arrows'] .shelf-arrow { display: none !important; }
 html[data-hide~='position'] :is(#shelfPosition, .shelf-progress) { display: none; }
 html[data-hide~='tools'] .shelf-tools { display: none; }
+/* Motion options. :where() keeps the selected-case styles below the layouts that hold the case still. */
+html:where([data-idle=bob]) .item.sel .sway { animation-name: idle-bob; animation-duration: 2.8s; }
+html:where([data-idle=rock]) .item.sel .sway { animation-name: idle-rock; animation-duration: 7s; }
+html:where([data-idle=spin]) .item.sel .sway { animation-name: idle-spin; animation-duration: 14s; animation-timing-function: linear; }
+html:where([data-idle=pulse]) .item.sel .sway { animation-name: idle-pulse; animation-duration: 2.6s; }
+html:where([data-idle=still]) .item.sel .sway { animation: none; }
+@keyframes idle-bob { 0%,100% { transform: translateY(0) rotateY(22deg) rotateX(-4deg); } 50% { transform: translateY(-14px) rotateY(22deg) rotateX(-4deg); } }
+@keyframes idle-rock { 0%,100% { transform: rotateY(22deg) rotateX(-4deg); } 30% { transform: rotateY(36deg) rotateX(-3deg); } 75% { transform: rotateY(6deg) rotateX(-4deg); } }
+@keyframes idle-spin { from { transform: rotateY(22deg) rotateX(-4deg); } to { transform: rotateY(382deg) rotateX(-4deg); } }
+@keyframes idle-pulse { 0%,100% { transform: rotateY(22deg) rotateX(-4deg) scale(1); } 50% { transform: rotateY(22deg) rotateX(-4deg) scale(1.045); } }
+html[data-floor-pulse='on'] #floor { animation: floor-pulse 2.6s ease-in-out infinite alternate; }
+@keyframes floor-pulse { to { transform: scale(1.1, 1.3); filter: brightness(2.2) saturate(1.2); } }
+html[data-info-anim=fade] #info.swap .info-text { animation-name: fade; }
+html[data-info-anim=slide] #info.swap .info-text { animation-name: info-slide; }
+html[data-info-anim=none] #info.swap .info-text { animation: none; }
+@keyframes info-slide { from { opacity: 0; transform: translateX(26px); } }
+html[data-view-anim=fade] .view.active { animation: fade .3s ease; }
+html[data-view-anim=slide] .view.active { animation: view-slide .34s cubic-bezier(.22,1,.36,1); }
+html[data-view-anim=zoom] .view.active { animation: view-zoom .32s cubic-bezier(.22,1,.36,1); }
+@keyframes view-slide { from { opacity: 0; transform: translateX(34px); } }
+@keyframes view-zoom { from { opacity: 0; transform: scale(.975); } }
 #customizePanel h3 { margin: 20px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 #customizePanel .hint { margin: 4px 0 8px; font-size: 12px; color: var(--muted); }
 #customizePanel .hint.warn { color: var(--accent2); }

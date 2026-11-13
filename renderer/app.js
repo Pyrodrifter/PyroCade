@@ -570,7 +570,7 @@ function resizeShelf() {
     : $('#info').offsetHeight + 114;
   library.style.setProperty('--info-clearance', clearance + 'px');
 }
-function revealSelection(delay = 720) {
+function revealSelection(delay = 720 * Customize.glide()) {
   clearTimeout(revealTimer);
   for (const [i,e] of items) if (i !== S.sel) e.classList.remove('media-revealed');
   const game = S.list[S.sel];
